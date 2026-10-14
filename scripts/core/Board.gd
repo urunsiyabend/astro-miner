@@ -690,6 +690,7 @@ func goal_progress(g: Dictionary) -> int:
 		"rock": return stats.rocks_broken
 		"chunks": return stats.chunks
 		"crystal": return stats.crystals
+		"blast": return stats.blasts
 	return 0
 
 
@@ -708,5 +709,5 @@ func snapshot() -> Dictionary:
 		"reserve": reserve.duplicate(), "depth": dug.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,
-		"crystals": stats.crystals,
+		"crystals": stats.crystals, "blasts": stats.blasts,
 	}

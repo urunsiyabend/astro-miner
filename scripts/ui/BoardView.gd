@@ -14,6 +14,9 @@ const K := Board.Token
 const MAX_PIT := 4          # deepest level drawn; deeper pits look the same
 const PIT_STEP := 0.09      # wall width per dug layer, as a fraction of a cell
 const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
+## Painted tile sprites (docs/art). Each is a square top face with a thin earth band below it,
+## so a tile is drawn one cell wide and a bit taller; the next row covers the band.
+const TILE_DIR := "res://assets/tiles/"
 
 var snap: Dictionary = {}
 var scanner := false
@@ -43,11 +46,15 @@ var _touching := false
 var _swiped := false
 var _font: Font
 var _sb := StyleBoxFlat.new()
+var _tiles := {}   # name -> Texture2D; empty = draw the ground in code
 
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_sb.anti_aliasing = true
+	for n in ["soil_a", "soil_b", "pit", "rock"]:
+		if ResourceLoader.exists(TILE_DIR + n + ".png"):
+			_tiles[n] = load(TILE_DIR + n + ".png")
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	resized.connect(_layout)
 	_layout()
@@ -295,7 +302,8 @@ func _draw() -> void:
 	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
 	draw_set_transform(off)
 	var frame := Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20))
-	draw_rect(frame, Pal.BEDROCK)
+	if _tiles.size() != 4:
+		draw_rect(frame, Pal.BEDROCK)
 	var moving_to := -1
 	var moving_from := -1
 	var mt := 0.0
@@ -382,6 +390,9 @@ func _level(p: Vector2i) -> int:
 
 func _draw_ground(i: int) -> void:
 	var r := _rect(i, 0)
+	if _tiles.size() == 4:
+		_draw_tile(i, r)
+		return
 	if snap.terrain[i] == T.BEDROCK:
 		draw_rect(r, Pal.BEDROCK)
 		for k in 3:
@@ -462,6 +473,11 @@ func _wall(o: Rect2, n: Rect2, ins: Array, base: Color) -> void:
 func _draw_rock(i: int) -> void:
 	var r := _rect(i, 0)
 	var hpv: int = snap.hp[i]
+	if _tiles.size() == 4:
+		_draw_layer_pill(r.get_center() + Vector2(0, -cell * 0.05), cell * 0.42, hpv)
+		if scanner:
+			_draw_buried(r.get_center(), snap.buried[i])
+		return
 	var col: Color = Pal.ROCK[clampi(hpv, 1, 3)]
 	var face := col.darkened(0.45)
 	var hstep := cell * ROCK_STEP
@@ -501,6 +517,41 @@ func _draw_rock(i: int) -> void:
 		draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
 	if scanner:
 		_draw_buried(c, snap.buried[i])
+
+
+## Tile-sprite ground: soil (two variants), a dug pit, or a rock block; bedrock stays empty so
+## the board reads as a floating island.
+func _draw_tile(i: int, r: Rect2) -> void:
+	var t: int = snap.terrain[i]
+	if t == T.BEDROCK:
+		return
+	var tex: Texture2D
+	var tint := Color.WHITE
+	if t == T.ROCK:
+		tex = _tiles.rock
+	elif snap.depth[i] > 0:
+		tex = _tiles.pit
+		tint = Color.WHITE.darkened(0.12 * (mini(snap.depth[i], MAX_PIT) - 1))
+	else:
+		tex = _tiles.soil_a if (i * 7 + i / Board.W) % 3 else _tiles.soil_b
+	var res: int = snap.reserve[i] if t == T.GROUND else 1
+	if t == T.GROUND and res <= 0 and (snap.depth[i] > 0 or snap.token[i] == K.NONE):
+		tint = tint.darkened(0.35)
+	var h := cell * tex.get_height() / tex.get_width()
+	draw_texture_rect(tex, Rect2(r.position, Vector2(cell, h)), false, tint)
+	if t == T.GROUND and res > 0:
+		var n := mini(res, 5)
+		var pill := Rect2(Vector2(r.get_center().x - (n * 16 + 10) * 0.5, r.end.y - 24), Vector2(n * 16 + 10, 18))
+		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
+		for k in n:
+			draw_circle(Vector2(pill.position.x + 13 + k * 16, pill.get_center().y), 5.5, Pal.VEIN)
+
+
+func _draw_layer_pill(c: Vector2, rad: float, hpv: int) -> void:
+	var pill := Rect2(Vector2(c.x - 12 - hpv * 9, c.y - rad * 0.95), Vector2(24 + hpv * 18 - 6, 22))
+	_round_rect(pill, Color(0, 0, 0, 0.55), 11)
+	for k in hpv:
+		draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
 
 
 static func _moved(pts: PackedVector2Array, by: Vector2) -> PackedVector2Array:

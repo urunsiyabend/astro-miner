@@ -32,6 +32,10 @@ var _reach: Array = []
 var _hints_used := 0
 var _idle := 0.0
 var _auto_hint := false
+## The hint arrow appears on its own only in the first digs, after this long without a move;
+## later it shows only when the Hint button is tapped.
+const AUTO_HINT_DIGS := 5
+const AUTO_HINT_IDLE := 8.0
 var _lesson := false
 # Mira's script for this dig (see Sites): current step and the event a coach line waits for.
 var _script: Array = []
@@ -153,7 +157,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_idle = 0.0
 	var guide: bool = site.get("guide", false)
 	_lesson = (guide or site.get("building_level", false)) and not supply
-	_auto_hint = guide and not supply and site.get("auto_hint", true)
+	_auto_hint = index < AUTO_HINT_DIGS and not supply
 	if _result:
 		_result.queue_free()
 		_result = null
@@ -162,7 +166,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_coach.clear()
 	_waiting = ""
 	_events = {}
-	# Script: modal lines only the first time this dig is played; coach lines every time.
+	# Script: Mira says it the first time this dig is played, never again on a retry.
 	var seen: bool = Game.tips_seen.has(site.id)
 	_script = []
 	# new-tool reminders, unless this dig is the hand-made lesson that teaches the tool anyway
@@ -172,7 +176,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 			_script.append({"say": line})
 	if not supply:
 		for st in site.get("script", []):
-			if st.has("until") or not seen:
+			if not seen:
 				_script.append(st)
 	Game.tips_seen[site.id] = true
 	Game.save()
@@ -296,7 +300,7 @@ func _process(delta: float) -> void:
 			_recall_btn.text = "Recall"
 	if board and not board.over and not view.is_busy() and not _busy_talking():
 		_idle += delta
-		if _auto_hint and _idle > 2.0 and view.hint_dir == -1 and not _reach.is_empty():
+		if _auto_hint and _idle > AUTO_HINT_IDLE and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
 
 
@@ -362,6 +366,7 @@ func _on_snap(s: Dictionary) -> void:
 			"rock": v = s.rocks
 			"chunks": v = s.chunks
 			"crystal": v = s.crystals
+			"blast": v = s.blasts
 		_goals.set_have(i, v)
 
 
@@ -373,6 +378,7 @@ func _on_settled() -> void:
 		get_tree().create_timer(0.45).timeout.connect(_show_result)
 		return
 	_refresh_reach()
+	_first_encounters()
 	if _waiting != "" and _events.has(_waiting):
 		_events = {}
 		_step += 1
@@ -382,6 +388,20 @@ func _on_settled() -> void:
 	if _has_pending:
 		_has_pending = false
 		_do_move(_pending)
+
+
+## One-line notes for things that can turn up before their own lesson (a random line of 4
+## leaves a charge long before the charge dig). Each is said once per colony.
+func _first_encounters() -> void:
+	if supply or _waiting != "":
+		return
+	var notes := {"charge": "A line of 4 leaves a blast charge. Step onto it to blow up everything around it."}
+	for ev in notes:
+		var key: String = "first_" + ev
+		if _events.has(ev) and not Game.tips_seen.has(key):
+			Game.tips_seen[key] = true
+			_coach.say(notes[ev], 5.0)
+			return
 
 
 func _refresh_reach() -> void:
