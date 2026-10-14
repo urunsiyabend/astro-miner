@@ -137,7 +137,11 @@ func refresh(celebrate := -1) -> void:
 		_go_btn.text = "SUPPLY RUN"
 		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
 	if is_inside_tree():
-		_advice.say(Story.advice())
+		var line := Story.advice()
+		if line == "":
+			_advice.clear()
+		else:
+			_advice.say(line)
 		_guide.call_deferred()
 	var t: Dictionary = Game.totals
 	var mpm := float(t.moves) / maxf(1.0, t.groups)

@@ -45,7 +45,8 @@ const REMIND := [
 ]
 
 
-## One line of colony advice for the current state.
+## Colony advice, only when something is new or in the way; otherwise Mira stays quiet ("").
+## An affordable upgrade is pointed out once per building level.
 static func advice() -> String:
 	if Game.totals.digs == 0:
 		return "Welcome to the outpost! The colony grows on ore. Tap DIG and send the robot out."
@@ -62,9 +63,12 @@ static func advice() -> String:
 			return "The next site is behind a basalt shell. We need the %s and its drill. Supply runs gather the ore." % bname
 	for b in Economy.BUILDINGS.size():
 		var lv: int = Game.levels[b]
-		if lv < Economy.MAX_LEVEL and Economy.can_afford(Game.bank, Economy.cost(b, lv)):
-			return "We can afford the %s upgrade: %s. Every building gives the robot something new." % [
-					Economy.BUILDINGS[b].name, Economy.BUILDINGS[b].effects[lv + 1]]
-	if next < 0:
+		var key := "afford_%d_%d" % [b, lv + 1]
+		if lv >= 1 and lv < Economy.MAX_LEVEL and not Game.tips_seen.has(key) \
+				and Economy.can_afford(Game.bank, Economy.cost(b, lv)):
+			Game.tips_seen[key] = true
+			return "We can afford the %s upgrade: %s." % [Economy.BUILDINGS[b].name, Economy.BUILDINGS[b].effects[lv + 1]]
+	if next < 0 and not Game.tips_seen.has("all_charted"):
+		Game.tips_seen["all_charted"] = true
 		return "Every site is charted. Supply runs keep the ore coming so the colony can keep growing."
-	return "Next dig is ready. Bring back ore so the colony can grow."
+	return ""

@@ -1,93 +1,98 @@
-# Level plan (master sheet), draft 1
+# Level plan (master sheet), v2: as built
 
-Built from `docs/research/match3-level-design.md`. Every level gets one idea, at most 3
-elements (at most 1 new), a planned role in the chapter's sawtooth, an energy budget and a
-board shape that differs from its neighbour. Levels are built from this sheet, then tuned by
-playing each ~10 times (energy left on wins, goals left on losses).
+Built from `docs/research/match3-level-design.md` and implemented in `scripts/core/Sites.gd`.
+Every dig has one idea, at most 3 elements (at most 1 new), a role in its chapter's sawtooth
+and a board shape that differs from its neighbours.
 
-## Elements
+## Decisions
 
-| Code | Element | Property (King's framework terms) |
-|---|---|---|
-| SW | Robot swap + lines of 3 | the core verb |
-| VE | Veins and depth | layered ground: a match digs a layer, new ore rises, the cell runs dry |
-| R1 | Rubble (1-layer rock) | stationary, colourless, removable by a match beside it |
-| CR | Crystal | hidden under rock, picked up by driving onto it |
-| EC | Energy cell | hidden under rock, refills the battery |
-| CH | Blast charge | made by a line of 4+, clears 3×3, breaks thick rock |
-| R3 | Stone / basalt (2–3 layers) | layered version of R1, introduced after R1 is familiar |
-| P / W / L | Power Station / Workshop drill / Lab scanner | building tools, each with its own level |
+- **Building digs come right after their unlock.** Each chapter ends with a reward dig that
+  unlocks a building; the next dig is that building's hand-made level. It needs the new tool
+  but also uses matching, rock and energy. This moved the crystal lesson from chapter 2 into
+  chapter 1 (dig 8), so the Power Station dig can end at a crystal.
+- **Fixed shape, fresh ore.** Lessons and building digs have a fixed layout (`"ore"` rows plus
+  a pinned seed) and a recorded solution that the tests replay. Every other dig keeps its
+  shape, rock and goals, but gets new ore on each attempt.
+- **Energy is not the main difficulty lever.** In the bot runs, digs on open ground end with
+  the battery nearly full, because matches refund more than moving costs. Difficulty comes
+  from the ore running out (shallow `:` and empty `_` ground), from rock to get through, and
+  from goal size. A low starting `energy` only matters on boards that are short of ore.
 
-Shapes: cells outside the play area are bedrock, so boards can be diamonds, rings, rooms,
-corridors. Neighbouring levels never share a shape.
+## Guidance budget (implemented)
 
-## Guidance budget
+- Mira's script plays **the first time** a dig is played, never on a retry. This covers both
+  the lines you tap through and the instructions that stay up during play. 10 of the 31 digs
+  have a script at all (tested: at most a third).
+- **Hint arrow:** shows by itself only in digs 1–5, after 8 s without a move. After that it
+  appears only when you tap Hint.
+- **Colony:** Mira speaks only when something new happens or something is in the way:
+  - the first visit;
+  - a building to build;
+  - a dig that needs a building you don't have;
+  - an upgrade becoming affordable (once per building level);
+  - every site charted (once).
 
-- **First encounter only:** one Mira line, the screen dimmed except the element, the first
-  move highlighted. Never repeated on a retry or later level.
-- **Hint arrow:** on request (Hint button) only. In levels 1–5 it also appears after 8 s idle.
-- **Colony:** Mira speaks when something new happens (unlock, building built, first time an
-  upgrade is affordable). Otherwise she is quiet.
-- Mira's action lines that stay up during play ("swipe up…") exist only in levels 1, 5, 11, 15,
-  21, 22, i.e. the first encounter of each element. Everywhere else the board teaches.
+  Otherwise she is quiet.
+- **First-encounter notes:** a random line of 4 can leave a charge long before the charge
+  lesson. The first time that happens, one short note explains it.
 
-## Chapter 1: Landing Zone (levels 1–10). New: SW, VE, R1. Ends with the Power Station.
+## Campaign
 
-| # | Role | Idea (one sentence) | Elements | Goal | Energy | Shape |
-|---|---|---|---|---|---|---|
-| 1 | learn | One obvious move lines up Ferrite; the next line needs two steps. | **SW** | 6 Ferrite | 20 | 4×4 square |
-| 2 | learn | A chunk has to be dragged two cells to complete each line. | SW | 9 Cryo | 20 | 5×5 plus |
-| 3 | learn | The middle column is a deep vein: matching there keeps paying, the edges dry up fast. | SW **VE** | 15 ore | 20 | 5×6 |
-| 4 | breather | Big open field full of ore. | SW VE | 12 Lumen | 22 | 7×8 symmetric |
-| 5 | learn | A rubble band seals the top half; matches under it crack it open. | VE **R1** | break 4 | 20 | 7×6, band in row 2 |
-| 6 | vary | A ring of rubble guards a deep pocket in the centre. | VE R1 | break 6 + 10 Ferrite | 20 | ring |
-| 7 | **hard** | Two shallow rooms; open the wall between them before the first room runs dry. | VE R1 | 18 Cryo | 18 | two rooms |
-| 8 | breather | Hourglass of deep veins, generous goal. | SW VE | 20 ore | 22 | hourglass |
-| 9 | **super-hard, short** | Zig-zag corridor of rubble; every match has to crack forward. | R1 | break 10 | 16 | zig-zag |
-| 10 | reward | Mother lode: deep veins everywhere. Unlocks the Power Station. | SW VE | 25 ore | 24 | full board |
+Bot clear rate = PLANNER bot over 30 seeds with the buildings a player has at that dig
+(`tools/levels.gd`). Bots don't plan routes, so people should do better. The rate is a sanity
+check, not a target. "Hand" = fixed layout with a recorded solution.
 
-## Chapter 2: Glint Fields (11–20). New: CR, EC, P. Ends with the Workshop.
+### Chapter 1: Landing Zone. New: swap and match, veins, rubble, crystal. Battery 20.
 
-| # | Role | Idea | Elements | Goal | Energy | Shape |
-|---|---|---|---|---|---|---|
-| 11 | learn | One rubble rock glints: crack it and drive onto the crystal. | R1 **CR** | 1 crystal | 22 | small diamond |
-| 12 | learn | Three crystal rocks across the top: plan the route between them. | R1 CR | 3 crystals | 22 | T |
-| 13 | **P level** | A long bare tunnel to a crystal: only the bigger battery reaches it (reworked `longhaul`, field no longer cramped). | R1 CR **P** | 1 crystal | 26 | tunnel + field |
-| 14 | breather | Crystals near the start, lots of ore. | CR VE | 2 crystals | 24 | wide |
-| 15 | learn | Start nearly empty; the rock next to you hides an energy cell. | R1 **EC** | 12 Ferrite | 6 | small |
-| 16 | vary | A rock field with crystals and cells: which to open first? | R1 CR EC | 2 crystals | 20 | checkerboard |
-| 17 | **hard** | Shallow ground, crystals far apart, cells needed on the way. | VE CR EC | 3 crystals | 18 | long |
-| 18 | breather | Deep veins and a free crystal. | VE CR | 1 crystal + 15 ore | 24 | round |
-| 19 | **super-hard, short** | Crystal at the bottom of a rubble well; every step down costs. | R1 CR EC | 1 crystal | 14 | well |
-| 20 | reward | Crystal garden. Unlocks the Workshop. | CR VE | 4 crystals | 26 | full |
+| # | id | Role | Idea | Goal | Bot |
+|---|---|---|---|---|---|
+| 1 | first | learn | One obvious swap lines up 3 Ferrite; the rest needs a little planning. 5×4 room. | 6 Ferrite | hand |
+| 2 | drag | learn | Plus-shaped room: chunks get dragged into lines. | 9 Cryo | 100% |
+| 3 | vein | learn | Deep middle vein, shallow edges. Mira explains the pips. | 15 ore | 100% |
+| 4 | landing | breather | Big open field. | 12 Lumen | 100% |
+| 5 | rocks | learn | A rubble band; matches under it crack it. | break 4 | 86% |
+| 6 | ring | vary | A rubble ring around a deep pocket, on shallow ground. | break 8 + 16 Ferrite | 100% |
+| 7 | rooms | **hard** | Two shallow rooms; open the wall before the first runs dry. Energy 18. | 18 Cryo | 73% |
+| 8 | glint | learn | A glinting rock hides a crystal: crack it, drive onto it. | 1 crystal + 10 ore | 96% |
+| 9 | zigzag | **super-hard**, short | Rubble zig-zag on scarce, shallow ground. Energy 15. | break 13 | 20% |
+| 10 | lode | reward | Mother lode, deep veins everywhere. **Unlocks the Power Station.** | 25 ore | 100% |
 
-## Chapter 3: Basalt Shelf (21–30). New: W, CH, R3. Ends with the Lab.
+### Chapter 2: Glint Fields. New: Power Station, energy cell, blast charge. Battery 26.
 
-| # | Role | Idea | Elements | Goal | Energy | Shape |
-|---|---|---|---|---|---|---|
-| 21 | **W level** | Crystals in basalt vaults behind doorways: drill in (reworked `vaults`, fewer elements). | **W** CR | 2 crystals | 26 | two vaults |
-| 22 | learn | A line of 4 leaves a charge; step on it. | **CH** SW | 2 charges used | 24 | 6×6 |
-| 23 | learn | Stone (2 layers): one match isn't enough, a charge is. | **R3** CH | break 4 stone | 24 | stone band |
-| 24 | breather | Charges everywhere. | CH VE | 25 ore | 26 | wide |
-| 25 | vary | Drill or charge: basalt pockets, enough energy for only some drilling. | W CH R3 | 3 crystals | 20 | pockets |
-| 26 | **hard** | Basalt maze, drill sparingly. | W R3 | 2 crystals | 18 | maze |
-| 27 | breather | Soft rubble field, lots of cells. | R1 EC | break 12 | 24 | open |
-| 28 | vary | Charge chains: one blast sets off the next. | CH R3 | break 8 | 20 | grid of charges |
-| 29 | **super-hard, short** | Basalt core with 3 crystals (reworked `core`). | W CH R3 | 3 crystals | 18 | shell |
-| 30 | reward | Open seam. Unlocks the Lab (its level opens chapter 4). | VE CH | 30 ore | 26 | full |
+| # | id | Role | Idea | Goal | Bot |
+|---|---|---|---|---|---|
+| 11 | longhaul | **Power level** | A long bare tunnel to a crystal; only the bigger battery reaches it. | 1 crystal | hand |
+| 12 | route | vary | T-shaped dig, two crystal rocks at the top: plan the route. | 2 crystals | 86% |
+| 13 | nearby | breather | Crystals next to the start, deep veins around. | 2 crystals | 96% |
+| 14 | battery | learn | Start with 6 energy; the rock right above hides an energy cell. | 12 Ferrite | hand |
+| 15 | checker | vary | Rock checkerboard with crystals and cells: which to open first? | 2 crystals | 90% |
+| 16 | shallows | **hard** | Shallow ground, crystals far apart, cells on the way. Energy 20. | 3 crystals | 50% |
+| 17 | deep | breather | Deep veins and a crystal in the middle. | 1 crystal + 15 ore | 96% |
+| 18 | charge | learn | A line of 4 leaves a charge; step on it. | set off 2 blasts | hand |
+| 19 | well | **super-hard**, short | A crystal at the bottom of a rubble well. Energy 16. | 1 crystal | 23% |
+| 20 | garden | reward | Crystal garden. **Unlocks the Mining Workshop.** | 3 crystals | 100% |
 
-## What happens to today's levels
+### Chapter 3: Basalt Shelf. New: drill, stone and basalt. Battery 26 + drill.
 
-- `first`, `rocks`, `power` (lessons): replaced by 1–3, 5, 11, 15, 22. Their good parts (hand
-  placed first moves) stay; the 4-mechanics-at-once `power` dig goes.
-- `landing`, `rubble`, `glint`, `shale`, `vein`, `core`: become 4, 6, 14, 17, 24, 29 with new
-  shapes and an idea each.
-- `longhaul`, `vaults`, `readings`: 13, 21, and chapter 4's first level, reworked to fewer
-  elements.
+| # | id | Role | Idea | Goal | Bot |
+|---|---|---|---|---|---|
+| 21 | vaults | **Workshop level** | Crystals sealed in basalt vaults: drill in through the doorways. | 2 crystals | hand |
+| 22 | stone | learn | Stone has 2 layers: crack twice, drill or blast. | break 4 | 90% |
+| 23 | seam | breather | Bands of deep veins. | 25 ore | 100% |
+| 24 | pockets | vary | Basalt pockets with crystals: drill or charge. Energy 20. | 3 crystals | 86% |
+| 25 | maze | **hard** | Basalt maze, two crystals. Energy 20. | 2 crystals | 46% |
+| 26 | rubble | breather | Soft rubble field full of energy cells. | break 12 | 100% |
+| 27 | strata | vary | Stone ring pattern around deep veins. Energy 20. | break 10 | 93% |
+| 28 | shale | **hard** | Shallow ground, stone bands, cells under rock. | 15 Cryo + 1 crystal | 66% |
+| 29 | core | **super-hard** | Three crystals inside a basalt shell. Needs the drill. | 3 crystals | 10% |
+| 30 | openseam | reward | Open seam ringed by rock. **Unlocks the Research Lab.** | 30 ore | 100% |
+| 31 | readings | **Lab level** | Ten rocks, two crystals, small battery: use the scanner. Energy 14. | 2 crystals | hand |
 
-## Open questions
+## Tuning
 
-- Does every level keep a fixed layout (same every attempt), or a fixed shape with random ore?
-  Industry practice is a fixed shape with random ore, plus fixed boards for tutorials. This
-  sheet assumes that.
-- Chapter 4 (scanner, Lab upgrades) is left for after chapters 1–3 are playtested.
+- Re-run `godot --headless --path . -s res://tools/levels.gd -- 30` after editing a dig.
+  Add `id:MOVES` to make the solver start with Mira's moves (e.g. `battery:L`).
+- From the research: play each dig about 10 times and look at energy left on wins and goals
+  left on losses. Two reshuffles (Pulse) in one attempt mean the dig needs a redesign.
+- Super-hard digs (9, 19, 29) are short on purpose. If players stall there, loosen the energy
+  first, then the goal.
