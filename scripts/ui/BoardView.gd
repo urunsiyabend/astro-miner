@@ -315,19 +315,11 @@ func _draw() -> void:
 	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
 	draw_set_transform(off)
 	if _art:
-		# soft dark halo, then a tighter shadow, under the island block by block: lifts the
-		# board off the background
-		for k in 4:
-			var g := cell * (0.30 - k * 0.07)
-			for i in Board.W * Board.H:
-				if snap.terrain[i] != T.BEDROCK:
-					var r := _rect(i, 0)
-					var sr := Rect2(r.position + Vector2(0, cell * 0.12), Vector2(r.size.x, r.size.y * (1.0 + _band))).grow(g)
-					_round_rect(sr, Color(0.03, 0.01, 0.06, 0.10), g + 14)
+		# soft shadow under the island, block by block
 		for i in Board.W * Board.H:
 			if snap.terrain[i] != T.BEDROCK:
 				var r := _rect(i, 0)
-				_round_rect(Rect2(r.position + Vector2(6, 14), Vector2(r.size.x, r.size.y * (1.0 + _band))), Color(0, 0, 0, 0.32), 18)
+				_round_rect(Rect2(r.position + Vector2(6, 14), Vector2(r.size.x, r.size.y * (1.0 + _band))), Color(0, 0, 0, 0.28), 18)
 	else:
 		draw_rect(Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20)), Pal.BEDROCK)
 	var moving_to := -1

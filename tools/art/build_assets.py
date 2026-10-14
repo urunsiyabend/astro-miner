@@ -312,10 +312,7 @@ def build_background():
     s = max(w / bg.width, h / bg.height)
     bg = bg.resize((round(bg.width * s), round(bg.height * s)), Image.LANCZOS)
     bg = bg.crop(((bg.width - w) // 2, (bg.height - h) // 2, (bg.width - w) // 2 + w, (bg.height - h) // 2 + h))
-    # blurred (depth of field), cooler and darker than the board, so the lavender tiles pop
-    bg = bg.filter(ImageFilter.GaussianBlur(9))
-    bg = ImageEnhance.Color(bg).enhance(0.6)
-    bg = ImageEnhance.Brightness(bg).enhance(0.5)
+    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(5))).enhance(0.72)
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     bg.save(os.path.join(OUT, "bg", "space.jpg"), quality=88)
 
