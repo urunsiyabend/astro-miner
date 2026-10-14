@@ -3,8 +3,6 @@ extends Node
 ## Persistent colony state + local play metrics. Saved as JSON after every dig/purchase.
 
 const SAVE_VERSION := 2
-# v1 saved cleared sites by position; this was the site order then.
-const V1_SITE_ORDER := ["landing", "rubble", "glint", "shale", "vein", "core"]
 const LOG_MAX := 60
 
 var save_path := "user://save.json"
@@ -16,6 +14,7 @@ var sfx_on := true
 var tips_seen := {}
 var totals := {}
 var dig_log := []  # most recent digs, local instrumentation only
+var reminders := []  # [building, level] pairs Mira still has to mention at the next dig
 
 
 func _ready() -> void:
@@ -31,6 +30,7 @@ func reset() -> void:
 		cleared.append(false)
 	tips_seen = {}
 	dig_log = []
+	reminders = []
 	totals = {
 		"digs": 0, "clears": 0, "exhausted": 0, "recalled": 0, "moves": 0, "drills": 0,
 		"groups": 0, "cascades": 0, "chunks": 0, "pulses": 0, "upgrades": 0,
@@ -50,9 +50,44 @@ func buy(building: int) -> bool:
 	for i in 4:
 		bank[i] -= c[i]
 	levels[building] = lv + 1
+	reminders.append([building, lv + 1])
 	totals.upgrades += 1
 	save()
 	return true
+
+
+## Index of the next campaign dig (first one not cleared yet), or -1 when all are done.
+func next_dig() -> int:
+	for i in Sites.count():
+		if not cleared[i]:
+			return i
+	return -1
+
+
+## Whether the colony has what dig i needs (e.g. the drill for a basalt shell).
+func can_start(i: int) -> bool:
+	var need: Dictionary = Sites.get_site(i).get("needs", {})
+	return need.is_empty() or levels[need.building] >= need.level
+
+
+## A cleared open site to replay for resources (random layout each time).
+func supply_site() -> int:
+	var pool := []
+	for i in Sites.count():
+		if cleared[i] and not Sites.get_site(i).get("guide", false) and can_start(i):
+			pool.append(i)
+	if pool.is_empty():
+		return maxi(0, Sites.index_of("landing"))
+	return pool[randi() % pool.size()]
+
+
+## Mira's reminders about new colony tech, consumed by the next dig.
+func take_reminders() -> Array:
+	var out := []
+	for r in reminders:
+		out.append(Story.REMIND[r[0]][r[1] - 1])
+	reminders = []
+	return out
 
 
 ## Bank a finished dig. reason: "complete" | "energy" | "recall".
@@ -99,7 +134,7 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 func save() -> void:
 	var data := {
 		"version": SAVE_VERSION, "bank": bank, "levels": levels, "unlocked": unlocked,
-		"cleared_ids": cleared_ids(), "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
+		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
 		"dig_log": dig_log,
 	}
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
@@ -125,13 +160,7 @@ func load_save() -> void:
 	for i in 3:
 		levels[i] = clampi(levels[i], 0, Economy.MAX_LEVEL)
 	# Cleared sites are stored by id, so inserting new sites never shifts progress.
-	var ids: Array = data.get("cleared_ids", [])
-	if not data.has("cleared_ids"):
-		var cl: Array = data.get("cleared", [])
-		for i in mini(cl.size(), V1_SITE_ORDER.size()):
-			if bool(cl[i]):
-				ids.append(V1_SITE_ORDER[i])
-	for id in ids:
+	for id in data.get("cleared_ids", []):
 		var k := Sites.index_of(String(id))
 		if k >= 0:
 			cleared[k] = true
@@ -145,6 +174,10 @@ func load_save() -> void:
 	for k in t:
 		totals[k] = int(t[k])
 	dig_log = data.get("dig_log", [])
+	reminders = []
+	for r in data.get("reminders", []):
+		if r is Array and r.size() == 2 and int(r[0]) in [0, 1, 2] and int(r[1]) >= 1 and int(r[1]) <= Economy.MAX_LEVEL:
+			reminders.append([int(r[0]), int(r[1])])
 
 
 func cleared_ids() -> Array:

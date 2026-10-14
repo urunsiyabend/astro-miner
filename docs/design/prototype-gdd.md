@@ -102,38 +102,44 @@ per dig. Same seed + same moves = same result (tested).
 - Values are initial and are tuned by the simulation in `tools/simulate.gd`
   (see `docs/evaluation/core-loop-evaluation.md`).
 
-## 6. Objectives and sites
+## 6. Campaign, objectives and onboarding
 
-Each site is a handcrafted terrain template; on open sites ore types are generated per dig
-from a seed (no initial lines; at least one match reachable within 2 steps, verified by search).
+Digs come one after another; there is no site list and no site names on screen. Progress is
+felt in the colony: what gets built there is the point, digs are how you pay for it.
 
-**Tutorial sites** (marked *T*) come right before the site that uses their mechanic. They are
-fully hand-crafted: every token is placed by hand and the seed is fixed, so the opening and
-everything that surfaces afterwards is identical on every play. The play area is cut down with
-bedrock, the first useful move is unambiguous, and the hint arrow appears after 2 s idle on
-every turn (pointing at a visible crystal, energy cell or charge first, else the nearest
-match). Each tutorial's intended solution is replayed by the test suite.
+**Mira** (the colony chief, a drawn portrait) does all the explaining:
+- *Lines that wait for a tap* (modal, screen dimmed) explain something.
+- *Lines that wait for an action* stay under the board while you play and move on when the
+  event happens (`match`, `charge`, `blast`, `reveal`, `crystal`, `cell`, `drill`); the cells
+  she talks about pulse on the board, and on lesson digs the hint arrow appears after 2 s.
+- Tap lines play only the first time a dig is played; action lines every time.
+- Buying a building: she explains the new tool right away (`Story.BUILT`) and once more at the
+  start of the next dig (`Story.REMIND`). Drill, scanner and bigger blasts are never hidden.
+- In the colony she always says what to do next (`Story.advice()`): dig, build, or why the
+  next dig needs a building.
 
-| # | Site | Teaches | Objective |
-|---|------|---------|-----------|
-| 1 | First Step *T* | one move: the robot swaps with the ore it steps into | Extract 3 Ferrite |
-| 2 | Pull *T* | plan two steps: the ore you step into slides to where you stood | Extract 3 Cryo |
-| 3 | Landing Zone | moving, swapping, matching on a full site | Extract 12 Ferrite |
-| 4 | Veins *T* | matches dig the cell; new ore rises until the vein runs dry | Extract 24 ore |
-| 5 | Crack *T* | matches crack neighbouring rock; broken rock opens ground | Break 4 rock |
-| 6 | Rubble Field | rock bands | Break 8 rock |
-| 7 | Gem *T* | crystal under rock: crack it, then drive onto it | Recover 1 crystal |
-| 8 | Glint Pocket | buried crystals, pickups | Recover 2 crystals |
-| 9 | Low Battery *T* | every step costs energy; an energy cell refills it | Recover 1 crystal (start with 3 energy) |
-| 10 | Shale Shelf | energy cells, depletion | Extract 15 Cryo + recover 1 crystal |
-| 11 | Blast *T* | match 4 leaves a charge; its blast breaks basalt | Break 3 rock |
-| 12 | Deep Vein | deep reserves, blast charges | Extract 15 Lumen + recover 2 crystals |
-| 13 | Core Chamber | basalt shell (drill helps) | Recover 3 crystals |
+**Goals are shown as icons**: a goal card (big icons and counts) opens every dig, and the goal
+icons with counters sit right above the board; mined chunks that count fly into them.
+
+| # | Dig | What Mira teaches | Goal |
+|---|-----|-------------------|------|
+| 1 | first (lesson) | robot swaps with the ore it steps into, lines of 3, digging and veins, energy | Extract 15 ore |
+| 2 | landing | routes on a full site | Extract 12 Ferrite |
+| 3 | rocks (lesson) | matches crack rock, rock hides things, picking up crystals | Break 4 rock + 1 crystal |
+| 4 | rubble | rock fields | Break 8 rock |
+| 5 | glint | buried crystals | Recover 2 crystals |
+| 6 | power (lesson) | low battery, match 4 for a charge, blasts break basalt, energy cells | Recover 1 crystal (start with 2 energy) |
+| 7 | shale | shallow veins, energy cells | Extract 15 Cryo + 1 crystal |
+| 8 | vein | deep veins, charges | Extract 15 Lumen + 2 crystals |
+| 9 | core | needs the Mining Workshop (drill) | Recover 3 crystals |
+
+Lesson digs place every token by hand and pin the seed; the test suite replays each one's
+intended solution. After the last dig, and whenever the next dig needs a building, the DIG
+button starts a **supply run**: a cleared open site with a fresh random layout.
 
 - Completing an objective ends the dig with a bonus (remaining energy → bonus ore, plus a
-  first-clear crystal reward) and unlocks the next site.
+  first-clear crystal reward).
 - Running out of energy or recalling ends the dig; **the haul is always kept**.
-- Any unlocked site can be replayed to farm resources.
 
 ## 7. Resources and colony
 

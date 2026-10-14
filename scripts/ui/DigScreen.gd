@@ -1,22 +1,25 @@
 class_name DigScreen
 extends Control
 
-## One mining session: HUD + board + result panel. Owns the live Board.
+## One mining session: HUD + board + Mira's guidance + result panel. Owns the live Board.
+## Layout puts what matters next to the board: the goals as big icons right above it, Mira's
+## current instruction right below it.
 
 signal finished  # player chose to go back to the colony
 
 var board: Board
 var site_index := 0
+var supply := false
 var view: BoardView
 var fxl: FxLayer
 
 var _title: Label
-var _goal_box: VBoxContainer
-var _goal_rows: Array = []
+var _goals: Widgets.GoalStrip
 var _energy: Widgets.EnergyBar
 var _chips: Array = []
-var _toast: Label
-var _toast_t := 0.0
+var _coach: Dialog.Coach
+var _dialog: Dialog.Overlay
+var _mission: Control
 var _hint_btn: Button
 var _recall_btn: Button
 var _recall_armed := 0.0
@@ -27,6 +30,11 @@ var _reach: Array = []
 var _hints_used := 0
 var _idle := 0.0
 var _auto_hint := false
+# Mira's script for this dig (see Sites): current step and the event a coach line waits for.
+var _script: Array = []
+var _step := 0
+var _waiting := ""
+var _events := {}
 
 
 func _ready() -> void:
@@ -40,33 +48,36 @@ func _ready() -> void:
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 32)
-	margin.add_theme_constant_override("margin_top", 56)
+	margin.add_theme_constant_override("margin_top", 48)
 	margin.add_theme_constant_override("margin_bottom", 40)
 	add_child(margin)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 14)
+	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
-	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
-	col.add_child(_title)
-
-	var goals_panel := Ui.panel(Pal.PANEL, 24)
-	_goal_box = VBoxContainer.new()
-	_goal_box.add_theme_constant_override("separation", 6)
-	goals_panel.add_child(_goal_box)
-	col.add_child(goals_panel)
-
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 16)
+	_title = Ui.label("", Pal.FS, Pal.DIM)
+	_title.custom_minimum_size.x = 250
+	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	top.add_child(_title)
 	_energy = Widgets.EnergyBar.new()
-	col.add_child(_energy)
+	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(_energy)
+	col.add_child(top)
 
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
+		c.custom_minimum_size.y = 56
 		_chips.append(c)
 		chips.add_child(c)
 	col.add_child(chips)
+
+	_goals = Widgets.GoalStrip.new()
+	col.add_child(_goals)
 
 	view = BoardView.new()
 	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -76,10 +87,8 @@ func _ready() -> void:
 	view.fx.connect(_on_fx)
 	col.add_child(view)
 
-	_toast = Ui.label("", Pal.FS_SMALL, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER)
-	_toast.custom_minimum_size = Vector2(0, 96)
-	_toast.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	col.add_child(_toast)
+	_coach = Dialog.Coach.new()
+	col.add_child(_coach)
 
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 20)
@@ -101,77 +110,177 @@ func _ready() -> void:
 		fxl.targets[r] = chip.icon_global
 	fxl.targets["energy"] = _energy.target_global
 
+	_dialog = Dialog.Overlay.new()
+	add_child(_dialog)
 
-func start(index: int, seed_value := -1) -> void:
+
+## Start campaign dig `index`, or a supply run on that site (random layout, no lessons).
+func start(index: int, is_supply := false, seed_value := -1) -> void:
 	site_index = index
+	supply = is_supply
 	var site := Sites.get_site(index)
 	var rules := Game.rules()
 	board = Board.new()
-	board.setup_site(site, seed_value if seed_value >= 0 else randi(), rules)
-	_title.text = "%d. %s" % [index + 1, site.name]
-	for c in _goal_box.get_children():
-		c.queue_free()
-	_goal_rows.clear()
-	for g in site.goals:
-		var row := Widgets.GoalRow.new()
-		var gc: Color = Pal.ROCK[1]
-		match g.type:
-			"ore": gc = Pal.ORE[g.ore]
-			"crystal": gc = Pal.CRYSTAL
-			"chunks": gc = Pal.VEIN
-		row.setup(Sites.goal_text(g), g.n, gc)
-		_goal_box.add_child(row)
-		_goal_rows.append(row)
+	var s := seed_value if seed_value >= 0 else randi()
+	if supply:
+		var open := site.duplicate()
+		open.erase("seed")  # a supply run is a fresh layout every time
+		board.setup_site(open, s, rules)
+	else:
+		board.setup_site(site, s, rules)
+	_title.text = "Supply run" if supply else "Dig %d" % (index + 1)
+	_goals.set_goals(site.goals)
+	# ore that counts toward a goal flies into its goal icon, the rest into the haul chips
+	for r in 4:
+		fxl.targets[r] = (_chips[r] as Widgets.Chip).icon_global
+	for i in site.goals.size():
+		var g: Dictionary = site.goals[i]
+		if g.type == "ore":
+			fxl.targets[g.ore] = _goals.icon_global.bind(i)
+		elif g.type == "crystal":
+			fxl.targets[3] = _goals.icon_global.bind(i)
 	view.scanner = rules.scanner
 	view.drill = rules.drill
 	view.hint_dir = -1
+	view.focus = []
 	view.input_enabled = true
 	view.show_snap(board.snapshot())
 	_hints_used = 0
 	_has_pending = false
 	_idle = 0.0
-	_auto_hint = site.get("guide", false)
+	_auto_hint = site.get("guide", false) and not supply
 	if _result:
 		_result.queue_free()
 		_result = null
 	_recall_btn.text = "Recall"
 	_recall_armed = 0.0
-	var tip: String = site.tip
-	var perks := _perk_text(rules)
-	_show_toast(tip + ("\n" + perks if perks != "" else ""), 12.0 if _auto_hint else 7.0)
+	_coach.clear()
+	_waiting = ""
+	_events = {}
+	# Script: modal lines only the first time this dig is played; coach lines every time.
+	var seen: bool = Game.tips_seen.has(site.id)
+	_script = []
+	for line in Game.take_reminders():
+		_script.append({"say": line})
+	if not supply:
+		for st in site.get("script", []):
+			if st.has("until") or not seen:
+				_script.append(st)
 	Game.tips_seen[site.id] = true
+	Game.save()
+	_step = 0
 	_refresh_reach()
+	_show_mission(site.goals)
 
 
-func _perk_text(r: Dictionary) -> String:
-	var p := []
-	if r.capacity > 20:
-		p.append("Battery %d" % r.capacity)
-	if r.drill:
-		p.append("Drill ready (bump rock)")
-	if r.scanner:
-		p.append("Scanner on")
-	if r.blast_radius > 1:
-		p.append("Big blasts")
-	return "Colony tech: " + ", ".join(p) if not p.is_empty() else ""
+func _show_mission(goals: Array) -> void:
+	if _mission:
+		_mission.queue_free()
+	_mission = Control.new()
+	_mission.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_mission.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_mission)
+	move_child(_mission, _dialog.get_index())
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mission.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_mission.add_child(center)
+	var panel := Ui.panel(Pal.PANEL, 36)
+	panel.custom_minimum_size = Vector2(900, 0)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(panel)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	panel.add_child(v)
+	v.add_child(Ui.label("SUPPLY RUN" if supply else "THIS DIG", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var strip := Widgets.GoalStrip.new(true)
+	strip.set_goals(goals)
+	v.add_child(strip)
+	var words := []
+	for g in goals:
+		words.append(Sites.goal_text(g))
+	v.add_child(Ui.label(" + ".join(words), Pal.FS_SMALL, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	v.add_child(Ui.label("tap to start", Pal.FS_TINY, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	_mission.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
+			_close_mission())
 
+
+func _close_mission() -> void:
+	if _mission == null:
+		return
+	_mission.queue_free()
+	_mission = null
+	_run_script()
+
+
+# --- Mira's script ------------------------------------------------------------
+
+func _run_script() -> void:
+	if board == null or board.over:
+		return
+	if _step >= _script.size():
+		view.focus = []
+		_waiting = ""
+		_coach.clear()
+		return
+	var st: Dictionary = _script[_step]
+	view.focus = st.get("focus", [])
+	if st.has("until"):
+		_waiting = st.until
+		_coach.say(st.say)
+		return
+	_waiting = ""
+	_coach.clear()
+	_dialog.say([st.say], func():
+		_step += 1
+		_run_script())
+
+
+## Which script events a turn produced, from the board's counters before and after it.
+func _turn_events(before: Dictionary) -> Dictionary:
+	var s := board.stats
+	var e := {"move": true}
+	if s.groups > before.groups: e["match"] = true
+	if s.charges_made > before.charges_made: e["charge"] = true
+	if s.blasts > before.blasts: e["blast"] = true
+	if s.rocks_broken > before.rocks_broken: e["reveal"] = true
+	if s.crystals > before.crystals: e["crystal"] = true
+	if s.cells > before.cells: e["cell"] = true
+	if s.drills > before.drills: e["drill"] = true
+	return e
+
+
+func _busy_talking() -> bool:
+	return _mission != null or _dialog.is_open()
+
+
+func _say(text: String, secs: float) -> void:
+	# passing remarks never cover an instruction the player is working on
+	if _waiting == "":
+		_coach.say(text, secs)
+
+
+# --- play ---------------------------------------------------------------------
 
 func _process(delta: float) -> void:
-	if _toast_t > 0.0:
-		_toast_t -= delta
-		_toast.modulate.a = clampf(_toast_t * 2.0, 0.0, 1.0)
 	if _recall_armed > 0.0:
 		_recall_armed -= delta
 		if _recall_armed <= 0.0:
 			_recall_btn.text = "Recall"
-	if board and not board.over and not view.is_busy():
+	if board and not board.over and not view.is_busy() and not _busy_talking():
 		_idle += delta
 		if _auto_hint and _idle > 2.0 and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or board == null:
+	if not visible or board == null or _busy_talking():
 		return
 	if event is InputEventKey and event.pressed and not event.echo:
 		var d := Vector2i.ZERO
@@ -187,7 +296,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_move(dir: Vector2i) -> void:
-	if board == null or board.over or _result != null:
+	if board == null or board.over or _result != null or _busy_talking():
 		return
 	if view.is_busy():
 		_pending = dir
@@ -198,15 +307,18 @@ func _on_move(dir: Vector2i) -> void:
 
 func _do_move(dir: Vector2i) -> void:
 	_idle = 0.0
+	var before := board.stats.duplicate()
 	var r := board.try_move(dir)
 	if not r.ok:
 		view.bump(dir)
 		match r.reason:
 			"rock":
-				_show_toast("Solid rock. Match ore next to it to crack it.\nThe Mining Workshop adds a drill.", 3.0)
+				_say("Solid rock. Make a match right next to it to crack it.", 3.0)
 			"energy":
-				_show_toast("Not enough energy to drill.", 2.0)
+				_say("Not enough energy to drill.", 2.0)
 		return
+	for k in _turn_events(before):
+		_events[k] = true
 	view.hint_dir = -1
 	view.play_steps(r.steps)
 	if Engine.has_singleton("Android") or OS.has_feature("mobile"):
@@ -229,22 +341,30 @@ func _on_snap(s: Dictionary) -> void:
 			"rock": v = s.rocks
 			"chunks": v = s.chunks
 			"crystal": v = s.crystals
-		(_goal_rows[i] as Widgets.GoalRow).set_have(v)
+		_goals.set_have(i, v)
 
 
 func _on_settled() -> void:
 	if board.over:
 		view.input_enabled = false
+		view.focus = []
+		_coach.clear()
 		get_tree().create_timer(0.45).timeout.connect(_show_result)
 		return
 	_refresh_reach()
+	if _waiting != "" and _events.has(_waiting):
+		_events = {}
+		_step += 1
+		_run_script()
+		return
+	_events = {}
 	if _has_pending:
 		_has_pending = false
 		_do_move(_pending)
 
 
 func _refresh_reach() -> void:
-	# a crystal or energy cell in the open comes first: it is usually what the dig is for
+	# a crystal, energy cell or charge in the open comes first: it is usually what the dig is for
 	_reach = board.path_to_pickup(10)
 	if _reach.is_empty():
 		_reach = board.path_to_match(5)
@@ -252,17 +372,17 @@ func _refresh_reach() -> void:
 		if board.can_pulse():
 			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost
 			_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.CRYSTAL, 28))
-			_show_toast("No ore line within 5 steps.\nPulse reshuffles the ore, or Recall to bank your haul.", 4.0)
+			_say("No line of 3 within reach. Pulse reshuffles the ore, or Recall to bank your haul.", 4.0)
 		else:
 			_hint_btn.text = "Hint"
-			_show_toast("Nothing left in reach. Recall to bank your haul.", 4.0)
+			_say("Nothing left in reach. Recall to bank your haul.", 4.0)
 	else:
 		_hint_btn.text = "Hint"
 		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
 
 
 func _on_hint() -> void:
-	if board == null or board.over or view.is_busy():
+	if board == null or board.over or view.is_busy() or _busy_talking():
 		return
 	if _reach.is_empty():
 		if board.can_pulse():
@@ -274,7 +394,7 @@ func _on_hint() -> void:
 
 
 func _on_recall() -> void:
-	if board == null or board.over or _result != null:
+	if board == null or board.over or _result != null or _busy_talking():
 		return
 	if _recall_armed <= 0.0:
 		_recall_armed = 2.0
@@ -313,12 +433,6 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 			fxl.burst(d.pos, Pal.CHARGE, 22, 700.0)
 
 
-func _show_toast(t: String, secs: float) -> void:
-	_toast.text = t
-	_toast_t = secs
-	_toast.modulate.a = 1.0
-
-
 # --- results ---------------------------------------------------------------
 
 func _show_result() -> void:
@@ -343,35 +457,28 @@ func _show_result() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 18)
 	panel.add_child(v)
-	var titles := {"complete": "OBJECTIVE COMPLETE", "energy": "BATTERY DEPLETED", "recall": "RECALLED TO BASE"}
+	var titles := {"complete": "DIG COMPLETE", "energy": "BATTERY EMPTY", "recall": "BACK AT BASE"}
 	var colors := {"complete": Pal.GOOD, "energy": Pal.WARN, "recall": Pal.ACCENT}
 	v.add_child(Ui.label(titles[reason], Pal.FS_HUGE - 8, colors[reason], HORIZONTAL_ALIGNMENT_CENTER))
-	var sub := "The haul is banked at the colony." if reason != "complete" else "Leftover energy was refined into bonus ore."
+	var sub := "Everything you mined goes to the colony." if reason != "complete" else "Leftover energy was turned into bonus ore."
 	v.add_child(Ui.label(sub, Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var total := [0, 0, 0, 0]
 	for i in 4:
-		var amount: int = res.haul[i] + res.bonus[i]
-		if amount == 0:
-			continue
-		var line := "%s  +%d" % [Economy.RES_NAMES[i], res.haul[i]]
-		if res.bonus[i] > 0:
-			line += "   (+%d bonus)" % res.bonus[i]
-		v.add_child(Ui.label(line, Pal.FS, Pal.RES[i], HORIZONTAL_ALIGNMENT_CENTER))
-	if res.first_clear:
-		v.add_child(Ui.label("First clear: +%d crystal" % Economy.FIRST_CLEAR_CRYSTALS, Pal.FS, Pal.CRYSTAL, HORIZONTAL_ALIGNMENT_CENTER))
-	if res.next_unlocked:
-		v.add_child(Ui.label("New site unlocked: %s" % Sites.get_site(site_index + 1).name, Pal.FS, Pal.GOOD, HORIZONTAL_ALIGNMENT_CENTER))
-	v.add_child(Ui.label("%d moves, %d extractions, %d rock broken" % [board.stats.moves, board.stats.groups, board.stats.rocks_broken], Pal.FS_TINY, Pal.MUTED, HORIZONTAL_ALIGNMENT_CENTER))
+		total[i] = res.haul[i] + res.bonus[i]
+	var haul := Widgets.CostRow.new()
+	haul.custom_minimum_size.y = 70
+	haul.setup(total, [9999, 9999, 9999, 9999])
+	var hc := CenterContainer.new()
+	haul.custom_minimum_size.x = 620
+	hc.add_child(haul)
+	v.add_child(hc)
 	var b1 := Ui.button("Back to colony", Pal.GOOD)
 	b1.pressed.connect(func(): finished.emit())
 	v.add_child(b1)
-	var again := site_index
-	if res.next_unlocked:
-		var b2 := Ui.button("Next site: %s" % Sites.get_site(site_index + 1).name, Pal.ACCENT)
-		b2.pressed.connect(func(): start(site_index + 1))
+	if reason != "complete" and not supply:
+		var b2 := Ui.button("Try again", Pal.PANEL_HI.lightened(0.3))
+		b2.pressed.connect(func(): start(site_index))
 		v.add_child(b2)
-	var b3 := Ui.button("Dig here again", Pal.PANEL_HI.lightened(0.3))
-	b3.pressed.connect(func(): start(again))
-	v.add_child(b3)
 	panel.modulate.a = 0.0
 	panel.scale = Vector2(0.92, 0.92)
 	panel.pivot_offset = Vector2(450, 300)

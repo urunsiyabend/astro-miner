@@ -21,6 +21,7 @@ var drill := false
 var cell := 130.0
 var origin := Vector2.ZERO
 var hint_dir := -1
+var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
 var input_enabled := true
 
 var _queue: Array = []
@@ -340,6 +341,12 @@ func _draw() -> void:
 	if _bump.t > 0.0:
 		rp += _bump.dir * cell * 0.12 * sin(PI * _bump.t)
 	_draw_robot(rp, rsc)
+	for f in focus:
+		var fc: Vector2i = f
+		if not Board.inside(fc):
+			continue
+		var fr := _rect(Board.idx(fc), -2.0 - 4.0 * (0.5 + 0.5 * sin(_time * 6.0)))
+		draw_rect(fr, Color(Pal.WARN, 0.85), false, 7.0)
 	for r in _rings:
 		var k: float = r.t / r.dur
 		var col: Color = r.color

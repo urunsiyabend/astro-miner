@@ -38,9 +38,15 @@ Colony buildings (three levels each):
 | Mining Workshop | Drill (bump rock to remove a layer) → stronger drill → cheaper drill + matches crack 2 layers |
 | Research Lab | Deep Scanner (see what rock hides) → 5×5 blasts → +1 energy per match |
 
-Thirteen dig sites. Each mechanic is introduced by a small hand-crafted tutorial site (fixed
-layout, fixed seed, hint arrow) right before the open site that uses it; the last site needs
-upgrades. Progress is saved by site id, so new sites never shift it.
+There is no level list: the colony has one **DIG** button and digs simply follow each other.
+**Mira**, the colony chief, explains everything as it comes up. Three hand-crafted lesson digs
+(fixed layout and seed) each teach several mechanics through her lines: some wait for a tap,
+others stay under the board until you have done what she asked, with the cells she means
+pulsing. Every dig opens with its goal as big icons, and the goal icons sit right above the
+board while you play. The last site needs the Mining Workshop's drill; when a dig needs a
+building you don't have yet, the button becomes a **supply run** on a site you already cleared.
+When you build something, Mira explains the new tool on the spot and reminds you at the start
+of the next dig.
 
 ## Install on Android (Obtainium)
 

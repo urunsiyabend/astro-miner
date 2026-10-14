@@ -1,14 +1,17 @@
 class_name ColonyScreen
 extends Control
 
-## Hub: bank, buildings with upgrades, dig-site list, local field log.
+## Hub and the sense of progress: the colony grows as you build. Mira says what to do next,
+## one DIG button starts the next dig (or a supply run), and each building shows the tool it
+## gives the robot. There is no site list: digs simply come one after another.
 
-signal launch(site_index: int)
+signal launch(site_index: int, supply: bool)
 
 var _chips: Array = []
 var _view: ColonyView
 var _cards: VBoxContainer
-var _sites: VBoxContainer
+var _advice: Dialog.Coach
+var _dialog: Dialog.Overlay
 var _log: Label
 var _sound_btn: Button
 var _reset_btn: Button
@@ -53,19 +56,17 @@ func _ready() -> void:
 	_view = ColonyView.new()
 	col.add_child(_view)
 
-	_go_btn = Ui.button("", Pal.WARN, Pal.FS, 140)
-	_go_btn.pressed.connect(func(): launch.emit(_next_site()))
+	_advice = Dialog.Coach.new()
+	col.add_child(_advice)
+
+	_go_btn = Ui.button("", Pal.WARN, Pal.FS_BIG, 150)
+	_go_btn.pressed.connect(_on_go)
 	col.add_child(_go_btn)
 
-	col.add_child(Ui.label("BUILDINGS", Pal.FS_SMALL, Pal.MUTED))
+	col.add_child(Ui.label("COLONY BUILDINGS", Pal.FS_SMALL, Pal.MUTED))
 	_cards = VBoxContainer.new()
 	_cards.add_theme_constant_override("separation", 16)
 	col.add_child(_cards)
-
-	col.add_child(Ui.label("DIG SITES", Pal.FS_SMALL, Pal.MUTED))
-	_sites = VBoxContainer.new()
-	_sites.add_theme_constant_override("separation", 14)
-	col.add_child(_sites)
 
 	col.add_child(Ui.label("FIELD LOG (local stats)", Pal.FS_SMALL, Pal.MUTED))
 	_log = Ui.label("", Pal.FS_TINY, Pal.DIM)
@@ -90,6 +91,8 @@ func _ready() -> void:
 	_fx = FxLayer.new()
 	_fx.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_fx)
+	_dialog = Dialog.Overlay.new()
+	add_child(_dialog)
 	refresh()
 
 
@@ -108,13 +111,16 @@ func refresh(celebrate := -1) -> void:
 		c.queue_free()
 	for b in Economy.BUILDINGS.size():
 		_cards.add_child(_card(b))
-	for c in _sites.get_children():
-		c.queue_free()
-	for i in Sites.count():
-		_sites.add_child(_site_button(i))
 	_sound_btn.text = "Sound: %s" % ("on" if Game.sfx_on else "off")
-	var ns := _next_site()
-	_go_btn.text = "DIG: %d. %s" % [ns + 1, Sites.get_site(ns).name]
+	var next := Game.next_dig()
+	if next >= 0 and Game.can_start(next):
+		_go_btn.text = "DIG  ·  #%d" % (next + 1)
+		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.WARN, 28))
+	else:
+		_go_btn.text = "SUPPLY RUN"
+		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+	if is_inside_tree():
+		_advice.say(Story.advice())
 	var t: Dictionary = Game.totals
 	var mpm := float(t.moves) / maxf(1.0, t.groups)
 	_log.text = "Digs %d · cleared %d · battery depleted %d · recalled %d\nMoves %d · extractions %d (%.1f moves each) · cascades %d\nRock broken %d · crystals %d · pulses %d · hints %d · upgrades %d" % [
@@ -122,12 +128,12 @@ func refresh(celebrate := -1) -> void:
 		t.rocks, t.crystals, t.pulses, t.hints, t.upgrades]
 
 
-## First unlocked site not yet cleared, else the last unlocked one.
-func _next_site() -> int:
-	for i in Game.unlocked:
-		if not Game.cleared[i]:
-			return i
-	return Game.unlocked - 1
+func _on_go() -> void:
+	var next := Game.next_dig()
+	if next >= 0 and Game.can_start(next):
+		launch.emit(next, false)
+	else:
+		launch.emit(Game.supply_site(), true)
 
 
 func _card(b: int) -> Control:
@@ -137,26 +143,25 @@ func _card(b: int) -> Control:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 18)
 	p.add_child(h)
+	var icon := Widgets.BuildingIcon.new(b)
+	icon.level = lv
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(icon)
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.add_theme_constant_override("separation", 4)
 	h.add_child(info)
-	info.add_child(Ui.label("%s  ·  Lv %d/%d" % [def.name, lv, Economy.MAX_LEVEL], Pal.FS, Pal.TEXT))
-	info.add_child(Ui.label("Now: " + def.effects[lv], Pal.FS_TINY, Pal.DIM))
+	info.add_child(Ui.label("%s  ·  %d/%d" % [def.name, lv, Economy.MAX_LEVEL], Pal.FS, Pal.TEXT))
+	if lv > 0:
+		info.add_child(Ui.label("Now: " + def.effects[lv], Pal.FS_TINY, Pal.DIM))
 	var c := Economy.cost(b, lv)
 	if lv < Economy.MAX_LEVEL:
-		info.add_child(Ui.label("Next: " + def.effects[lv + 1], Pal.FS_TINY, Pal.GOOD))
-		var cost_row := HBoxContainer.new()
-		cost_row.add_theme_constant_override("separation", 14)
-		for i in 4:
-			if c[i] > 0:
-				var enough: bool = Game.bank[i] >= c[i]
-				var cl := Ui.label("%d %s" % [c[i], Economy.RES_NAMES[i]], Pal.FS_TINY, Pal.RES[i] if enough else Pal.BAD)
-				cl.autowrap_mode = TextServer.AUTOWRAP_OFF
-				cost_row.add_child(cl)
+		info.add_child(Ui.label(("Gives: " if lv == 0 else "Next: ") + def.effects[lv + 1], Pal.FS_TINY, Pal.GOOD))
+		var cost_row := Widgets.CostRow.new()
+		cost_row.setup(c, Game.bank)
 		info.add_child(cost_row)
 	var btn := Ui.button("Build" if lv == 0 else "Upgrade", Pal.GOOD, Pal.FS_SMALL, 100)
-	btn.custom_minimum_size.x = 230
+	btn.custom_minimum_size.x = 210
 	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	if lv >= Economy.MAX_LEVEL:
 		btn.text = "Max"
@@ -174,25 +179,8 @@ func _buy(b: int) -> void:
 		refresh(b)
 		var at := _view.building_global(b) + Vector2(0, -80)
 		_fx.burst(at, Pal.GOOD, 24, 600.0)
-		_fx.text(at, Economy.BUILDINGS[b].effects[Game.levels[b]], Pal.GOOD, 40)
-
-
-func _site_button(i: int) -> Control:
-	var site := Sites.get_site(i)
-	var locked := i >= Game.unlocked
-	var goals := []
-	for g in site.goals:
-		goals.append(Sites.goal_text(g))
-	var tag := "  [cleared]" if Game.cleared[i] else ""
-	var text := "%d. %s%s\n%s" % [i + 1, site.name, tag, " + ".join(goals)]
-	if locked:
-		text = "%d. Locked\nClear %s first" % [i + 1, Sites.get_site(i - 1).name]
-	var color := Pal.ACCENT if not Game.cleared[i] else Pal.PANEL_HI.lightened(0.35)
-	var btn := Ui.button(text, color, Pal.FS_SMALL, 130)
-	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	btn.disabled = locked
-	btn.pressed.connect(func(): launch.emit(i))
-	return btn
+		_fx.text(at, Economy.BUILDINGS[b].name + "!", Pal.GOOD, 44)
+		_dialog.say(Story.BUILT[b][Game.levels[b] - 1])
 
 
 func _on_reset() -> void:
