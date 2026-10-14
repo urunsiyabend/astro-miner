@@ -346,7 +346,7 @@ func _test_save_roundtrip() -> void:
 	var game = load("res://autoload/Game.gd").new()
 	game.save_path = "user://test_save.json"
 	game.reset()
-	game.cleared[Sites.index_of("landing")] = true  # landing unlocks the Power Station
+	game.cleared[Sites.index_of("lode")] = true  # the chapter 1 finale unlocks the Power Station
 	game.bank = [50, 40, 30, 1]
 	_ok(game.buy(0), "Power Station Lv1 is free once unlocked")
 	_ok(game.levels[0] == 1 and game.bank == [50, 40, 30, 1], "the free level costs nothing")
@@ -386,7 +386,7 @@ func _test_bot_smoke() -> void:
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL",
+	"first": "ULURRDU", "battery": "LURRDDDLURDLUD", "charge": "UDLDDUDU",
 	"longhaul": "DULLUURRRRRRUULLLLLLUURRR",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
@@ -435,14 +435,18 @@ func _test_tutorial_sites() -> void:
 		for k in sol.length():
 			nb2.try_move(map2[sol[k]])
 		_ok(not nb2.complete, "%s cannot be done without building %d" % [nxt.id, u])
-	# the power lesson must actually need the energy cell: after the match and the blast the
-	# robot is 5 steps from the crystal with less energy than that
-	var nb := Board.new()
-	nb.record = false
-	nb.setup_site(Sites.get_site(Sites.index_of("power")), 0, Economy.rules([0, 0, 0]))
-	nb.try_move(Vector2i(0, -1))
-	nb.try_move(Vector2i(0, 1))
-	_ok(nb.stats.blasts == 1 and nb.energy < 5, "power: the crystal is out of reach without the energy cell")
+	# each lesson's solution starts with the move Mira asks for and uses what she teaches
+	var opening := {"first": "U", "battery": "L", "charge": "U"}
+	for id in opening:
+		_ok(String(TUTORIAL_SOLUTIONS[id]).begins_with(opening[id]), "%s: the solution starts with Mira's move" % id)
+	var bat := Board.new()
+	bat.record = false
+	var bi := Sites.index_of("battery")
+	bat.setup_site(Sites.get_site(bi), 0, Economy.rules(_campaign_levels(bi)))
+	_ok(bat.energy <= 6, "battery: the dig starts with a nearly flat battery")
+	for ch in String(TUTORIAL_SOLUTIONS.battery):
+		bat.try_move(map[ch])
+	_ok(bat.complete and bat.stats.cells >= 1, "battery: the solution recharges from the buried cell")
 
 
 func _test_pickup_hint() -> void:
@@ -464,10 +468,10 @@ func _test_campaign_flow() -> void:
 	_ok(not game.can_start(core), "the basalt-shell dig waits for the Mining Workshop")
 	for b in 3:
 		_ok(not game.building_unlocked(b) and not game.buy(b), "building %d starts locked" % b)
-	game.cleared[Sites.index_of("shale")] = true
-	_ok(game.building_unlocked(1) and game.pending_build() == 1, "clearing shale unlocks the Workshop, which is now due")
+	game.cleared[Sites.index_of("garden")] = true
+	_ok(game.building_unlocked(1) and game.pending_build() == 1, "clearing the chapter 2 finale unlocks the Workshop, which is now due")
 	var drill := Sites.index_of("vaults")
-	_ok(drill == Sites.index_of("shale") + 1 and not game.can_start(drill), "the drill level comes next and waits for the build")
+	_ok(drill == Sites.index_of("garden") + 1 and not game.can_start(drill), "the drill level comes next and waits for the build")
 	_ok(game.buy(1), "build the Mining Workshop")
 	_ok(game.pending_build() == -1 and game.can_start(drill), "built: the drill level can start")
 	_ok(game.can_start(core), "with the drill the basalt-shell dig can start")
@@ -479,9 +483,14 @@ func _test_campaign_flow() -> void:
 	_ok(game.next_dig() == -1, "after the last dig there is no next dig")
 	var sup: int = game.supply_site()
 	_ok(not Sites.get_site(sup).has("ore"), "supply runs use open sites, not hand-made ones")
+	var talking := 0
 	for i in Sites.count():
 		var site := Sites.get_site(i)
-		_ok(not site.get("script", []).is_empty(), "Mira introduces dig %s" % site.id)
+		if site.get("guide", false) or site.get("building_level", false):
+			_ok(not site.get("script", []).is_empty(), "Mira introduces the lesson in dig %s" % site.id)
+		if not site.get("script", []).is_empty():
+			talking += 1
+	_ok(talking * 3 <= Sites.count(), "Mira talks in at most a third of the digs (%d of %d)" % [talking, Sites.count()])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_campaign.json"))
 	game.free()
 
