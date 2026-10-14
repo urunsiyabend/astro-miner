@@ -1,0 +1,98 @@
+# Astro Miner
+
+A mobile-first puzzle prototype built in **Godot 4.7** (GDScript, 2D, portrait, Android-first).
+
+You steer a small mining robot across a 7×8 dig site on an alien planet. The robot *is* a
+tile: every step swaps it with the ore chunk in front of it, so each move drags one chunk
+one cell. Line up three of a kind to extract it. Extraction digs the ground one layer deeper,
+cracks the rock around it and uncovers what the rock was hiding: more ore, energy cells,
+crystals. Bring the haul back to the colony and build upgrades that change how the next dig
+plays (bigger battery, a drill, a deep scanner, bigger blasts).
+
+> This is an experimental prototype for validating the core loop. Placeholder vector art,
+> procedural sound, no monetisation, no online services.
+
+## How to play
+
+- **Swipe** anywhere on the board (or tap an adjacent cell, or use arrow keys/WASD) to move.
+- The robot swaps places with the ore it moves into. Walking onto a crystal, energy cell or
+  blast charge picks it up / sets it off.
+- **3+ in a line** of the same ore (orange squares, cyan circles, yellow triangles) is
+  extracted. You gain the ore and refund some battery.
+- Each extraction **digs** the cell: new ore rises from below until the vein is exhausted
+  (the cell darkens; small pips show the layers left).
+- Rock next to an extraction **cracks** one layer (white pips on the rock). Broken rock opens
+  fresh ground and reveals what it hid.
+- **4+ in a line** leaves a **blast charge**; step on it to blow up the 3×3 around you.
+- Every step costs 1 energy. Out of energy, or **Recall**, ends the dig. The haul is always kept.
+- **Hint** shows the first step toward the nearest match. If nothing is in reach it turns into
+  **Pulse**, which reshuffles the ore on the board for 3 energy.
+
+Colony buildings (three levels each):
+
+| Building | Effect |
+|---|---|
+| Power Station | Battery 20 → 26 → 32 → 40 |
+| Mining Workshop | Drill (bump rock to remove a layer) → stronger drill → cheaper drill + matches crack 2 layers |
+| Research Lab | Deep Scanner (see what rock hides) → 5×5 blasts → +1 energy per match |
+
+Six dig sites teach the mechanics one at a time; the last one needs upgrades.
+
+## Install on Android (Obtainium)
+
+1. Install [Obtainium](https://github.com/ImranR98/Obtainium).
+2. *Add App* → paste `https://github.com/urunsiyabend/astro-miner` → *Add*.
+3. Install. New tagged releases appear as updates and install over the old version
+   (same package id `io.github.urunsiyabend.astrominer`, same signing key, increasing
+   version code), so progress is kept.
+
+Or download the APK directly from the [Releases](https://github.com/urunsiyabend/astro-miner/releases) page.
+
+## Run on desktop
+
+```bash
+godot --path .                                      # play (mouse emulates touch)
+godot --headless --path . -s res://tests/run_tests.gd          # rule tests
+godot --headless --path . -s res://tools/simulate.gd -- 100    # balance simulation
+```
+
+## Project layout
+
+```
+scripts/core/        pure rules, no rendering (unit-tested)
+  Board.gd           grid, robot moves, match/dig/crack/reveal resolution, search
+  Sites.gd           handcrafted dig-site templates and objectives
+  Economy.gd         building costs and how levels map to board rules
+  Bots.gd            scripted players for tests and balance simulation
+scripts/ui/          rendering and input
+  BoardView.gd       draws a board snapshot and replays the step list from Board
+  DigScreen.gd       HUD, hint/pulse/recall, results panel
+  ColonyScreen.gd    bank, building upgrades, site list, local field log
+  ColonyView.gd      the colony skyline that grows with building levels
+  FxLayer.gd         flying ore chunks, debris, floating text
+autoload/
+  Game.gd            persistent state (JSON save in user://), local play metrics
+  Sfx.gd             procedurally synthesised sound effects
+tests/run_tests.gd   headless test suite
+tools/simulate.gd    headless balance simulation (writes markdown tables)
+docs/research/       gameplay research (Sliding Seas, Six Match, references)
+docs/design/         prototype GDD
+docs/evaluation/     core-loop evaluation + simulation results
+```
+
+Rules and rendering are separated: `Board.try_move()` resolves a whole turn immediately and
+returns a list of steps (move, match, blast, ...) with snapshots; the view only animates them.
+Every random decision uses the board's seeded RNG, so a seed plus a move list replays exactly.
+
+## Release pipeline
+
+`.github/workflows/release.yml`: pushing a tag `vX.Y.Z` runs the tests and a short simulation,
+exports a signed release APK with Godot headless, verifies the signing certificate against a
+pinned SHA-256 fingerprint, and attaches `astro-miner-vX.Y.Z-android.apk` to the GitHub
+Release. Version code is derived from the tag (`major*1000000 + minor*1000 + patch`), so it
+always increases with the version. Signing material lives only in repository secrets
+(`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_ALIAS`, `ANDROID_KEYSTORE_PASSWORD`).
+
+## License
+
+MIT, see [LICENSE](LICENSE). All art and audio are generated in code.
