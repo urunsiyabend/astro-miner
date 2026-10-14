@@ -6,6 +6,9 @@ extends Node
 
 func _ready() -> void:
 	Game.save_path = "user://shot_save.json"
+	if OS.has_environment("ASTRO_CLEARED"):
+		for i in int(OS.get_environment("ASTRO_CLEARED")):
+			Game.cleared[i] = true
 	if OS.has_environment("ASTRO_BANK"):
 		Game.bank = [999, 999, 999, 99]
 		Game.levels = [1, 1, 1]
@@ -26,7 +29,7 @@ func _run() -> void:
 		# ASTRO_TALK=n: tap through the goal card and n of Mira's lines first (all if unset)
 		var talk := int(OS.get_environment("ASTRO_TALK")) if OS.has_environment("ASTRO_TALK") else 99
 		if talk >= 0:
-			main.dig._close_mission()
+			main.dig._close_mission(true)
 		for k in talk * 2:
 			if not main.dig._dialog.visible:
 				break

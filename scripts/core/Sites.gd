@@ -8,7 +8,10 @@ extends RefCounted
 ##   "seed":   fixed seed, so what surfaces after each match is always the same
 ##   "energy": starting energy (below the battery capacity)
 ##   "guide":  hand-crafted lesson; the hint arrow shows up quickly on every turn
+##   "auto_hint": false keeps that arrow away when finding the answer is the lesson
 ##   "needs":  colony building level required before this dig can start
+##   "unlock": building that becomes available once this dig is cleared; Mira then asks you
+##             to build it (level 1 is free) and the next dig teaches its tool
 ##   "script": what Mira says. A line without "until" waits for a tap; a line with "until"
 ##             stays up while you play and moves on when that event happens (see DigScreen).
 ##             "focus" cells pulse on the board.
@@ -47,7 +50,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "landing",
+		"id": "landing", "unlock": 0,
 		"goals": [{"type": "ore", "ore": 0, "n": 12}],
 		"rows": [
 			"1 . . . . . 1",
@@ -162,7 +165,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "shale",
+		"id": "shale", "unlock": 1,
 		"goals": [{"type": "ore", "ore": 1, "n": 15}, {"type": "crystal", "n": 1}],
 		"rows": [
 			": : : : : : :",
@@ -176,6 +179,37 @@ const LIST := [
 		],
 		"script": [
 			{"say": "Shallow ground: these veins run dry fast. Energy cells hide under the rock."},
+		],
+	},
+	{
+		"id": "drill", "guide": true, "seed": 8,
+		"goals": [{"type": "crystal", "n": 1}],
+		"needs": {"building": 1, "level": 1},
+		"rows": [
+			"# # # # # # #",
+			"# # # # # # #",
+			"# # # # # # #",
+			"# _ _ @_ 2 1c #",
+			"# _ _ _ 2 2 #",
+			"# # # # # # #",
+			"# # # # # # #",
+			"# # # # # # #",
+		],
+		"ore": [
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- F C - - - -",
+			"- L F C - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+		],
+		"script": [
+			{"say": "Here's the drill from the new workshop. Rock in your way? Drill right through it."},
+			{"say": "Swipe right, into the rock, to drill it.", "until": "drill", "focus": [Vector2i(4, 3)]},
+			{"say": "Each bump knocks off one layer and costs 2 energy. This rock has 2 layers: drill again.", "until": "reveal", "focus": [Vector2i(4, 3)]},
+			{"say": "Behind it is one more rock, and the readings say crystal. Drill on and grab it.", "until": "crystal", "focus": [Vector2i(5, 3)]},
 		],
 	},
 	{
@@ -196,7 +230,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "core",
+		"id": "core", "unlock": 2,
 		"goals": [{"type": "crystal", "n": 3}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
@@ -211,6 +245,35 @@ const LIST := [
 		],
 		"script": [
 			{"say": "The crystals sit inside a basalt shell. Swipe into rock to drill it, and use charges."},
+		],
+	},
+	{
+		"id": "scan", "guide": true, "auto_hint": false, "seed": 9, "energy": 3,
+		"goals": [{"type": "crystal", "n": 1}],
+		"needs": {"building": 2, "level": 1},
+		"rows": [
+			"# # # # # # #",
+			"# # # # # # #",
+			"# # # # # # #",
+			"# # # 1x # # #",
+			"# # 1c @_ 1x # #",
+			"# # # # # # #",
+			"# # # # # # #",
+			"# # # # # # #",
+		],
+		"ore": [
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+			"- - - - - - -",
+		],
+		"script": [
+			{"say": "The Research Lab's scanner is on! The icons on rock show what's buried inside."},
+			{"say": "The battery only allows one drill. Pick the rock with the crystal icon, drill it and grab the crystal.", "until": "crystal", "focus": [Vector2i(2, 4), Vector2i(3, 3), Vector2i(4, 4)]},
 		],
 	},
 ]
