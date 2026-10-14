@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://nvxbhtb7j77j"
-path="res://.godot/imported/pit.png-94d77ab8afce502ce88f02c66f9a38dc.ctex"
+uid="uid://c2cjsfmi0ttgw"
+path="res://.godot/imported/panel.png-3b9543c06792d57fdee8f168520a6a81.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/tiles/pit.png"
-dest_files=["res://.godot/imported/pit.png-94d77ab8afce502ce88f02c66f9a38dc.ctex"]
+source_file="res://assets/ui/panel.png"
+dest_files=["res://.godot/imported/panel.png-3b9543c06792d57fdee8f168520a6a81.ctex"]
 
 [params]
 

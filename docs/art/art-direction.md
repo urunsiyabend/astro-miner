@@ -94,6 +94,23 @@ Top left: ... Top right: ... Bottom left: ... Bottom right: ...
 Keep the flat solid pure green background, no shadows on it, no text.
 ```
 
+## From art to game (alignment)
+
+`python3 tools/art/build_assets.py` turns the generated sheets in `docs/art/sources/` into the
+game's art and measures everything the code needs, so nothing is placed by eye:
+
+| Output | What it fixes |
+|---|---|
+| `assets/ui/*.png` + `scripts/ui/UiMetrics.gd` | Per UI piece: **slice** = 9-slice margins (corners, border, top highlight and bottom lip never stretch); **face** = inset of the visible face. `Art.style()` builds a `StyleBoxTexture` whose content area is the face, so button text and panel content centre on what the eye sees, not on the outline or the darker lip. |
+| `button_base`, `bar_fill_base` | Grey copies of the button and bar fill, tinted at runtime, so every button colour shares one shape and one set of margins. |
+| `assets/ore/*.png` | One 256 px canvas per gem, scaled to the same opaque area (a triangle looks as big as a square) and placed on its optical centre (alpha centroid). |
+| `assets/rocks/<form>_<state>.png` | 3 forms (boulder, stone, basalt = 1, 2, 3 starting layers) x 3 break states, one 320 px canvas, centred on the rock body (not on flying chips). `Art.rock(layers, left)` picks the sprite. |
+| `assets/tiles/*.png` | Square top + layered earth band. Rows are drawn `pitch` apart (cell + `Art.BAND_VISIBLE`), so each block shows its thickness; `BoardView.cell_origin()` is the only place a cell's position is computed. |
+| `assets/bg/space.jpg` | Background, darkened and blurred once here instead of per frame. |
+| `docs/art/ui-slices.png` | Review sheet: slice lines (magenta) and face boxes (cyan) on every piece. |
+
+Rebuild after replacing a source sheet. The code reads the new numbers and needs no change.
+
 ## Keeping generation cheap
 
 Measured on Layer, 2026-10-14. The same 3×3 blockout and references were run on both models.
