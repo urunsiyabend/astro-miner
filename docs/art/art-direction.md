@@ -1,109 +1,103 @@
-# Astro Miner: art direction (visual target v1)
+# Astro Miner: art direction (visual target v2, "floating island")
 
-Purpose: one visual rulebook so every generated or hand-made asset (tiles, rock, ore, robot,
-colony, UI) looks like it belongs to the same game. Generated images are drafts until they
-pass the checks at the end. Built from the current game (`scripts/ui/Pal.gd`,
-`BoardView.gd`), which already has a coherent look worth keeping.
+One visual rulebook so every generated or hand-made asset (tiles, rock, ore, robot, colony,
+UI) looks like it belongs to the same game. Generated images are drafts until they pass the
+checks at the end.
 
-Reference captures of the current game: `docs/art/ref-dig.png`, `docs/art/ref-colony.png`.
+v1 kept the flat code-drawn look with a seamless soil texture. That was rejected: the target is
+the chunky "floating island" board of modern casual puzzle games (Sliding Seas, Dream Games,
+Spyke), where every cell is a little block and the board floats over the background.
+
+## Visual target
+
+- **Style target:** `docs/art/style-target-c2.png` (option C2 of four style tests: cartoon
+  outline, glossy 3D, hand-painted, pastel vector). C2, hand-painted, was chosen.
+- **Board camera:** `docs/art/topdown-blockout.png`. This is the geometry every tile follows.
+- **In game:** the first four tiles are in `assets/tiles/` and drawn by `BoardView._draw_tile`.
+- Old flat look, for comparison: `docs/art/ref-dig.png`, `docs/art/ref-colony.png`.
 
 ## Game frame
 
-- **Player fantasy:** a cheerful little mining robot digging on a strange purple planet for a
-  growing colony.
-- **Core verbs:** move (swap), line up 3, dig down, crack rock, pick up.
+- **Player fantasy:** a cheerful little mining robot digging up a strange purple planet, one
+  floating chunk of ground at a time, for a growing colony.
 - **Engine:** Godot 4.7, GL Compatibility renderer, 2D, Android-first.
-- **View:** straight top-down (orthographic, camera looking down), square grid. Not isometric.
 - **Native viewport:** 1080×1920 portrait. The board is 7×8 cells of about **136 px**.
-- **On-screen size:** a cell is about 2 cm on a phone; everything must read at that size.
+- **View:** straight **top-down**. Each tile shows its square top face plus a thin band of its
+  front (south) face, about 20 % of the top's height. No side faces, **never isometric**.
+  The style target is isometric; only its look is used, never its camera.
 
 ## Visual system
 
 | Property | Rule |
 |---|---|
-| Shape language | Soft and chunky. Rounded corners everywhere; rock is a rounded octagon; ore is a simple geometric primitive (square, circle, triangle). No spikes except crystals. |
-| Silhouettes | Each gameplay object must be recognisable from its outline alone at 64 px: ore by shape, rock by its lumpy octagon and stacked slabs, crystal by its diamond, cell by its battery, robot by its visor. |
-| Value structure | Dark world, bright actors. Ground and walls stay in the low/mid values of the purple ramp; everything you interact with (ore, crystals, robot, UI accents) is high value and saturated. Depth always reads darker. |
-| Lighting | One key light from the **top of the screen** (north). North walls of pits are in shadow, south walls are lit; raised rock casts a short soft shadow to the south. |
-| Edge treatment | No black outlines. Shapes are separated by a darker rim of their own hue (as `ORE_DARK` does) plus a small light highlight at the upper left. |
-| Materials | Matte dusty soil (fine speckle, no grass), layered rock with chips and cracks, glassy crystals, smooth white robot plastic. Painted, not photographic. |
-| Detail density | Low. Textures carry fine noise and a few features per tile, never busy patterns that fight the ore on top. |
-| Style | Clean stylised 2D game art, flat colour with soft gradients; think "mobile puzzle game", not pixel art and not realistic. |
-| Motion | Snappy and bouncy (back-out easing, squash on landing), short (0.1–0.25 s). |
-| **Never** | Text or numbers baked into art, grass, trees, water, sky, humans in tiles, isometric perspective, perspective camera, black outlines, photorealism, busy patterns, glow on terrain. |
+| Shape language | Chunky, toy-like blocks. Square tops with softly rounded corners; boulders are lumpy and rounded, crystals are the only sharp shapes. |
+| Board | One block per playable cell, tiny gaps between blocks. Bedrock cells are empty, so the board outline is irregular and reads as a floating island. The front band shows only where the cell below is empty (island edge). |
+| Brushwork | Hand-painted: visible soft brush strokes, painterly texture, low detail. Never photographic, never pixel art. |
+| Edges | Thin warm-brown outline around every block and object. |
+| Light | Soft warm key light from the top of the screen; tops are lighter than front bands. |
+| Value structure | Ground stays mid-value (lavender tops, warm brown earth). Things you interact with (ore, crystals, energy cells, robot) are brighter and more saturated than any tile. |
+| Depth (dug cells) | A dug cell is the same block with a square pit cut into its top; deeper means darker (and later, a separate tile per depth). |
+| Materials | Lavender dusty soil with a few pebbles; warm brown layered earth with strata; grey boulders with glowing violet crystal veins. |
+| Background | Deep indigo space, soft stars, faint planets: dark and calm behind the island. |
+| **Never** | Isometric or 3/4 camera, side faces, text or numbers in art, grass or trees, photorealism, busy texture that competes with the ore. |
 
-### Palette (exact swatches, from `Pal.gd`)
+### Palette
 
-| Role | Swatches |
+Tiles are painted, so these are target colours, not exact pixels.
+
+| Role | Colours |
 |---|---|
-| Background / UI | `#120d18` bg, `#1f1729` panel, `#2c2139` panel hi, `#3d3050` line |
-| Text | `#f3ecff` text, `#a596bd` dim, `#6c5f80` muted |
-| Ground by depth (surface → deepest) | `#74546d` `#5a4058` `#443047` `#322337` `#241a29` |
-| Exhausted floor | `#2c2732` |
-| Rock by layers (rubble, stone, basalt) | `#b3a9c2` `#75698f` `#3e3452` |
-| Bedrock / void | `#0b0810` |
-| Ferrite (ore 1) | `#ff8a3d`, rim `#9c4517` |
-| Cryo (ore 2) | `#4fd8ff`, rim `#1f7896` |
-| Lumen (ore 3) | `#ffe14d`, rim `#a08414` |
-| Crystal | `#c88bff`, rim `#6d3aa8` |
-| Energy cell | `#6dff8a` |
-| Blast charge | `#ff4f6d` |
-| Robot | `#e9f6ff`, shade `#5b7a99`, visor eyes `#5ad1e6` |
-| Accents | good `#7dff9b`, warn `#ffb347`, bad `#ff5c7a`, accent `#5ad1e6`, vein pips `#ffc970` |
+| Soil top | lavender `#b59ad6` mid, `#9c7fc2` shade, `#d2bce8` highlight |
+| Earth band and pit walls | warm brown `#a8724e`, `#7a4f37` shade |
+| Outline | `#5a3a2c` |
+| Rock | grey `#a9a9b5`, dark `#6c6c7a`, crystal veins `#a35ad9` |
+| Background | indigo `#151632` to `#24204a` |
+| Gameplay colours (unchanged, from `Pal.gd`) | Ferrite `#ff8a3d`, Cryo `#4fd8ff`, Lumen `#ffe14d`, crystal `#c88bff`, cell `#6dff8a`, charge `#ff4f6d`, robot `#e9f6ff` |
 
-Terrain uses only the purple/grey ramp. Saturated colours are reserved for things the player
-acts on, so the board stays readable.
+Ore keeps its colour and shape code (Ferrite = orange square, Cryo = cyan circle, Lumen =
+yellow triangle). The painted versions must stay readable by shape alone.
 
 ## Technical contract
 
 | Item | Rule |
 |---|---|
-| Terrain tiles | 256×256 source, shown at ~136 px. Square, top-down, **seamless on all four edges** (tested in a 3×3 repeat). Opaque. |
-| Depth variants | One base soil texture; pit levels are drawn by code (stepped walls + darker tint) on top of the same texture, so they stay consistent. |
-| Rock sprites | 256×256, transparent background, centred, the rock fills ~85 % of the cell. Three variants: rubble (1 layer), stone (2), basalt (3). Shadows are drawn by code, not baked. |
-| Ore / pickups / robot | Stay code-drawn for now (they already read well and animate). Optional later: painted versions on 256×256 transparent canvases with the same shapes and colours. |
-| Filtering | Linear filtering with mipmaps (painted art, not pixel art). |
-| Naming | `assets/tiles/<name>_<variant>.png`, e.g. `soil_a.png`, `rock_stone.png`. |
-| Provenance | Every file gets a row in `docs/art/asset-manifest.json` (tool, model, prompt, date, status). |
+| Tile sprite | 256 px wide, 307 px tall (square top 256 + front band ~51), transparent, no shadow baked in. |
+| Placement | Drawn one cell wide from the cell's top-left; rows draw top to bottom so a row covers the front band of the row above. |
+| Pickups and robot | 256×256, transparent, centred, fits inside ~80 % of the cell. |
+| Filtering | Linear with mipmaps (painted art). |
+| Naming | `assets/tiles/<name>.png`, see the manifest. |
+| Provenance | Every file has a row in `docs/art/asset-manifest.json`. |
 
-## Small tileset to make first
+## Production pipeline (what worked)
 
-| File | What | Notes |
-|---|---|---|
-| `soil_a.png`, `soil_b.png` | Dusty purple soil, two variants | Seamless; variant B is used at random to break repetition |
-| `floor_bare.png` | Exhausted, cracked floor | Seamless, darker, a few dry cracks |
-| `bedrock.png` | Dark void rock for walls and the board frame | Seamless, very dark, low contrast |
-| `rock_rubble.png` | 1-layer rock | Transparent; light grey-violet, chipped |
-| `rock_stone.png` | 2-layer rock | Transparent; mid violet-grey, visible strata |
-| `rock_basalt.png` | 3-layer rock | Transparent; dark, dense, angular cracks |
+1. **Geometry from a blockout, style from a reference.** Prompting for "top-down" alone gave
+   isometric tiles, because the model copies the style reference's camera. What works:
+   - Draw a flat blockout of the sheet (`topdown-blockout.png`: 2×2 tiles on pure green,
+     square tops plus a thin front band).
+   - Pass it as `init_image` (weight 0.8) and the style target as `reference_image`.
+   - Say in the prompt which image sets the camera and which sets the style.
+2. **One sheet per family.** Generate 4 related tiles on one 1024² sheet so they share light,
+   palette and brushwork. Model: `gemini-3.1-flash-image`, 2 CU per image.
+3. **Key locally.** The background is pure `#00FF00`. `docs/art/tools/key.py` keys it out with
+   despill and crops each quarter. Then resize to 256 wide.
+4. **Check in game** at native size, then record the asset in the manifest.
 
-Order: generate `soil_a` first as the **visual target**. Approve it in the game at native size.
-Then generate every other tile with `soil_a` attached as a reference image, so the family
-keeps the same palette, light and texture density.
-
-## Prompt template (for Layer)
+Prompt skeleton:
 
 ```text
-ROLE: production game tile for a top-down mobile puzzle game
-SUBJECT: <e.g. dusty alien soil ground>
-VIEW: straight top-down orthographic, camera looking straight down, no perspective
-ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte surface,
-  fine speckle, purple-violet palette (#74546d base, #5a4058 shade, #8a6a83 highlight),
-  light from the top edge, low detail density
-GAME-SCALE READ: must read as calm background under bright gems at 136 px
-TECHNICAL: square 1:1, seamless tileable on all edges, fully filled, no border
-EXCLUDE: text, letters, numbers, grass, plants, water, sky, objects, characters,
-  isometric view, black outlines, photorealism, frame, vignette
+Image 1 is a flat blockout of four game tiles seen from straight above; Image 2 is the art
+style reference. Paint the four tiles of Image 1 in the hand-painted stylised style of
+Image 2 (...materials...). Keep Image 1's camera and geometry exactly: viewed from straight
+above, each tile's top face is a square with softly rounded corners, and only a thin band of
+the brown earth front face shows beneath it; no side faces, no isometric angle.
+Top left: ... Top right: ... Bottom left: ... Bottom right: ...
+Keep the flat solid pure green background, no shadows on it, no text.
 ```
-
-For rock sprites, the same blocks, but `SUBJECT: a single chunky rounded-octagon rock seen from
-above, <n> stacked layers`, `TECHNICAL: centred on a plain solid background for removal`, then
-background removal.
 
 ## Acceptance checks
 
-1. 3×3 repeat shows no seams or obvious repeating marks (`build_preview_sheet.py`).
-2. Size, alpha and colour count pass `asset_report.py`.
-3. In the game at native size, ore on top of the soil reads instantly, and the depth ramp
-   still reads (surface lighter, pits darker).
-4. Side by side with the current screens, the new art keeps the palette and light direction.
+1. Camera: top face square, front band only, no side faces.
+2. Alpha is clean after keying, with no green fringe (check over a dark background).
+3. In game at native size: ore reads instantly on top of the tiles; dug, rock and plain cells
+   are distinguishable at a glance; the island edge reads.
+4. The tile matches the other tiles of its family (light, palette, outline weight).
