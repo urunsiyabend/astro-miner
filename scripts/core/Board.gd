@@ -76,7 +76,17 @@ static func inside(c: Vector2i) -> bool:
 ##   .  ground (reserve 2)    :  shallow ground (reserve 1)    o  deep ground (reserve 4)
 ##   _  exhausted empty ground  @  robot start   #  bedrock
 ##   1/2/3 rock layers hiding ore; suffix c = crystal, e = energy cell, x = nothing
-func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Array = []) -> void:
+## Set up a dig for a site from Sites.LIST. A site may pin its own seed, hand-place every
+## token ("ore" rows) and start with less energy than the battery holds ("energy").
+func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> void:
+	setup(site.rows, int(site.get("seed", seed_value)), rules, site.goals, site.get("ore", []))
+	if site.has("energy"):
+		energy = mini(int(site.energy), cfg.capacity)
+
+
+## layout: optional rows of hand-placed tokens (F C L ore, c crystal, e energy cell,
+## b blast charge, - nothing) that replace the seeded fill.
+func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Array = [], layout: Array = []) -> void:
 	for k in rules:
 		cfg[k] = rules[k]
 	goals = site_goals.duplicate(true)
@@ -93,6 +103,10 @@ func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Arr
 		for x in W:
 			_parse_cell(y * W + x, codes[x])
 	energy = cfg.capacity
+	if not layout.is_empty():
+		_place_layout(layout)
+		rng.seed = seed_value ^ 0x5EED
+		return
 	# Seeded fill; retry until the opening offers a match within 2 steps.
 	var s := seed_value
 	for attempt in 64:
@@ -115,7 +129,9 @@ func _parse_cell(i: int, code: String) -> void:
 		"_":
 			reserve[i] = 0
 		"@":
-			reserve[i] = 2; robot = i
+			# "@_": robot on ground with no vein below (tutorial sites)
+			reserve[i] = 0 if code == "@_" else 2
+			robot = i
 		"#":
 			terrain[i] = Terrain.BEDROCK
 		"1", "2", "3":
@@ -129,6 +145,28 @@ func _parse_cell(i: int, code: String) -> void:
 					"x": buried[i] = Buried.EMPTY
 		_:
 			push_error("unknown cell code '%s'" % code)
+
+
+func _place_layout(layout: Array) -> void:
+	assert(layout.size() == H, "layout needs %d rows" % H)
+	for y in H:
+		var codes: PackedStringArray = String(layout[y]).split(" ", false)
+		assert(codes.size() == W, "layout row %d needs %d cells" % [y, W])
+		for x in W:
+			var i := y * W + x
+			if terrain[i] != Terrain.GROUND:
+				continue
+			token[i] = Token.NONE
+			match codes[x]:
+				"F": token[i] = Token.ORE; ore[i] = 0
+				"C": token[i] = Token.ORE; ore[i] = 1
+				"L": token[i] = Token.ORE; ore[i] = 2
+				"c": token[i] = Token.CRYSTAL
+				"e": token[i] = Token.CELL
+				"b": token[i] = Token.CHARGE
+				"-", "@": pass
+				_: push_error("unknown layout code '%s'" % codes[x])
+	token[robot] = Token.NONE
 
 
 func _fill_ore() -> void:
@@ -581,6 +619,35 @@ func path_to_match(depth: int) -> Array:
 	return []
 
 
+## Shortest robot route to a crystal, energy cell or blast charge on open ground; [] if none
+## within depth. Walking only swaps ore around, so ore never blocks the route.
+func path_to_pickup(depth: int) -> Array:
+	var prev := {robot: -1}
+	var frontier := [robot]
+	for level in depth:
+		var next := []
+		for c in frontier:
+			for di in 4:
+				var to: Vector2i = pos(c) + DIRS[di]
+				if not inside(to):
+					continue
+				var ti := idx(to)
+				if terrain[ti] != Terrain.GROUND or prev.has(ti):
+					continue
+				prev[ti] = c
+				if token[ti] == Token.CRYSTAL or token[ti] == Token.CELL or token[ti] == Token.CHARGE:
+					var path := []
+					var at := ti
+					while prev[at] != -1:
+						var d: Vector2i = pos(at) - pos(prev[at])
+						path.push_front(DIRS.find(d))
+						at = prev[at]
+					return path
+				next.append(ti)
+		frontier = next
+	return []
+
+
 ## Does the ore at cell c form a line of 3 (only c can change per step)?
 func _line_through(tk: PackedInt32Array, orr: PackedInt32Array, c: int) -> bool:
 	if tk[c] != Token.ORE:
@@ -621,6 +688,7 @@ func goal_progress(g: Dictionary) -> int:
 	match g.type:
 		"ore": return extracted[g.ore]
 		"rock": return stats.rocks_broken
+		"chunks": return stats.chunks
 		"crystal": return stats.crystals
 	return 0
 
@@ -639,6 +707,6 @@ func snapshot() -> Dictionary:
 		"terrain": terrain.duplicate(), "hp": hp.duplicate(), "buried": buried.duplicate(),
 		"reserve": reserve.duplicate(), "depth": dug.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
-		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken,
+		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,
 		"crystals": stats.crystals,
 	}

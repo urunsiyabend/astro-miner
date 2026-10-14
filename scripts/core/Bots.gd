@@ -100,7 +100,7 @@ static func _value(b: Board, plan: bool) -> float:
 static func play(site: Dictionary, rules: Dictionary, seed_value: int, kind: int, max_turns := 400) -> Dictionary:
 	var b := Board.new()
 	b.record = false
-	b.setup(site.rows, seed_value, rules, site.goals)
+	b.setup_site(site, seed_value, rules)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value * 7919 + kind
 	var turns := 0
