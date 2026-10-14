@@ -50,6 +50,15 @@ func _ready() -> void:
 	bg.color = Pal.BG
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var art := Art.background()
+	if art != null:
+		var sky := TextureRect.new()
+		sky.texture = art
+		sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sky.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		sky.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky)
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -62,26 +71,34 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
+	# top HUD: dig number and battery on one plate, the haul on a second one
+	var top_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(top_plate)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 16)
-	_title = Ui.label("", Pal.FS, Pal.DIM)
-	_title.custom_minimum_size.x = 250
+	top_plate.add_child(top)
+	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
+	_title.custom_minimum_size.x = 230
 	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Ui.outline(_title)
 	top.add_child(_title)
 	_energy = Widgets.EnergyBar.new()
+	_energy.custom_minimum_size.y = 88
 	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_energy)
-	col.add_child(top)
 
+	var haul_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(haul_plate)
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
+	haul_plate.add_child(chips)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
-		c.custom_minimum_size.y = 56
+		c.custom_minimum_size.y = 64
 		_chips.append(c)
 		chips.add_child(c)
-	col.add_child(chips)
 
 	_goals = Widgets.GoalStrip.new()
 	col.add_child(_goals)
@@ -417,13 +434,13 @@ func _refresh_reach() -> void:
 				_reach = [di]
 				break
 		_hint_btn.text = "Hint"
-		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_hint_btn, Pal.ACCENT)
 		if not _reach.is_empty():
 			return
 	if _reach.is_empty():
 		if board.can_pulse():
 			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost
-			_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.CRYSTAL, 28))
+			Ui.paint_button(_hint_btn, Pal.CRYSTAL)
 			_say("No line of 3 within reach. Pulse reshuffles the ore, or Recall to bank your haul.", 4.0)
 		else:
 			_hint_btn.text = "Hint"
@@ -431,7 +448,7 @@ func _refresh_reach() -> void:
 			_coach.say("Nothing left in reach. Tap Recall to bank your haul and try again.")
 	else:
 		_hint_btn.text = "Hint"
-		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_hint_btn, Pal.ACCENT)
 
 
 func _on_hint() -> void:

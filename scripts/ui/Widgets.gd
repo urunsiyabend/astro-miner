@@ -33,11 +33,12 @@ class Chip extends Control:
 
 	func _draw() -> void:
 		var c := Vector2(38, size.y * 0.5)
-		var s := 20.0 * (1.0 + 0.35 * _pop)
+		var s := 30.0 * (1.0 + 0.35 * _pop)
 		Widgets.draw_res_icon(self, c, s, res)
 		var fs := Pal.FS
-		draw_string(_font, Vector2(72, size.y * 0.5 + fs * 0.36), str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-				Pal.TEXT.lerp(Pal.RES[res], _pop))
+		var p := Vector2(82, size.y * 0.5 + fs * 0.36)
+		draw_string_outline(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Color("2a1830"))
+		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[res], _pop))
 
 
 ## Battery bar whose length grows with capacity, so Power Station upgrades are visible.
@@ -71,29 +72,39 @@ class EnergyBar extends Control:
 	func _draw() -> void:
 		var h := size.y - 16
 		var full_w := size.x - 210
-		var w := full_w * float(capacity) / max_capacity
+		# starts at 60% of the room and grows to full with Power Station upgrades
+		var w := full_w * (0.6 + 0.4 * float(capacity - 20) / (max_capacity - 20))
 		var r := Rect2(Vector2(80, 8), Vector2(w, h))
-		var sb := StyleBoxFlat.new()
-		sb.set_corner_radius_all(14)
-		sb.bg_color = Pal.PANEL_HI
-		sb.border_color = Pal.LINE
-		sb.set_border_width_all(3)
-		draw_style_box(sb, r)
 		var frac := clampf(float(energy) / maxf(1.0, capacity), 0.0, 1.0)
 		var col := Pal.GOOD if frac > 0.4 else (Pal.WARN if frac > 0.2 else Pal.BAD)
 		col = col.lerp(Color.WHITE, _flash * 0.6)
+		const K := 0.6  # battery art scale for a 54 px bar
+		var inner := r.grow(-6)
+		if Art.draw(self, "battery", r, Color.WHITE, K):
+			inner = Art.face("battery", r, K).grow(-3)
+		else:
+			var sb := StyleBoxFlat.new()
+			sb.set_corner_radius_all(14)
+			sb.bg_color = Pal.PANEL_HI
+			sb.border_color = Pal.LINE
+			sb.set_border_width_all(3)
+			draw_style_box(sb, r)
 		if energy > 0:
-			var f := StyleBoxFlat.new()
-			f.set_corner_radius_all(11)
-			f.bg_color = col
-			draw_style_box(f, Rect2(r.position + Vector2(5, 5), Vector2((r.size.x - 10) * frac, r.size.y - 10)))
+			var fr := Rect2(inner.position, Vector2(maxf(inner.size.y, inner.size.x * frac), inner.size.y))
+			if not Art.draw(self, "bar_fill_base", fr, col, inner.size.y / 61.0):
+				var f := StyleBoxFlat.new()
+				f.set_corner_radius_all(11)
+				f.bg_color = col
+				draw_style_box(f, fr)
 		# one tick per energy unit
 		for i in range(1, capacity):
-			var x := r.position.x + 5 + (r.size.x - 10) * i / capacity
-			draw_line(Vector2(x, r.position.y + 8), Vector2(x, r.end.y - 8), Color(0, 0, 0, 0.18), 2.0)
+			var x := inner.position.x + inner.size.x * i / capacity
+			draw_line(Vector2(x, inner.position.y + 4), Vector2(x, inner.end.y - 4), Color(0, 0, 0, 0.18), 2.0)
 		Widgets.draw_bolt(self, Vector2(38, size.y * 0.5), 24, col)
 		var txt := "%d/%d" % [energy, capacity]
-		draw_string(_font, Vector2(r.end.x + 16, size.y * 0.5 + Pal.FS * 0.36), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, Pal.TEXT)
+		var tp := Vector2(r.end.x + 16, size.y * 0.5 + Pal.FS * 0.36)
+		draw_string_outline(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, 8, Color("2a1830"))
+		draw_string(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, Pal.TEXT)
 
 
 ## One objective with a progress bar.
@@ -142,7 +153,7 @@ class GoalStrip extends Control:
 
 	func _init(large := false) -> void:
 		big = large
-		custom_minimum_size = Vector2(0, 230 if large else 140)
+		custom_minimum_size = Vector2(0, 230 if large else 160)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_font = ThemeDB.fallback_font
 
@@ -196,12 +207,14 @@ class GoalStrip extends Control:
 			var c := _icon_pos(i)
 			var col := Pal.GOOD if done else Pal.TEXT
 			var slot := Rect2(Vector2(w * i + 8, 4), Vector2(w - 16, size.y - 8))
-			var sb := StyleBoxFlat.new()
-			sb.set_corner_radius_all(26)
-			sb.bg_color = Pal.PANEL.lerp(Pal.GOOD, 0.18) if done else Pal.PANEL
-			sb.border_color = Pal.GOOD if done else Pal.LINE.lerp(Color.WHITE, _pop[i] * 0.6)
-			sb.set_border_width_all(3)
-			draw_style_box(sb, slot)
+			var tint := Color.WHITE.lerp(Pal.GOOD, 0.35) if done else Color.WHITE.lerp(Color(1.3, 1.3, 1.3), _pop[i])
+			if not Art.draw(self, "plate", slot, tint):
+				var sb := StyleBoxFlat.new()
+				sb.set_corner_radius_all(26)
+				sb.bg_color = Pal.PANEL.lerp(Pal.GOOD, 0.18) if done else Pal.PANEL
+				sb.border_color = Pal.GOOD if done else Pal.LINE.lerp(Color.WHITE, _pop[i] * 0.6)
+				sb.set_border_width_all(3)
+				draw_style_box(sb, slot)
 			Widgets.draw_goal_icon(self, c, s * (1.0 + 0.3 * _pop[i]), g)
 			var fs := Pal.FS_BIG if big else Pal.FS
 			var txt := ("x %d" % g.n) if big else ("%d/%d" % [have[i], g.n])
@@ -209,9 +222,18 @@ class GoalStrip extends Control:
 			var tp := Vector2(c.x - tw * 0.5, size.y * 0.82) if big else Vector2(c.x + s * 1.3, c.y + fs * 0.36)
 			draw_string(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 			if not big:
-				var bar := Rect2(Vector2(slot.position.x + 22, slot.end.y - 26), Vector2(slot.size.x - 44, 10))
-				draw_rect(bar, Pal.PANEL_HI)
-				draw_rect(Rect2(bar.position, Vector2(bar.size.x * float(have[i]) / g.n, bar.size.y)), Pal.GOOD if done else Pal.ACCENT)
+				var face := Art.face("plate", slot)
+				var bar := Rect2(Vector2(face.position.x + 16, face.end.y - 30), Vector2(face.size.x - 32, 22))
+				const K := 0.32  # bar art scale for a 22 px bar
+				var frac: float = float(have[i]) / g.n
+				if Art.draw(self, "bar_track", bar, Color.WHITE, K):
+					var inner := Art.face("bar_track", bar, K)
+					if frac > 0.0:
+						var fr := Rect2(inner.position, Vector2(maxf(inner.size.y * 1.5, inner.size.x * frac), inner.size.y))
+						Art.draw(self, "bar_fill_base", fr, Pal.GOOD if done else Pal.ACCENT, inner.size.y / 61.0)
+				else:
+					draw_rect(bar, Pal.PANEL_HI)
+					draw_rect(Rect2(bar.position, Vector2(bar.size.x * frac, bar.size.y)), Pal.GOOD if done else Pal.ACCENT)
 			if done:
 				var k := c + Vector2(s * 0.75, -s * 0.75)
 				draw_circle(k, s * 0.38, Pal.GOOD)
@@ -309,6 +331,12 @@ static func draw_building_icon(ci: CanvasItem, c: Vector2, s: float, b: int, col
 
 
 static func draw_res_icon(ci: CanvasItem, c: Vector2, s: float, res: int) -> void:
+	var t := Art.ore(res)
+	if t != null:
+		# ore sprites share one canvas with the gem on its optical centre, so every kind lands
+		# on the same point and looks the same size (see tools/art/build_assets.py)
+		ci.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 1.15, Vector2(s, s) * 2.3), false)
+		return
 	var col: Color = Pal.RES[res]
 	match res:
 		0:

@@ -29,6 +29,15 @@ func _ready() -> void:
 	bg.color = Pal.BG
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var art := Art.background()
+	if art != null:
+		var sky := TextureRect.new()
+		sky.texture = art
+		sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sky.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		sky.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky)
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -48,14 +57,16 @@ func _ready() -> void:
 	col.add_child(Ui.label("ASTRO MINER", Pal.FS_HUGE, Pal.WARN, HORIZONTAL_ALIGNMENT_CENTER))
 	col.add_child(Ui.label("Outpost on Corvo IV", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
 
+	var bank_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(bank_plate)
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
+	bank_plate.add_child(chips)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
 		_chips.append(c)
 		chips.add_child(c)
-	col.add_child(chips)
 
 	_view = ColonyView.new()
 	col.add_child(_view)
@@ -132,10 +143,10 @@ func refresh(celebrate := -1) -> void:
 		_go_btn.disabled = true
 	elif next >= 0 and Game.can_start(next):
 		_go_btn.text = "DIG  ·  #%d" % (next + 1)
-		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.WARN, 28))
+		Ui.paint_button(_go_btn, Pal.WARN)
 	else:
 		_go_btn.text = "SUPPLY RUN"
-		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_go_btn, Pal.ACCENT)
 	if is_inside_tree():
 		var line := Story.advice()
 		if line == "":
