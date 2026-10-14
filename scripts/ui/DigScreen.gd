@@ -71,26 +71,34 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
+	# top HUD: dig number and battery on one plate, the haul on a second one
+	var top_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(top_plate)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 16)
-	_title = Ui.label("", Pal.FS, Pal.DIM)
-	_title.custom_minimum_size.x = 250
+	top_plate.add_child(top)
+	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
+	_title.custom_minimum_size.x = 230
 	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
+	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	Ui.outline(_title)
 	top.add_child(_title)
 	_energy = Widgets.EnergyBar.new()
+	_energy.custom_minimum_size.y = 88
 	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_energy)
-	col.add_child(top)
 
+	var haul_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(haul_plate)
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
+	haul_plate.add_child(chips)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
-		c.custom_minimum_size.y = 56
+		c.custom_minimum_size.y = 64
 		_chips.append(c)
 		chips.add_child(c)
-	col.add_child(chips)
 
 	_goals = Widgets.GoalStrip.new()
 	col.add_child(_goals)

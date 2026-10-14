@@ -57,14 +57,16 @@ func _ready() -> void:
 	col.add_child(Ui.label("ASTRO MINER", Pal.FS_HUGE, Pal.WARN, HORIZONTAL_ALIGNMENT_CENTER))
 	col.add_child(Ui.label("Outpost on Corvo IV", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
 
+	var bank_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	col.add_child(bank_plate)
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
+	bank_plate.add_child(chips)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
 		_chips.append(c)
 		chips.add_child(c)
-	col.add_child(chips)
 
 	_view = ColonyView.new()
 	col.add_child(_view)

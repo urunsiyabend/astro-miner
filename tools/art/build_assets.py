@@ -12,6 +12,7 @@ game needs to place art exactly, so nothing is tuned by eye in GDScript:
   what the eye sees, not on the outline and the darker bottom lip) and the image size.
 - Ore and rock sprites share one canvas size per family and are centred on their optical
   centre (alpha centroid / main body), so every sprite lands on the same point of a cell.
+  Every gem fits the same outer box, so all kinds read as the same size.
 
 It also writes docs/art/ui-slices.png, which draws the slice lines and content boxes for review.
 """
@@ -137,8 +138,8 @@ def build_rocks():
 
 # --- ores: same canvas, same visual weight, optical centre --------------------------------
 ORE_CANVAS = 256
-ORE_AREA = 0.36  # share of the canvas the gem's opaque area covers, so a triangle looks as big as a square
-ORE_MAX = 0.86   # no side longer than this share of the canvas
+ORE_BOX = 0.80   # every gem fits the same box: its longer side is this share of the canvas
+ORE_SQUAT = 0.62 # a gem much wider than tall (the capsule) gets at least this height
 
 
 def build_ores():
@@ -147,8 +148,9 @@ def build_ores():
     for k, name in enumerate(names):
         piece = cell(rgba, k)
         a = piece[..., 3] / 255.0
-        area = a.sum()
-        scale = min((ORE_AREA * ORE_CANVAS ** 2 / area) ** 0.5, ORE_MAX * ORE_CANVAS / max(piece.shape[:2]))
+        h, w = piece.shape[:2]
+        scale = ORE_BOX * ORE_CANVAS / max(h, w)
+        scale = min(max(scale, ORE_SQUAT * ORE_CANVAS / h), 0.95 * ORE_CANVAS / w)
         cy, cx = ndimage.center_of_mass(a)
         im = Image.fromarray(piece)
         im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
@@ -310,7 +312,7 @@ def build_background():
     s = max(w / bg.width, h / bg.height)
     bg = bg.resize((round(bg.width * s), round(bg.height * s)), Image.LANCZOS)
     bg = bg.crop(((bg.width - w) // 2, (bg.height - h) // 2, (bg.width - w) // 2 + w, (bg.height - h) // 2 + h))
-    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(6))).enhance(0.45)
+    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(5))).enhance(0.72)
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     bg.save(os.path.join(OUT, "bg", "space.jpg"), quality=88)
 

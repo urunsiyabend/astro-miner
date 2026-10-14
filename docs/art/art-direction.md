@@ -103,7 +103,7 @@ game's art and measures everything the code needs, so nothing is placed by eye:
 |---|---|
 | `assets/ui/*.png` + `scripts/ui/UiMetrics.gd` | Per UI piece: **slice** = 9-slice margins (corners, border, top highlight and bottom lip never stretch); **face** = inset of the visible face. `Art.style()` builds a `StyleBoxTexture` whose content area is the face, so button text and panel content centre on what the eye sees, not on the outline or the darker lip. |
 | `button_base`, `bar_fill_base` | Grey copies of the button and bar fill, tinted at runtime, so every button colour shares one shape and one set of margins. |
-| `assets/ore/*.png` | One 256 px canvas per gem, scaled to the same opaque area (a triangle looks as big as a square) and placed on its optical centre (alpha centroid). |
+| `assets/ore/*.png` | One 256 px canvas per gem, every gem fitted to the same outer box (80% of the canvas) and placed on its optical centre (alpha centroid). |
 | `assets/rocks/<form>_<state>.png` | 3 forms (boulder, stone, basalt = 1, 2, 3 starting layers) x 3 break states, one 320 px canvas, centred on the rock body (not on flying chips). `Art.rock(layers, left)` picks the sprite. |
 | `assets/tiles/*.png` | Square top + layered earth band. Rows are drawn `pitch` apart (cell + `Art.BAND_VISIBLE`), so each block shows its thickness; `BoardView.cell_origin()` is the only place a cell's position is computed. |
 | `assets/bg/space.jpg` | Background, darkened and blurred once here instead of per frame. |
