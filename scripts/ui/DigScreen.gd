@@ -20,6 +20,8 @@ var _chips: Array = []
 var _coach: Dialog.Coach
 var _dialog: Dialog.Overlay
 var _mission: Control
+var _mission_at := 0  # ticks when the goal card opened; it can't be closed right away
+const MISSION_HOLD_MS := 1500
 var _hint_btn: Button
 var _recall_btn: Button
 var _recall_armed := 0.0
@@ -30,6 +32,7 @@ var _reach: Array = []
 var _hints_used := 0
 var _idle := 0.0
 var _auto_hint := false
+var _lesson := false
 # Mira's script for this dig (see Sites): current step and the event a coach line waits for.
 var _script: Array = []
 var _step := 0
@@ -148,7 +151,8 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_hints_used = 0
 	_has_pending = false
 	_idle = 0.0
-	_auto_hint = site.get("guide", false) and not supply
+	_lesson = site.get("guide", false) and not supply
+	_auto_hint = _lesson and site.get("auto_hint", true)
 	if _result:
 		_result.queue_free()
 		_result = null
@@ -160,8 +164,11 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	# Script: modal lines only the first time this dig is played; coach lines every time.
 	var seen: bool = Game.tips_seen.has(site.id)
 	_script = []
-	for line in Game.take_reminders():
-		_script.append({"say": line})
+	# new-tool reminders, unless this dig is the hand-made lesson that teaches the tool anyway
+	var reminders := Game.take_reminders()
+	if not site.get("guide", false) or supply:
+		for line in reminders:
+			_script.append({"say": line})
 	if not supply:
 		for st in site.get("script", []):
 			if st.has("until") or not seen:
@@ -205,14 +212,26 @@ func _show_mission(goals: Array) -> void:
 	for g in goals:
 		words.append(Sites.goal_text(g))
 	v.add_child(Ui.label(" + ".join(words), Pal.FS_SMALL, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
-	v.add_child(Ui.label("tap to start", Pal.FS_TINY, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	var tap := Ui.label("tap to start", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	tap.modulate.a = 0.0
+	v.add_child(tap)
+	# the card stays up for a moment so the goal is actually read, then invites the tap
+	_mission_at = Time.get_ticks_msec()
+	var tw := tap.create_tween()
+	tw.tween_interval(MISSION_HOLD_MS / 1000.0)
+	tw.tween_property(tap, "modulate:a", 1.0, 0.3)
+	strip.scale = Vector2(0.6, 0.6)
+	strip.pivot_offset = Vector2(420, 115)
+	strip.create_tween().tween_property(strip, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_mission.gui_input.connect(func(e: InputEvent):
 		if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
 			_close_mission())
 
 
-func _close_mission() -> void:
+func _close_mission(force := false) -> void:
 	if _mission == null:
+		return
+	if not force and Time.get_ticks_msec() - _mission_at < MISSION_HOLD_MS:
 		return
 	_mission.queue_free()
 	_mission = null
@@ -234,6 +253,7 @@ func _run_script() -> void:
 	if st.has("until"):
 		_waiting = st.until
 		_coach.say(st.say)
+		_refresh_reach()  # the hint follows the new focus
 		return
 	_waiting = ""
 	_coach.clear()
@@ -368,6 +388,17 @@ func _refresh_reach() -> void:
 	_reach = board.path_to_pickup(10)
 	if _reach.is_empty():
 		_reach = board.path_to_match(5)
+	if _reach.is_empty() and _lesson:
+		# lessons: point at the cell Mira is talking about (e.g. the rock to drill), never Pulse
+		for f in view.focus:
+			var di := Board.DIRS.find(Vector2i(f) - Board.pos(board.robot))
+			if di >= 0:
+				_reach = [di]
+				break
+		_hint_btn.text = "Hint"
+		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		if not _reach.is_empty():
+			return
 	if _reach.is_empty():
 		if board.can_pulse():
 			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost
@@ -375,7 +406,8 @@ func _refresh_reach() -> void:
 			_say("No line of 3 within reach. Pulse reshuffles the ore, or Recall to bank your haul.", 4.0)
 		else:
 			_hint_btn.text = "Hint"
-			_say("Nothing left in reach. Recall to bank your haul.", 4.0)
+			# stuck for good: this beats any instruction still on screen
+			_coach.say("Nothing left in reach. Tap Recall to bank your haul and try again.")
 	else:
 		_hint_btn.text = "Hint"
 		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
