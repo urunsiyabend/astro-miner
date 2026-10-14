@@ -21,8 +21,17 @@ func _run() -> void:
 		var site := int(OS.get_environment("ASTRO_SITE")) if OS.has_environment("ASTRO_SITE") else 0
 		main.colony.visible = false
 		main.dig.visible = true
-		main.dig.start(site, 12345)
+		main.dig.start(site, false, 12345)
 		await get_tree().create_timer(0.4).timeout
+		# ASTRO_TALK=n: tap through the goal card and n of Mira's lines first (all if unset)
+		var talk := int(OS.get_environment("ASTRO_TALK")) if OS.has_environment("ASTRO_TALK") else 99
+		if talk >= 0:
+			main.dig._close_mission()
+		for k in talk * 2:
+			if not main.dig._dialog.visible:
+				break
+			main.dig._dialog._advance()
+		await get_tree().create_timer(0.3).timeout
 		var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
 		for ch in OS.get_environment("ASTRO_MOVES"):
 			if map.has(ch):

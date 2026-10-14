@@ -1,68 +1,53 @@
 class_name Sites
 extends RefCounted
 
-## Dig sites in play order. Terrain codes: see Board._parse_cell(). Rows are 7 cells wide,
-## 8 rows tall. Ore types are seeded per dig unless the site pins them:
-##   "ore":    hand-placed tokens (see Board._place_layout), so the opening is always the same
+## The campaign: digs in play order, one after the other. Players never see a site list or
+## site names; they press "Dig" in the colony and get the next one.
+## Terrain codes: see Board._parse_cell(). Rows are 7 cells wide, 8 rows tall. Optional keys:
+##   "ore":    hand-placed tokens (see Board._place_layout); the opening is always the same
 ##   "seed":   fixed seed, so what surfaces after each match is always the same
 ##   "energy": starting energy (below the battery capacity)
-##   "guide":  show the hint arrow quickly on every turn (tutorial sites)
-## Each mechanic gets a small hand-crafted tutorial site right before the site that uses it.
+##   "guide":  hand-crafted lesson; the hint arrow shows up quickly on every turn
+##   "needs":  colony building level required before this dig can start
+##   "script": what Mira says. A line without "until" waits for a tap; a line with "until"
+##             stays up while you play and moves on when that event happens (see DigScreen).
+##             "focus" cells pulse on the board.
 
 const LIST := [
 	{
-		"id": "step", "name": "First Step", "guide": true, "seed": 1,
-		"tip": "Swipe up. The robot swaps places with the ore it steps into.",
-		"goals": [{"type": "ore", "ore": 0, "n": 3}],
+		"id": "first", "guide": true, "seed": 3,
+		"goals": [{"type": "chunks", "n": 15}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
-			"# # # # # # #",
-			"# # _ _ _ # #",
-			"# # _ _ _ # #",
-			"# # _ @_ _ # #",
-			"# # # # # # #",
+			"# . . . . . #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# . . . . . #",
+			"# . . . . . #",
 			"# # # # # # #",
 		],
 		"ore": [
 			"- - - - - - -",
 			"- - - - - - -",
+			"- C L L C L -",
+			"- L C F L C -",
+			"- C F - F L -",
+			"- L C L C F -",
+			"- F L C F C -",
 			"- - - - - - -",
-			"- - C L C - -",
-			"- - L F L - -",
-			"- - F - F - -",
-			"- - - - - - -",
-			"- - - - - - -",
+		],
+		"script": [
+			{"say": "Hi, I'm Mira, chief of the Corvo IV colony. You drive our mining robot."},
+			{"say": "The colony runs on ore. Line up 3 chunks of the same kind and the robot extracts them."},
+			{"say": "The robot swaps places with the ore it steps into. Swipe up: that Ferrite drops into a line of 3.", "until": "match", "focus": [Vector2i(3, 4), Vector2i(3, 3)]},
+			{"say": "Extracted! Each match digs that ground one layer deeper, and new ore rises from below.", "focus": [Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4)]},
+			{"say": "The yellow pips show how much ore is left down there. When they run out, that vein is dry."},
+			{"say": "Every step costs 1 energy from the bar up top, and matches give some back. Extract 15 ore!"},
 		],
 	},
 	{
-		"id": "pull", "name": "Pull", "guide": true, "seed": 2,
-		"tip": "The ore you step into slides to where you stood. Plan two steps to line up 3 Cryo.",
-		"goals": [{"type": "ore", "ore": 1, "n": 3}],
-		"rows": [
-			"# # # # # # #",
-			"# # # # # # #",
-			"# _ _ _ _ _ #",
-			"# _ _ @_ _ _ #",
-			"# _ _ _ _ _ #",
-			"# _ _ _ _ _ #",
-			"# # # # # # #",
-			"# # # # # # #",
-		],
-		"ore": [
-			"- - - - - - -",
-			"- - - - - - -",
-			"- C C L C F -",
-			"- L F - F L -",
-			"- F L C L C -",
-			"- C F L F L -",
-			"- - - - - - -",
-			"- - - - - - -",
-		],
-	},
-	{
-		"id": "landing", "name": "Landing Zone",
-		"tip": "A full dig site. Every step drags one chunk: plan a route to line up Ferrite.",
+		"id": "landing",
 		"goals": [{"type": "ore", "ore": 0, "n": 12}],
 		"rows": [
 			"1 . . . . . 1",
@@ -74,40 +59,17 @@ const LIST := [
 			"1 . . . . . 1",
 			"# 1 1 . 1 1 #",
 		],
-	},
-	{
-		"id": "veins", "name": "Veins", "guide": true, "seed": 3,
-		"tip": "Each match digs the ground deeper and new ore rises from below. The pips show how much is left.",
-		"goals": [{"type": "chunks", "n": 24}],
-		"rows": [
-			"# # # # # # #",
-			"# # # # # # #",
-			"# . . . . . #",
-			"# . . . . . #",
-			"# . . @ . . #",
-			"# . . . . . #",
-			"# . . . . . #",
-			"# # # # # # #",
-		],
-		"ore": [
-			"- - - - - - -",
-			"- - - - - - -",
-			"- C L F C L -",
-			"- L C F L C -",
-			"- C F - F L -",
-			"- L C L C F -",
-			"- F L C F C -",
-			"- - - - - - -",
+		"script": [
+			{"say": "A full dig site. Every step drags one chunk behind you, so plan your route. We need 12 Ferrite."},
 		],
 	},
 	{
-		"id": "crack", "name": "Crack", "guide": true, "seed": 4,
-		"tip": "Matches crack the rock next to them. Broken rock opens new ground.",
-		"goals": [{"type": "rock", "n": 4}],
+		"id": "rocks", "guide": true, "seed": 4,
+		"goals": [{"type": "rock", "n": 4}, {"type": "crystal", "n": 1}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
-			"# 1 1 1 1 1 #",
+			"# 1 1 1c 1 1 #",
 			"# . . @ . . #",
 			"# . . . . . #",
 			"# . . . . . #",
@@ -124,10 +86,17 @@ const LIST := [
 			"- C L F L C -",
 			"- - - - - - -",
 		],
+		"script": [
+			{"say": "Rock! The robot can't drive through it."},
+			{"say": "But a match right next to rock cracks it. Each white pip on a rock is one layer."},
+			{"say": "Swipe down: the Cryo below you lines up with the two beside you, right under the rocks.", "until": "reveal", "focus": [Vector2i(3, 4), Vector2i(1, 3), Vector2i(2, 3)]},
+			{"say": "Cracked open! Broken rock turns into fresh ground, and some rock hides things. A crystal!", "focus": [Vector2i(3, 2)]},
+			{"say": "Drive onto the crystal to pick it up.", "until": "crystal", "focus": [Vector2i(3, 2)]},
+			{"say": "Crystals are rare. The colony needs them for its bigger buildings. Break one more rock to finish."},
+		],
 	},
 	{
-		"id": "rubble", "name": "Rubble Field",
-		"tip": "Matches crack the rock next to them. Broken rock opens fresh ground.",
+		"id": "rubble",
 		"goals": [{"type": "rock", "n": 8}],
 		"rows": [
 			". . . . . . .",
@@ -139,35 +108,12 @@ const LIST := [
 			". . 1 1 1 . .",
 			"# . . . . . #",
 		],
-	},
-	{
-		"id": "gem", "name": "Gem", "guide": true, "seed": 5,
-		"tip": "Crystals hide under rock. Crack the rock open, then drive onto the crystal.",
-		"goals": [{"type": "crystal", "n": 1}],
-		"rows": [
-			"# # # # # # #",
-			"# # # # # # #",
-			"# # # 1c # # #",
-			"# _ _ @_ _ _ #",
-			"# _ _ _ _ _ #",
-			"# _ _ _ _ _ #",
-			"# # # # # # #",
-			"# # # # # # #",
-		],
-		"ore": [
-			"- - - - - - -",
-			"- - - - - - -",
-			"- - - - - - -",
-			"- C C - L F -",
-			"- F L C F L -",
-			"- L F L C F -",
-			"- - - - - - -",
-			"- - - - - - -",
+		"script": [
+			{"say": "A rock field. Matches crack the rock next to them: break 8."},
 		],
 	},
 	{
-		"id": "glint", "name": "Glint Pocket",
-		"tip": "Crystals hide under rock. Crack it open, then drive the robot onto the crystal.",
+		"id": "glint",
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			"# . . . . . #",
@@ -179,10 +125,12 @@ const LIST := [
 			"# 2 2 2 2 2 #",
 			"# # 3 3c 3 # #",
 		],
+		"script": [
+			{"say": "Crystal readings under this rock. Crack it open and collect 2 crystals."},
+		],
 	},
 	{
-		"id": "battery", "name": "Low Battery", "guide": true, "seed": 6, "energy": 3,
-		"tip": "Every step costs energy and the battery is nearly flat. Crack the rock: an energy cell refills it.",
+		"id": "power", "guide": true, "seed": 7, "energy": 2,
 		"goals": [{"type": "crystal", "n": 1}],
 		"rows": [
 			"# # # # # # #",
@@ -190,24 +138,31 @@ const LIST := [
 			"# # # # # # #",
 			"# _ _ _ _ _ #",
 			"# _ _ @_ _ _ #",
-			"# # # 1e # # #",
+			"# 3 3 3e 3 3 #",
+			"# # # _ # # #",
 			"# _ _ _ # # #",
-			"# _ # # # # #",
 		],
 		"ore": [
 			"- - - - - - -",
 			"- - - - - - -",
 			"- - - - - - -",
-			"- C L F L C -",
-			"- C F - F L -",
+			"- C L F C L -",
+			"- F F - F C -",
 			"- - - - - - -",
 			"- - - - - - -",
 			"- c - - - - -",
 		],
+		"script": [
+			{"say": "Careful, the battery is almost flat! When it hits zero the robot has to come home."},
+			{"say": "Line up 4 at once and you also get a blast charge."},
+			{"say": "Swipe up: that lines up 4 Ferrite.", "until": "charge", "focus": [Vector2i(3, 3), Vector2i(1, 4), Vector2i(2, 4), Vector2i(4, 4)]},
+			{"say": "There's the charge. Step onto it to set it off. Blasts smash even dark basalt.", "until": "blast", "focus": [Vector2i(3, 4)]},
+			{"say": "An energy cell was buried in that basalt. Drive over it to refill the battery.", "until": "cell", "focus": [Vector2i(3, 5)]},
+			{"say": "Full power! Now bring that crystal home.", "until": "crystal", "focus": [Vector2i(1, 7)]},
+		],
 	},
 	{
-		"id": "shale", "name": "Shale Shelf",
-		"tip": "Shallow ground runs dry fast. Energy cells under rock refill the battery.",
+		"id": "shale",
 		"goals": [{"type": "ore", "ore": 1, "n": 15}, {"type": "crystal", "n": 1}],
 		"rows": [
 			": : : : : : :",
@@ -219,35 +174,12 @@ const LIST := [
 			"2 2 3 2c 3 2 2",
 			"# 3 3 3 3 3 #",
 		],
-	},
-	{
-		"id": "blast", "name": "Blast", "guide": true, "seed": 7,
-		"tip": "Match 4 to leave a blast charge. Step on it to blast the 3x3 around it, even basalt.",
-		"goals": [{"type": "rock", "n": 3}],
-		"rows": [
-			"# # # # # # #",
-			"# # # # # # #",
-			"# # # # # # #",
-			"# _ _ _ _ _ #",
-			"# _ _ @_ _ _ #",
-			"# 3 3 3 3 3 #",
-			"# # # # # # #",
-			"# # # # # # #",
-		],
-		"ore": [
-			"- - - - - - -",
-			"- - - - - - -",
-			"- - - - - - -",
-			"- C L F C L -",
-			"- F F - F C -",
-			"- - - - - - -",
-			"- - - - - - -",
-			"- - - - - - -",
+		"script": [
+			{"say": "Shallow ground: these veins run dry fast. Energy cells hide under the rock."},
 		],
 	},
 	{
-		"id": "vein", "name": "Deep Vein",
-		"tip": "Deep veins keep giving. Match 4 to leave a blast charge, then step on it.",
+		"id": "vein",
 		"goals": [{"type": "ore", "ore": 2, "n": 15}, {"type": "crystal", "n": 2}],
 		"rows": [
 			"2 o 2 . 2 o 2",
@@ -259,11 +191,14 @@ const LIST := [
 			"2 o 2 . 2 o 2",
 			"# 3 3e 3 3 3 #",
 		],
+		"script": [
+			{"say": "Deep veins here, they keep giving. Match 4 for charges, they clear rock fast."},
+		],
 	},
 	{
-		"id": "core", "name": "Core Chamber",
-		"tip": "A basalt shell guards the chamber. Charges and the drill make short work of it.",
+		"id": "core",
 		"goals": [{"type": "crystal", "n": 3}],
+		"needs": {"building": 1, "level": 1},
 		"rows": [
 			"o . . . . . o",
 			". 3 2 2 2 3 .",
@@ -273,6 +208,9 @@ const LIST := [
 			". 3 2 2 2 3 .",
 			". . . @ . . .",
 			"o . . . . . o",
+		],
+		"script": [
+			{"say": "The crystals sit inside a basalt shell. Swipe into rock to drill it, and use charges."},
 		],
 	},
 ]
