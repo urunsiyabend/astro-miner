@@ -8,12 +8,9 @@ const MASCOT := "MIRA"
 
 ## Lines when a dig unlocks a building (Sites "unlock"); the colony then highlights its button.
 const UNLOCK := [
-	["Good news: the colony can build a Power Station now!",
-			"Tap the glowing Build button. The first one is on the house, and it makes the robot's battery bigger."],
-	["The Mining Workshop is ready to build!",
-			"Tap the glowing Build button to get the drill. Next dig, I'll show you how to use it."],
-	["We can build a Research Lab now!",
-			"Tap the glowing Build button: its scanner lets you see inside rock. I'll show you on the next dig."],
+	["Good news: the colony can build a Power Station now! It gives the robot a bigger battery."],
+	["The Mining Workshop is ready to build! It comes with a drill that cuts through rock."],
+	["We can build a Research Lab now! Its scanner lets you see what's inside rock."],
 ]
 
 ## Lines when a building reaches a level: BUILT[building][level - 1].

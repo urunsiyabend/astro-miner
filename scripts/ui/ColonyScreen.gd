@@ -12,6 +12,9 @@ var _view: ColonyView
 var _cards: VBoxContainer
 var _advice: Dialog.Coach
 var _dialog: Dialog.Overlay
+var _spot: Dialog.Spotlight
+var _scroll: ScrollContainer
+var _build_btns := {}
 var _log: Label
 var _sound_btn: Button
 var _reset_btn: Button
@@ -30,6 +33,7 @@ func _ready() -> void:
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
+	_scroll = scroll
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for side in ["left", "right"]:
@@ -93,6 +97,8 @@ func _ready() -> void:
 	add_child(_fx)
 	_dialog = Dialog.Overlay.new()
 	add_child(_dialog)
+	_spot = Dialog.Spotlight.new()
+	add_child(_spot)
 	refresh()
 
 
@@ -109,8 +115,14 @@ func refresh(celebrate := -1) -> void:
 	_view.set_levels(Game.levels, celebrate)
 	for c in _cards.get_children():
 		c.queue_free()
+	_build_btns.clear()
+	# buildings appear one by one: the ones you have, plus a teaser for the next unlock
 	for b in Economy.BUILDINGS.size():
-		_cards.add_child(_card(b))
+		if Game.building_unlocked(b) or Game.levels[b] > 0:
+			_cards.add_child(_card(b))
+	var nu := Game.next_unlock()
+	if not nu.is_empty():
+		_cards.add_child(_teaser(nu[0], nu[1]))
 	_sound_btn.text = "Sound: %s" % ("on" if Game.sfx_on else "off")
 	var next := Game.next_dig()
 	_go_btn.disabled = false
@@ -126,7 +138,7 @@ func refresh(celebrate := -1) -> void:
 		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
 	if is_inside_tree():
 		_advice.say(Story.advice())
-		_announce_unlocks.call_deferred()
+		_guide.call_deferred()
 	var t: Dictionary = Game.totals
 	var mpm := float(t.moves) / maxf(1.0, t.groups)
 	_log.text = "Digs %d · cleared %d · battery depleted %d · recalled %d\nMoves %d · extractions %d (%.1f moves each) · cascades %d\nRock broken %d · crystals %d · pulses %d · hints %d · upgrades %d" % [
@@ -134,17 +146,53 @@ func refresh(celebrate := -1) -> void:
 		t.rocks, t.crystals, t.pulses, t.hints, t.upgrades]
 
 
-## Mira announces a building the last dig unlocked (once).
-func _announce_unlocks() -> void:
-	if not visible or _dialog.is_open():
+## Walks you through an unlock: Mira announces the building, the spotlight makes you tap its
+## Build button, she explains the tool, then the spotlight sends you to DIG for its lesson.
+func _guide() -> void:
+	if not visible or _dialog.is_open() or _spot.visible:
 		return
 	for b in Economy.BUILDINGS.size():
 		var key := "unlock_%d" % b
 		if Game.building_unlocked(b) and not Game.tips_seen.has(key):
 			Game.tips_seen[key] = true
 			Game.save()
-			_dialog.say(Story.UNLOCK[b])
+			_dialog.say(Story.UNLOCK[b], func(): _spot_build(b))
 			return
+	var p := Game.pending_build()
+	if p >= 0:
+		_spot_build(p)
+
+
+func _spot_build(b: int) -> void:
+	var btn: Button = _build_btns.get(b)
+	if btn == null:
+		return
+	_scroll.ensure_control_visible(btn)
+	await get_tree().process_frame
+	_spot.point(btn, "Tap Build to get the %s. This one is free!" % Economy.BUILDINGS[b].name, func(): _buy(b))
+
+
+func _spot_dig() -> void:
+	_scroll.ensure_control_visible(_go_btn)
+	await get_tree().process_frame
+	_spot.point(_go_btn, "Now tap DIG. I'll show you how to use it down there.", _on_go)
+
+
+func _teaser(b: int, dig: int) -> Control:
+	var p := Ui.panel(Pal.PANEL, 26)
+	p.modulate = Color(1, 1, 1, 0.5)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 18)
+	p.add_child(h)
+	var icon := Widgets.BuildingIcon.new(b)
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(icon)
+	var v := VBoxContainer.new()
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	v.add_child(Ui.label("Locked: next building", Pal.FS, Pal.DIM))
+	v.add_child(Ui.label("Unlocks after dig #%d" % (dig + 1), Pal.FS_SMALL, Pal.WARN))
+	h.add_child(v)
+	return p
 
 
 func _on_go() -> void:
@@ -166,15 +214,6 @@ func _card(b: int) -> Control:
 	icon.level = lv
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(icon)
-	if lv == 0 and not Game.building_unlocked(b):
-		# locked: a dim silhouette that tells you more is coming
-		p.modulate = Color(1, 1, 1, 0.45)
-		var lk := VBoxContainer.new()
-		lk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		lk.add_child(Ui.label("Locked", Pal.FS, Pal.DIM))
-		lk.add_child(Ui.label("Keep digging to unlock it", Pal.FS_TINY, Pal.MUTED))
-		h.add_child(lk)
-		return p
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.add_theme_constant_override("separation", 4)
@@ -205,6 +244,7 @@ func _card(b: int) -> Control:
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_SINE)
 	btn.pressed.connect(func(): _buy(b))
 	h.add_child(btn)
+	_build_btns[b] = btn
 	return p
 
 
@@ -215,7 +255,10 @@ func _buy(b: int) -> void:
 		var at := _view.building_global(b) + Vector2(0, -80)
 		_fx.burst(at, Pal.GOOD, 24, 600.0)
 		_fx.text(at, Economy.BUILDINGS[b].name + "!", Pal.GOOD, 44)
-		_dialog.say(Story.BUILT[b][Game.levels[b] - 1])
+		var then := Callable()
+		if Game.levels[b] == 1:
+			then = _spot_dig  # a brand-new tool: straight to the dig that teaches it
+		_dialog.say(Story.BUILT[b][Game.levels[b] - 1], then)
 
 
 func _on_reset() -> void:

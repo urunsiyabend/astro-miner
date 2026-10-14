@@ -125,20 +125,26 @@ icons with counters sit right above the board; mined chunks that count fly into 
 |---|-----|-------------------|------|
 | 1 | first (lesson) | robot swaps with the ore it steps into, lines of 3, digging and veins, energy | Extract 15 ore |
 | 2 | landing → unlocks **Power Station** | routes on a full site | Extract 12 Ferrite |
-| 3 | rocks (lesson) | matches crack rock, rock hides things, picking up crystals | Break 4 rock + 1 crystal |
-| 4 | rubble | rock fields | Break 8 rock |
-| 5 | glint | buried crystals | Recover 2 crystals |
-| 6 | power (lesson) | low battery, match 4 for a charge, blasts break basalt, energy cells | Recover 1 crystal (start with 2 energy) |
-| 7 | shale → unlocks **Mining Workshop** | shallow veins, energy cells | Extract 15 Cryo + 1 crystal |
-| 8 | drill (lesson) | the drill: swipe into rock, one layer per bump, 2 energy | Recover 1 crystal |
-| 9 | vein | deep veins, charges | Extract 15 Lumen + 2 crystals |
-| 10 | core → unlocks **Research Lab** | basalt shell: drill and charges | Recover 3 crystals |
-| 11 | scan (lesson) | the scanner: one drill's worth of energy, pick the rock with the crystal icon (no auto hint) | Recover 1 crystal |
+| 3 | longhaul (building level) | crack the tunnel rock, fill the 26-energy battery, then walk 21 bare steps to the crystal: impossible with the old 20 | Recover 1 crystal |
+| 4 | rocks (lesson) | matches crack rock, rock hides things, picking up crystals | Break 4 rock + 1 crystal |
+| 5 | rubble | rock fields | Break 8 rock |
+| 6 | glint | buried crystals | Recover 2 crystals |
+| 7 | power (lesson) | low battery, match 4 for a charge, blasts break basalt, energy cells | Recover 1 crystal (start with 2 energy) |
+| 8 | shale → unlocks **Mining Workshop** | shallow veins, energy cells | Extract 15 Cryo + 1 crystal |
+| 9 | vaults (building level) | crystals in 3-layer basalt vaults behind doorways; drill them, refill with matches and energy cells | Recover 2 crystals |
+| 10 | vein | deep veins, charges | Extract 15 Lumen + 2 crystals |
+| 11 | core → unlocks **Research Lab** | basalt shell: drill and charges | Recover 3 crystals |
+| 12 | readings (building level) | 10 rocks, 2 crystals, 14 energy: the scanner shows which rocks to open | Recover 2 crystals |
 
-**Buildings are unlocked by the campaign.** Clearing a dig with `unlock` makes that building
-available; Mira announces it in the colony, its Build button pulses ("Build free": level 1
-costs nothing) and the DIG button reads "Build first" until it is built. The dig right after
-needs it and is the hand-crafted lesson for its tool. On lesson digs the Hint button never
+**Buildings are unlocked by the campaign, one at a time** (the usual mobile "feature unlock"
+flow: teaser, unlock moment, guided first use, a level built around it). The colony lists only
+the buildings you have plus a teaser for the next one. Clearing a dig with `unlock`: Mira
+announces the building, a spotlight dims the screen around its Build button with an arrow
+(only that button works; level 1 costs nothing), she explains the tool, then the spotlight
+moves to DIG. The DIG button reads "Build first" until it is built. The dig right after is a
+**building level** (`building_level`): full-size and hand-made, it mixes the new tool with
+matching, rock and energy, and the tests check it cannot be finished without the building
+(the scanner, which only shows information, excepted). On lesson digs the Hint button never
 offers Pulse; with nothing else in reach it points at the cell Mira is talking about.
 
 Lesson digs place every token by hand and pin the seed; the test suite replays each one's
