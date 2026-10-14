@@ -107,14 +107,18 @@ func start(index: int, seed_value := -1) -> void:
 	var site := Sites.get_site(index)
 	var rules := Game.rules()
 	board = Board.new()
-	board.setup(site.rows, seed_value if seed_value >= 0 else randi(), rules, site.goals)
+	board.setup_site(site, seed_value if seed_value >= 0 else randi(), rules)
 	_title.text = "%d. %s" % [index + 1, site.name]
 	for c in _goal_box.get_children():
 		c.queue_free()
 	_goal_rows.clear()
 	for g in site.goals:
 		var row := Widgets.GoalRow.new()
-		var gc: Color = Pal.ORE[g.ore] if g.type == "ore" else (Pal.CRYSTAL if g.type == "crystal" else Pal.ROCK[1])
+		var gc: Color = Pal.ROCK[1]
+		match g.type:
+			"ore": gc = Pal.ORE[g.ore]
+			"crystal": gc = Pal.CRYSTAL
+			"chunks": gc = Pal.VEIN
 		row.setup(Sites.goal_text(g), g.n, gc)
 		_goal_box.add_child(row)
 		_goal_rows.append(row)
@@ -126,7 +130,7 @@ func start(index: int, seed_value := -1) -> void:
 	_hints_used = 0
 	_has_pending = false
 	_idle = 0.0
-	_auto_hint = not Game.tips_seen.has(site.id) and index == 0
+	_auto_hint = site.get("guide", false)
 	if _result:
 		_result.queue_free()
 		_result = null
@@ -134,7 +138,7 @@ func start(index: int, seed_value := -1) -> void:
 	_recall_armed = 0.0
 	var tip: String = site.tip
 	var perks := _perk_text(rules)
-	_show_toast(tip + ("\n" + perks if perks != "" else ""), 7.0)
+	_show_toast(tip + ("\n" + perks if perks != "" else ""), 12.0 if _auto_hint else 7.0)
 	Game.tips_seen[site.id] = true
 	_refresh_reach()
 
@@ -162,7 +166,7 @@ func _process(delta: float) -> void:
 			_recall_btn.text = "Recall"
 	if board and not board.over and not view.is_busy():
 		_idle += delta
-		if _auto_hint and _idle > 4.0 and view.hint_dir == -1 and not _reach.is_empty():
+		if _auto_hint and _idle > 2.0 and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
 
 
@@ -223,6 +227,7 @@ func _on_snap(s: Dictionary) -> void:
 		match g.type:
 			"ore": v = s.extracted[g.ore]
 			"rock": v = s.rocks
+			"chunks": v = s.chunks
 			"crystal": v = s.crystals
 		(_goal_rows[i] as Widgets.GoalRow).set_have(v)
 
@@ -239,7 +244,10 @@ func _on_settled() -> void:
 
 
 func _refresh_reach() -> void:
-	_reach = board.path_to_match(5)
+	# a crystal or energy cell in the open comes first: it is usually what the dig is for
+	_reach = board.path_to_pickup(10)
+	if _reach.is_empty():
+		_reach = board.path_to_match(5)
 	if _reach.is_empty():
 		if board.can_pulse():
 			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost

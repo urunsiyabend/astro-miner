@@ -2,7 +2,9 @@ extends Node
 
 ## Persistent colony state + local play metrics. Saved as JSON after every dig/purchase.
 
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
+# v1 saved cleared sites by position; this was the site order then.
+const V1_SITE_ORDER := ["landing", "rubble", "glint", "shale", "vein", "core"]
 const LOG_MAX := 60
 
 var save_path := "user://save.json"
@@ -97,7 +99,7 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 func save() -> void:
 	var data := {
 		"version": SAVE_VERSION, "bank": bank, "levels": levels, "unlocked": unlocked,
-		"cleared": cleared, "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
+		"cleared_ids": cleared_ids(), "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
 		"dig_log": dig_log,
 	}
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
@@ -122,16 +124,35 @@ func load_save() -> void:
 	levels = _ints(data.get("levels", levels), 3)
 	for i in 3:
 		levels[i] = clampi(levels[i], 0, Economy.MAX_LEVEL)
-	unlocked = clampi(int(data.get("unlocked", 1)), 1, Sites.count())
-	var cl: Array = data.get("cleared", [])
-	for i in mini(cl.size(), cleared.size()):
-		cleared[i] = bool(cl[i])
+	# Cleared sites are stored by id, so inserting new sites never shifts progress.
+	var ids: Array = data.get("cleared_ids", [])
+	if not data.has("cleared_ids"):
+		var cl: Array = data.get("cleared", [])
+		for i in mini(cl.size(), V1_SITE_ORDER.size()):
+			if bool(cl[i]):
+				ids.append(V1_SITE_ORDER[i])
+	for id in ids:
+		var k := Sites.index_of(String(id))
+		if k >= 0:
+			cleared[k] = true
+	unlocked = 1
+	for i in cleared.size():
+		if cleared[i]:
+			unlocked = maxi(unlocked, mini(Sites.count(), i + 2))
 	sfx_on = bool(data.get("sfx_on", true))
 	tips_seen = data.get("tips_seen", {})
 	var t: Dictionary = data.get("totals", {})
 	for k in t:
 		totals[k] = int(t[k])
 	dig_log = data.get("dig_log", [])
+
+
+func cleared_ids() -> Array:
+	var out := []
+	for i in cleared.size():
+		if cleared[i]:
+			out.append(Sites.get_site(i).id)
+	return out
 
 
 func _ints(a, n: int) -> Array:
