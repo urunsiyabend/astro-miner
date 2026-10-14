@@ -28,11 +28,11 @@ func _ready() -> void:
 		add_child(shot)
 
 
-func _go_dig(i: int) -> void:
+func _go_dig(i: int, supply: bool) -> void:
 	_transition(func():
 		colony.visible = false
 		dig.visible = true
-		dig.start(i))
+		dig.start(i, supply))
 
 
 func _go_colony() -> void:

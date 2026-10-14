@@ -50,7 +50,7 @@ func _initialize() -> void:
 			for kind in [Bots.Kind.RANDOM, Bots.Kind.GREEDY, Bots.Kind.PLANNER]:
 				var agg := _run_many(site, rules, kind, runs)
 				lines.append("| %s | %s | %d | %.1f | %.2f | %.0f | %.1f | %.1f | %.2f | %.2f | %d | %.1f | %.2f |" % [
-					site.name, ["random", "greedy", "planner"][kind], agg.clear, agg.turns,
+					site.id, ["random", "greedy", "planner"][kind], agg.clear, agg.turns,
 					agg.mpm, agg.cascade, agg.chunks, agg.rocks, agg.crystals, agg.charges,
 					agg.exhausted, agg.stuck, agg.pulses])
 		lines.append("")
@@ -164,7 +164,7 @@ func _campaign(n: int) -> void:
 	for si in Sites.count():
 		var a: Dictionary = acc[si]
 		var k := maxf(1.0, a.done)
-		lines.append("| First clear of %s | %.1f | %.0f | %.1f | %.1f |" % [Sites.get_site(si).name,
+		lines.append("| First clear of %s | %.1f | %.0f | %.1f | %.1f |" % [Sites.get_site(si).id,
 				a.digs / k, a.moves / k, a.moves / k * sec_per_move / 60.0, a.ups / k])
 	lines.append("")
 	lines.append("First upgrade affordable after %.1f digs on average; %d/%d campaigns did not finish within 60 digs." % [first_up_digs / n, gave_up, n])

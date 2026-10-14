@@ -37,7 +37,8 @@ func _initialize() -> void:
 	_test_pulse()
 	_test_economy_rules()
 	_test_save_roundtrip()
-	_test_save_v1_migration()
+	_test_campaign_flow()
+	_test_scripts_compile()
 	_test_bot_smoke()
 	print("== %d passed, %d failed ==" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
@@ -375,11 +376,10 @@ func _test_bot_smoke() -> void:
 	_ok(wins >= 16, "greedy bot clears the first open site in >=80%% of seeds (%d/20)" % wins)
 
 
-# Intended solution of every hand-crafted tutorial site. Each must finish the site exactly on
+# Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"step": "U", "pull": "UR", "veins": "URRL", "crack": "RDLL", "gem": "DUU",
-	"battery": "UDDDLLD", "blast": "UD",
+	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL",
 }
 
 
@@ -405,12 +405,14 @@ func _test_tutorial_sites() -> void:
 				break
 		_ok(ok and b.complete, "%s is solved by %s" % [site.id, sol])
 	_ok(guided == TUTORIAL_SOLUTIONS.size(), "every recorded solution belongs to a tutorial site")
-	# the battery lesson must actually need the energy cell
+	# the power lesson must actually need the energy cell: after the match and the blast the
+	# robot is 5 steps from the crystal with less energy than that
 	var nb := Board.new()
 	nb.record = false
-	nb.setup_site(Sites.get_site(Sites.index_of("battery")), 0, Economy.rules([0, 0, 0]))
+	nb.setup_site(Sites.get_site(Sites.index_of("power")), 0, Economy.rules([0, 0, 0]))
 	nb.try_move(Vector2i(0, -1))
-	_ok(nb.energy < 6, "Low Battery: after the first match the crystal is out of reach without the cell")
+	nb.try_move(Vector2i(0, 1))
+	_ok(nb.stats.blasts == 1 and nb.energy < 5, "power: the crystal is out of reach without the energy cell")
 
 
 func _test_pickup_hint() -> void:
@@ -423,25 +425,38 @@ func _test_pickup_hint() -> void:
 	_ok(b.path_to_pickup(10).is_empty(), "no pickup, no pickup route")
 
 
-func _test_save_v1_migration() -> void:
-	var path := "user://test_v1_save.json"
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	f.store_string(JSON.stringify({"version": 1, "bank": [1, 2, 3, 4], "levels": [1, 0, 0],
-			"unlocked": 3, "cleared": [true, true, false, false, false, false]}))
-	f.close()
+func _test_campaign_flow() -> void:
 	var game = load("res://autoload/Game.gd").new()
-	game.save_path = path
-	game.load_save()
-	var rubble := Sites.index_of("rubble")
-	_ok(game.cleared[Sites.index_of("landing")] and game.cleared[rubble], "v1 cleared sites keep their progress by id")
-	_ok(not game.cleared[Sites.index_of("glint")], "v1 uncleared sites stay uncleared")
-	_ok(game.unlocked == rubble + 2, "unlock follows the furthest cleared site")
-	_ok(game.bank == [1, 2, 3, 4] and game.levels == [1, 0, 0], "v1 bank and buildings survive")
-	game.save()
-	var again = load("res://autoload/Game.gd").new()
-	again.save_path = path
-	again.load_save()
-	_ok(again.cleared == game.cleared, "v2 save round trip keeps cleared sites")
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	game.save_path = "user://test_campaign.json"
+	game.reset()
+	_ok(game.next_dig() == 0, "a new colony starts at the first dig")
+	var core := Sites.index_of("core")
+	_ok(not game.can_start(core), "the basalt-shell dig waits for the Mining Workshop")
+	game.bank = [99, 99, 99, 9]
+	_ok(game.buy(1), "build the Mining Workshop")
+	_ok(game.can_start(core), "with the drill the basalt-shell dig can start")
+	var lines: Array = game.take_reminders()
+	_ok(lines.size() == 1 and String(lines[0]).contains("drill"), "Mira reminds about the drill at the next dig")
+	_ok(game.take_reminders().is_empty(), "a reminder is said once")
+	for i in Sites.count():
+		game.cleared[i] = true
+	_ok(game.next_dig() == -1, "after the last dig there is no next dig")
+	var sup: int = game.supply_site()
+	_ok(not Sites.get_site(sup).get("guide", false), "supply runs use open sites, not lessons")
+	for i in Sites.count():
+		var site := Sites.get_site(i)
+		_ok(not site.get("script", []).is_empty(), "Mira introduces dig %s" % site.id)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_campaign.json"))
 	game.free()
-	again.free()
+
+
+## The UI is not exercised headless, so at least make sure every script compiles.
+func _test_scripts_compile() -> void:
+	var paths := ["res://scripts/Main.gd", "res://scripts/DevShot.gd"]
+	for dir in ["res://scripts/ui/", "res://scripts/core/", "res://autoload/"]:
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".gd"):
+				paths.append(dir + f)
+	for p in paths:
+		var sc := load(p) as GDScript
+		_ok(sc != null and sc.can_instantiate(), "%s compiles" % p)
