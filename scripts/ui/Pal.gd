@@ -23,8 +23,11 @@ const CELL := Color("6dff8a")
 const CHARGE := Color("ff4f6d")
 const RES := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d"), Color("c88bff")]
 
-const GROUND_FULL := Color("6a4a63")   # reserve 4+
-const GROUND_EMPTY := Color("241a2c")  # exhausted
+# Ground by elevation: surface first, then each layer dug below it (a pit reads darker
+# *and* is drawn with stepped walls, so depth never relies on tone alone).
+const GROUND_LEVELS := [Color("74546d"), Color("5a4058"), Color("443047"), Color("322337"), Color("241a29")]
+const FLOOR_BARE := Color("2c2732")   # vein exhausted
+const VEIN := Color("ffc970")         # reserve pips
 const ROCK := [Color("000000"), Color("b3a9c2"), Color("75698f"), Color("3e3452")]
 const BEDROCK := Color("0b0810")
 const ROBOT := Color("e9f6ff")
@@ -37,6 +40,5 @@ const FS_SMALL := 32
 const FS_TINY := 26
 
 
-static func ground(reserve: int) -> Color:
-	var t := clampf(reserve / 4.0, 0.0, 1.0)
-	return GROUND_EMPTY.lerp(GROUND_FULL, 0.25 + 0.75 * t) if reserve > 0 else GROUND_EMPTY
+static func ground_level(level: int) -> Color:
+	return GROUND_LEVELS[clampi(level, 0, GROUND_LEVELS.size() - 1)]

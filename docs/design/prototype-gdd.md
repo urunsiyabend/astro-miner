@@ -45,8 +45,11 @@ working title — store-name uniqueness was not checked because this is not a st
 7 columns × 8 rows. Each cell has a **terrain** and, if open, an optional **token**.
 
 Terrain:
-- **Ground** with a *vein reserve* (0-5). Shown as cell shade: lighter = more ore left
-  below; darkest = exhausted.
+- **Ground** with a *vein reserve* (0-5) and a *dug depth*. Depth is drawn as geometry, not
+  only shade: each dug layer adds a stepped bench (shadowed north wall, lit south wall),
+  walls appear only toward shallower neighbours so adjacent pits merge, and tokens and the
+  robot shrink slightly with depth. Reserve is a row of warm pips; an exhausted vein shows a
+  bare cracked floor.
 - **Rock** with 1-3 layers (rubble, stone, basalt) hiding buried content: an ore pocket
   (default), an energy cell, a crystal, or nothing. Robot cannot enter rock.
 - **Bedrock**: permanent wall that shapes the site.
