@@ -1,0 +1,115 @@
+name: Android release
+
+# Push a tag like v0.2.0 -> tests run, a signed APK is attached to a GitHub Release
+# (Obtainium picks it up from the repository URL).
+# Manual run (workflow_dispatch) -> tests + APK uploaded as a build artifact only.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  GODOT_VERSION: 4.7.2
+  # SHA-256 of the release signing certificate. The build fails if the APK is signed with
+  # anything else, so the signing identity can never change silently between releases.
+  EXPECTED_CERT_SHA256: 686d38e47afbf1919b8af90098315bb5e41a55ea663405daac1dfe5f1893e7ce
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Godot + export templates
+        run: |
+          base=https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable
+          curl -fsSL -o godot.zip "$base/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          curl -fsSL -o templates.tpz "$base/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q godot.zip && sudo mv Godot_v${GODOT_VERSION}-stable_linux.x86_64 /usr/local/bin/godot
+          tdir=~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+          mkdir -p "$tdir" && unzip -q templates.tpz -d /tmp/tpl && mv /tmp/tpl/templates/* "$tdir"/
+          rm -f godot.zip templates.tpz
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-${GODOT_VERSION%.*}.tres <<EOT
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          EOT
+
+      - name: Import project
+        run: godot --headless --path . --import || true
+
+      - name: Run tests
+        run: |
+          godot --headless --path . -s res://tests/run_tests.gd 2>&1 | tee test.log
+          status=${PIPESTATUS[0]}
+          if grep -q "SCRIPT ERROR" test.log; then echo "script errors during tests"; exit 1; fi
+          exit $status
+
+      - name: Balance simulation (smoke)
+        run: godot --headless --path . -s res://tools/simulate.gd -- 6 | tail -5
+
+      - name: Set version
+        id: ver
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            name="${GITHUB_REF_NAME#v}"
+            IFS=. read -r ma mi pa <<< "${name%%-*}"
+            # monotonically increasing and derived from the tag: v0.1.0 -> 1000, v1.2.3 -> 1002003
+            code=$(( ma * 1000000 + mi * 1000 + pa ))
+            file="astro-miner-${GITHUB_REF_NAME}-android.apk"
+          else
+            name="0.0.${GITHUB_RUN_NUMBER}-dev"
+            code=1
+            file="astro-miner-dev-${GITHUB_RUN_NUMBER}-android.apk"
+          fi
+          sed -i "s/^version\/code=.*/version\/code=${code}/" export_presets.cfg
+          sed -i "s/^version\/name=.*/version\/name=\"${name}\"/" export_presets.cfg
+          sed -i "s/^config\/version=.*/config\/version=\"${name}\"/" project.godot
+          grep '^version/' export_presets.cfg
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - name: Decode keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/release.keystore"
+
+      - name: Export APK
+        env:
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ runner.temp }}/release.keystore
+          GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_ALIAS }}
+          GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p build
+          out="build/${{ steps.ver.outputs.file }}"
+          godot --headless --path . --export-release "Android" "$out"
+          test -s "$out"
+          bt="$ANDROID_HOME"/build-tools/$(ls "$ANDROID_HOME"/build-tools | sort -V | tail -1)
+          "$bt"/apksigner verify --print-certs "$out" | tee certs.txt
+          grep -qi "SHA-256 digest: ${EXPECTED_CERT_SHA256}" certs.txt || { echo "unexpected signing certificate"; exit 1; }
+          "$bt"/aapt dump badging "$out" | head -1
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: astro-miner-apk
+          path: build/*.apk
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          out="build/${{ steps.ver.outputs.file }}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$out" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$out" --title "Astro Miner $GITHUB_REF_NAME" --generate-notes
+          fi

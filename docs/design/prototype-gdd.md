@@ -1,0 +1,174 @@
+# Astro Miner — Prototype GDD (v0.1)
+
+One-line pitch: *steer a mining robot through a 7×8 dig site; every step drags one ore
+chunk; line up three to extract it, dig the ground deeper and crack the rock around it.
+Spend the haul at your colony on upgrades that change how the next dig plays.*
+
+Name: **Astro Miner** (kept from the brief; the repository and package use it). It is a
+working title — store-name uniqueness was not checked because this is not a store release.
+
+## 1. Design pillars (from research)
+
+1. **Position is the skill** (Six Match). The robot is a tile. Moving swaps it with the ore
+   in front of it, so each step displaces exactly one chunk by one cell.
+2. **Matches change the place** (Sliding Seas). An extraction never just disappears: the
+   cell digs one layer deeper, nearby rock cracks, buried things are uncovered, and veins
+   eventually run dry.
+3. **Meta with mechanical teeth.** Each colony building changes a rule you feel on the next
+   dig.
+4. **Trustworthy, soft failure.** Seeded deterministic refill, haul always kept, Recall at
+   any time.
+
+### Rejected/deferred ideas (and why)
+
+- **Sliding Seas' merge ladder** (match → one higher-tier tile). Combined with robot movement,
+  each tier would cost many multi-step matches; goals become slow and the board reads as
+  abstract colour shades. Its *spirit* — persistent change — is kept through excavation.
+- **Six Match's hard 6-counter.** Binary and not smoothly upgradeable. Replaced by a battery
+  with partial refunds (the counter-reset feeling survives: a match "buys back" energy).
+- **Gravity refill.** With fixed rock and walls, gravity needs segment/diagonal rules that
+  are hard to read. Top-down, "new ore rises from the layer below" is both simpler and
+  more physical.
+- Bolted line-pushers, timed hazards, multiple planets, idle timers: out of scope.
+
+## 2. Controls
+
+- **Swipe anywhere** on the board area → robot moves one cell in that direction.
+- **Tap an orthogonally adjacent cell** → same move (more precise for beginners).
+- Desktop: arrow keys / WASD, mouse emulates touch.
+- Buttons: **Hint** (highlights the first step toward the nearest reachable match),
+  **Recall** (end the dig now, keep the haul).
+- Input during animations is buffered (one move) so the game never feels unresponsive.
+
+## 3. The board
+
+7 columns × 8 rows. Each cell has a **terrain** and, if open, an optional **token**.
+
+Terrain:
+- **Ground** with a *vein reserve* (0-5). Shown as cell shade: lighter = more ore left
+  below; darkest = exhausted.
+- **Rock** with 1-3 layers (rubble, stone, basalt) hiding buried content: an ore pocket
+  (default), an energy cell, a crystal, or nothing. Robot cannot enter rock.
+- **Bedrock**: permanent wall that shapes the site.
+
+Tokens (on ground only): **Ferrite** (orange square), **Cryo** (cyan circle),
+**Lumen** (yellow triangle) — colour *and* shape, for colour-blind readability;
+**Crystal** (violet gem); **Energy cell** (green battery); **Blast charge** (red ring).
+
+The robot occupies one ground cell (no token there).
+
+## 4. Turn rules (exact resolution order)
+
+A move in direction *d* from robot cell *A* toward cell *B*:
+
+1. *B* outside board or bedrock → rejected, no cost.
+2. *B* is rock → if **Drill** is unlocked, the robot drills: pay drill cost, rock loses drill
+   power layers, robot stays. Otherwise rejected (bump feedback + hint about the Workshop).
+3. *B* is ground → pay 1 energy and the robot moves to *B*:
+   - ore on *B* → the ore moves to *A* (the swap);
+   - crystal / energy cell on *B* → collected;
+   - blast charge on *B* → detonates around *B*.
+4. **Resolve loop** (repeat until stable, max 30 passes):
+   1. Find every horizontal/vertical line of ≥3 same-type ore. Lines of the same type that
+      share a cell are unioned into one *group* (L/T shapes).
+   2. Each group: +1 resource per chunk (+ Workshop bonus), +energy refund
+      (`2` for a group of 3, `+1` per extra chunk, `+1` Lab bonus at Lv3).
+   3. Each extracted cell digs: if reserve > 0 → reserve −1 and a new ore of a seeded
+      random type **surfaces** there (a type that would instantly re-form a line is re-rolled
+      once, so chains happen ~10-25 % of the time instead of dominating); else the cell
+      becomes empty exhausted ground.
+   4. A group of ≥4 leaves a **blast charge** on its pivot cell (the cell the robot just moved
+      ore into, if part of the group; else the group's first cell) instead of surfacing ore.
+   5. Every rock orthogonally adjacent to a group loses crack power layers (1, Workshop Lv3:
+      2), once per group. Rock at 0 is **revealed**: becomes ground showing its content.
+   6. Surfaced ore can form new lines → cascade ("vein chain").
+5. **Detonation** (charge): every cell in the 3×3 (Lab Lv2: 5×5) around the robot:
+   ore extracted (counts as resource, digs the cell), crystals/cells collected, rock −2.
+   No energy refund for blast extraction, then the resolve loop runs.
+6. If energy is 0 after resolution, the dig ends.
+
+Determinism: the whole board, including every surfaced ore type, is driven by one seeded RNG
+per dig. Same seed + same moves = same result (tested).
+
+## 5. Energy
+
+- Battery capacity (start): 20 (Power Station: 26 / 32 / 40). Starts full.
+- 1 energy per step; drilling costs 2 (Workshop Lv3: 1).
+- Match refund: 2 for 3 chunks, +1 per extra chunk; cascades refund too.
+- Energy cells (buried under rock): +6, capped at battery capacity.
+- Values are initial and are tuned by the simulation in `tools/simulate.gd`
+  (see `docs/evaluation/core-loop-evaluation.md`).
+
+## 6. Objectives and sites
+
+Each site is a handcrafted terrain template; ore types are generated per dig from a seed
+(no initial lines; at least one match reachable within 2 steps, verified by search).
+
+| # | Site | Teaches | Objective |
+|---|------|---------|-----------|
+| 1 | Landing Zone | moving, swapping, matching | Extract 12 Ferrite |
+| 2 | Rubble Field | matches crack rock | Break 8 rock |
+| 3 | Glint Pocket | buried crystals, pickups | Recover 2 crystals |
+| 4 | Shale Shelf | energy cells, depletion | Extract 15 Cryo + recover 1 crystal |
+| 5 | Deep Vein | deep reserves, blast charges | Extract 15 Lumen + recover 2 crystals |
+| 6 | Core Chamber | basalt shell (drill helps) | Recover 3 crystals |
+
+- Completing an objective ends the dig with a bonus (remaining energy → bonus ore, plus a
+  first-clear crystal reward) and unlocks the next site.
+- Running out of energy or recalling ends the dig; **the haul is always kept**.
+- Any unlocked site can be replayed to farm resources.
+
+## 7. Resources and colony
+
+Resources: Ferrite, Cryo, Lumen (common, from matches), Crystal (rare, from buried
+deposits and first clears; gates level 2-3 upgrades).
+
+Three buildings, three levels each; every level changes a rule:
+
+| Building | Lv1 | Lv2 | Lv3 |
+|---|---|---|---|
+| Power Station | Battery 26 | Battery 32 | Battery 40 |
+| Mining Workshop | **Drill**: bump rock to remove 1 layer (2 energy) | Drill removes 2 layers | Drill costs 1; matches crack 2 layers |
+| Research Lab | **Deep Scanner**: see what is buried under rock | Blast charges hit 5×5 | +1 energy per match |
+
+Costs are listed in `scripts/core/Economy.gd` and tuned so that the first upgrade is
+affordable after ~1-2 digs and roughly 3-5 upgrades happen in a 10-15 minute session.
+
+The colony screen shows the three buildings growing (more modules/lights per level), the
+resource bank, each building's next effect and cost, and the site list.
+
+## 8. Board generation and robustness
+
+- Templates fix terrain/rock/contents; only ore types are random (seeded).
+- Initial fill rejects any immediate line; the generator retries seeds until a match is
+  reachable within 2 robot steps (breadth-first search over robot moves).
+- **Hint** uses the same search (depth 4).
+- **No unwinnable trap without an exit:** if no match is reachable within 5 steps the Hint
+  button becomes **Pulse** (3 energy): the ore already on the board is reshuffled (same
+  counts) until a match is reachable within 2 steps — the Six Match bomb, adapted. Recall is
+  always available and the haul is never lost.
+- Simulation bots (random, greedy, lookahead) play thousands of digs headless to measure
+  completion rate per site, moves per match, cascade rate, energy exhaustion and starvation.
+
+## 9. Session flow
+
+Title → Colony (bank, buildings, sites) → Dig → Results (haul, objective, bonus) → Colony.
+Save: `user://save.json` (resources, building levels, unlocked sites, best results, stats),
+written after every dig and every purchase.
+
+## 10. What makes it different from a conventional match-3
+
+- You do not swap freely; you *are* a piece. Every step is a route decision.
+- Matches dig a persistent pit and crack the surrounding rock: the board is a map of your
+  excavation, with veins that run dry and force you outward.
+- Hidden buried content turns rock-cracking into exploration.
+- Upgrades change rules (drill, scanner, blast size, battery), not just numbers on a score.
+
+## 11. Major assumptions to validate with humans
+
+- Robot movement is understood within the first 3 moves without reading text.
+- Three ore types are enough variety with the robot constraint (simulation says matches are
+  neither trivial nor rare — see evaluation).
+- Depletion feels like "the mine is exhausted, go further", not "the game starved me".
+- Upgrades are noticed in the next dig (drill and scanner are visible verbs; battery is
+  shown as a longer bar).
