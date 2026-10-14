@@ -50,6 +50,15 @@ func building_unlocked(b: int) -> bool:
 	return false
 
 
+## The next building the campaign will unlock and the dig that does it: [building, dig], or [].
+func next_unlock() -> Array:
+	for i in Sites.count():
+		var u: int = Sites.get_site(i).get("unlock", -1)
+		if u >= 0 and not cleared[i]:
+			return [u, i]
+	return []
+
+
 ## Unlocked building still at level 0: the colony asks you to build it before moving on.
 func pending_build() -> int:
 	for b in Economy.BUILDINGS.size():
@@ -92,7 +101,8 @@ func can_start(i: int) -> bool:
 func supply_site() -> int:
 	var pool := []
 	for i in Sites.count():
-		if cleared[i] and not Sites.get_site(i).get("guide", false) and can_start(i):
+		var s := Sites.get_site(i)
+		if cleared[i] and not s.has("ore") and can_start(i):
 			pool.append(i)
 	if pool.is_empty():
 		return maxi(0, Sites.index_of("landing"))

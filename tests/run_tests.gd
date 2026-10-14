@@ -386,7 +386,10 @@ func _test_bot_smoke() -> void:
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL", "drill": "RRRRR", "scan": "LL",
+	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL",
+	"longhaul": "DULLUURRRRRRUULLLLLLUURRR",
+	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
+	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
 }
 
 
@@ -395,10 +398,10 @@ func _test_tutorial_sites() -> void:
 	var guided := 0
 	for i in Sites.count():
 		var site := Sites.get_site(i)
-		if not site.get("guide", false):
+		if not site.has("ore"):
 			continue
 		guided += 1
-		_ok(TUTORIAL_SOLUTIONS.has(site.id), "tutorial site %s has a recorded solution" % site.id)
+		_ok(TUTORIAL_SOLUTIONS.has(site.id), "hand-made dig %s has a recorded solution" % site.id)
 		var sol: String = TUTORIAL_SOLUTIONS.get(site.id, "")
 		var b := Board.new()
 		b.record = false
@@ -412,6 +415,26 @@ func _test_tutorial_sites() -> void:
 				break
 		_ok(ok and b.complete, "%s is solved by %s" % [site.id, sol])
 	_ok(guided == TUTORIAL_SOLUTIONS.size(), "every recorded solution belongs to a tutorial site")
+	# each building unlock is followed by its hand-made dig, which needs that building
+	var map2 := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+	for i in Sites.count() - 1:
+		var u: int = Sites.get_site(i).get("unlock", -1)
+		if u < 0:
+			continue
+		var nxt := Sites.get_site(i + 1)
+		_ok(nxt.get("building_level", false) and nxt.get("needs", {}).get("building", -1) == u,
+				"dig after %s is the hand-made level for building %d" % [Sites.get_site(i).id, u])
+		if u == 2:
+			continue  # the scanner shows information; it changes no rule a replay could check
+		var lv := _campaign_levels(i + 1)
+		lv[u] = 0
+		var nb2 := Board.new()
+		nb2.record = false
+		nb2.setup_site(nxt, 0, Economy.rules(lv))
+		var sol: String = TUTORIAL_SOLUTIONS.get(nxt.id, "")
+		for k in sol.length():
+			nb2.try_move(map2[sol[k]])
+		_ok(not nb2.complete, "%s cannot be done without building %d" % [nxt.id, u])
 	# the power lesson must actually need the energy cell: after the match and the blast the
 	# robot is 5 steps from the crystal with less energy than that
 	var nb := Board.new()
@@ -443,10 +466,10 @@ func _test_campaign_flow() -> void:
 		_ok(not game.building_unlocked(b) and not game.buy(b), "building %d starts locked" % b)
 	game.cleared[Sites.index_of("shale")] = true
 	_ok(game.building_unlocked(1) and game.pending_build() == 1, "clearing shale unlocks the Workshop, which is now due")
-	var drill := Sites.index_of("drill")
-	_ok(drill == Sites.index_of("shale") + 1 and not game.can_start(drill), "the drill lesson comes next and waits for the build")
+	var drill := Sites.index_of("vaults")
+	_ok(drill == Sites.index_of("shale") + 1 and not game.can_start(drill), "the drill level comes next and waits for the build")
 	_ok(game.buy(1), "build the Mining Workshop")
-	_ok(game.pending_build() == -1 and game.can_start(drill), "built: the drill lesson can start")
+	_ok(game.pending_build() == -1 and game.can_start(drill), "built: the drill level can start")
 	_ok(game.can_start(core), "with the drill the basalt-shell dig can start")
 	var lines: Array = game.take_reminders()
 	_ok(lines.size() == 1 and String(lines[0]).contains("drill"), "Mira reminds about the drill at the next dig")
@@ -455,7 +478,7 @@ func _test_campaign_flow() -> void:
 		game.cleared[i] = true
 	_ok(game.next_dig() == -1, "after the last dig there is no next dig")
 	var sup: int = game.supply_site()
-	_ok(not Sites.get_site(sup).get("guide", false), "supply runs use open sites, not lessons")
+	_ok(not Sites.get_site(sup).has("ore"), "supply runs use open sites, not hand-made ones")
 	for i in Sites.count():
 		var site := Sites.get_site(i)
 		_ok(not site.get("script", []).is_empty(), "Mira introduces dig %s" % site.id)
