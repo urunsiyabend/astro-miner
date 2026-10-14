@@ -124,7 +124,8 @@ class Coach extends PanelContainer:
 	var _hold := false
 
 	func _init() -> void:
-		add_theme_stylebox_override("panel", Ui.box(Pal.PANEL, 26))
+		var art := Art.style("plate")
+		add_theme_stylebox_override("panel", art if art != null else Ui.box(Pal.PANEL, 26))
 		custom_minimum_size = Vector2(0, 150)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var h := HBoxContainer.new()

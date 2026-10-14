@@ -19,6 +19,7 @@ const DIRS := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 # --- state -----------------------------------------------------------------
 var terrain := PackedInt32Array()
 var hp := PackedInt32Array()       # rock layers left
+var hp0 := PackedInt32Array()      # rock layers at the start (how tough the rock looks)
 var buried := PackedInt32Array()   # what a rock hides
 var reserve := PackedInt32Array()  # ore layers left under a ground cell
 var dug := PackedInt32Array()      # layers dug out of a ground cell (drawn as a pit)
@@ -91,10 +92,10 @@ func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Arr
 		cfg[k] = rules[k]
 	goals = site_goals.duplicate(true)
 	var n := W * H
-	terrain.resize(n); hp.resize(n); buried.resize(n); reserve.resize(n)
+	terrain.resize(n); hp.resize(n); hp0.resize(n); buried.resize(n); reserve.resize(n)
 	token.resize(n); ore.resize(n); dug.resize(n)
 	for i in n:
-		terrain[i] = Terrain.GROUND; hp[i] = 0; buried[i] = Buried.ORE
+		terrain[i] = Terrain.GROUND; hp[i] = 0; hp0[i] = 0; buried[i] = Buried.ORE
 		reserve[i] = 0; token[i] = Token.NONE; ore[i] = 0; dug[i] = 0
 	assert(rows.size() == H, "site needs %d rows" % H)
 	for y in H:
@@ -137,6 +138,7 @@ func _parse_cell(i: int, code: String) -> void:
 		"1", "2", "3":
 			terrain[i] = Terrain.ROCK
 			hp[i] = int(code[0])
+			hp0[i] = hp[i]
 			buried[i] = Buried.ORE
 			if code.length() > 1:
 				match code[1]:
@@ -671,7 +673,7 @@ func _line_through(tk: PackedInt32Array, orr: PackedInt32Array, c: int) -> bool:
 
 func clone() -> Board:
 	var b := Board.new()
-	b.terrain = terrain.duplicate(); b.hp = hp.duplicate(); b.buried = buried.duplicate()
+	b.terrain = terrain.duplicate(); b.hp = hp.duplicate(); b.hp0 = hp0.duplicate(); b.buried = buried.duplicate()
 	b.reserve = reserve.duplicate(); b.dug = dug.duplicate(); b.token = token.duplicate(); b.ore = ore.duplicate()
 	b.robot = robot; b.energy = energy; b.haul = haul.duplicate()
 	b.extracted = extracted.duplicate(); b.stats = stats.duplicate()
@@ -705,7 +707,7 @@ func goals_met() -> bool:
 
 func snapshot() -> Dictionary:
 	return {
-		"terrain": terrain.duplicate(), "hp": hp.duplicate(), "buried": buried.duplicate(),
+		"terrain": terrain.duplicate(), "hp": hp.duplicate(), "hp0": hp0.duplicate(), "buried": buried.duplicate(),
 		"reserve": reserve.duplicate(), "depth": dug.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,

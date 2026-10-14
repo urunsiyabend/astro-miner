@@ -14,14 +14,17 @@ const K := Board.Token
 const MAX_PIT := 4          # deepest level drawn; deeper pits look the same
 const PIT_STEP := 0.09      # wall width per dug layer, as a fraction of a cell
 const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
-## Painted tile sprites (docs/art). Each is a square top face with a thin earth band below it,
-## so a tile is drawn one cell wide and a bit taller; the next row covers the band.
-const TILE_DIR := "res://assets/tiles/"
+## Painted blocks (Art): a square top face and a layered earth band below it. Rows sit
+## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
+const GAP := 3.0            # px between neighbouring blocks
+const ROCK_SIZE := 1.25     # rock sprite canvas / tile width (the canvas has room for chips)
+const ORE_SIZE := 1.0       # ore sprite canvas / cell (the gem itself is ~70% of the cell)
 
 var snap: Dictionary = {}
 var scanner := false
 var drill := false
 var cell := 130.0
+var pitch := 130.0          # distance between rows (cell + visible band with the painted art)
 var origin := Vector2.ZERO
 var hint_dir := -1
 var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
@@ -46,15 +49,17 @@ var _touching := false
 var _swiped := false
 var _font: Font
 var _sb := StyleBoxFlat.new()
-var _tiles := {}   # name -> Texture2D; empty = draw the ground in code
+var _art := false  # painted blocks available (Art.has_tiles)
+var _band := 0.0   # full earth band height / tile width
 
 
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_sb.anti_aliasing = true
-	for n in ["soil_a", "soil_b", "pit", "rock"]:
-		if ResourceLoader.exists(TILE_DIR + n + ".png"):
-			_tiles[n] = load(TILE_DIR + n + ".png")
+	_art = Art.has_tiles()
+	if _art:
+		var t := Art.tile("soil_a")
+		_band = float(t.get_height()) / t.get_width() - 1.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	resized.connect(_layout)
 	_layout()
@@ -87,14 +92,22 @@ func bump(dir: Vector2i) -> void:
 
 
 func _layout() -> void:
-	cell = floorf(minf(size.x / Board.W, size.y / Board.H))
-	origin = ((size - Vector2(cell * Board.W, cell * Board.H)) * 0.5).floor()
+	# with painted blocks the board is H rows of `pitch` plus the last row's full earth band
+	var rows_h := Board.H * (1.0 + Art.BAND_VISIBLE) + _band if _art else float(Board.H)
+	cell = floorf(minf(size.x / Board.W, size.y / rows_h))
+	pitch = roundf(cell * (1.0 + Art.BAND_VISIBLE)) if _art else cell
+	var used := Vector2(cell * Board.W, pitch * Board.H + (cell * _band if _art else 0.0))
+	origin = ((size - used) * 0.5).floor()
 	queue_redraw()
 
 
+## Top-left of a cell's top face. Every position on the board comes from here or cell_center.
+func cell_origin(p: Vector2i) -> Vector2:
+	return origin + Vector2(p.x * cell, p.y * pitch)
+
+
 func cell_center(i: int) -> Vector2:
-	var p := Board.pos(i)
-	return origin + (Vector2(p) + Vector2(0.5, 0.5)) * cell
+	return cell_origin(Board.pos(i)) + Vector2(cell, cell) * 0.5
 
 
 func cell_global(i: int) -> Vector2:
@@ -282,7 +295,7 @@ func _gui_input(event: InputEvent) -> void:
 func _tap(p: Vector2) -> void:
 	if snap.is_empty():
 		return
-	var c := Vector2i(((p - origin) / cell).floor())
+	var c := Vector2i(floori((p.x - origin.x) / cell), floori((p.y - origin.y) / pitch))
 	var r := Board.pos(snap.robot)
 	var d := c - r
 	if absi(d.x) + absi(d.y) == 1:
@@ -301,9 +314,14 @@ func _draw() -> void:
 		return
 	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
 	draw_set_transform(off)
-	var frame := Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20))
-	if _tiles.size() != 4:
-		draw_rect(frame, Pal.BEDROCK)
+	if _art:
+		# soft shadow under the island, block by block
+		for i in Board.W * Board.H:
+			if snap.terrain[i] != T.BEDROCK:
+				var r := _rect(i, 0)
+				_round_rect(Rect2(r.position + Vector2(6, 14), Vector2(r.size.x, r.size.y * (1.0 + _band))), Color(0, 0, 0, 0.28), 18)
+	else:
+		draw_rect(Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20)), Pal.BEDROCK)
 	var moving_to := -1
 	var moving_from := -1
 	var mt := 0.0
@@ -364,8 +382,7 @@ func _draw() -> void:
 
 
 func _rect(i: int, inset := 3.0) -> Rect2:
-	var p := Board.pos(i)
-	var o := origin + Vector2(p) * cell
+	var o := cell_origin(Board.pos(i))
 	if _jolt.has(i):
 		o += Vector2(sin(_time * 70.0), cos(_time * 55.0)) * 6.0 * _jolt[i]
 	return Rect2(o + Vector2(inset, inset), Vector2(cell - inset * 2, cell - inset * 2))
@@ -390,7 +407,7 @@ func _level(p: Vector2i) -> int:
 
 func _draw_ground(i: int) -> void:
 	var r := _rect(i, 0)
-	if _tiles.size() == 4:
+	if _art:
 		_draw_tile(i, r)
 		return
 	if snap.terrain[i] == T.BEDROCK:
@@ -473,10 +490,15 @@ func _wall(o: Rect2, n: Rect2, ins: Array, base: Color) -> void:
 func _draw_rock(i: int) -> void:
 	var r := _rect(i, 0)
 	var hpv: int = snap.hp[i]
-	if _tiles.size() == 4:
-		_draw_layer_pill(r.get_center() + Vector2(0, -cell * 0.05), cell * 0.42, hpv)
+	if _art:
+		var c0 := r.get_center()
+		var tex := Art.rock(snap.hp0[i] if snap.has("hp0") else hpv, hpv)
+		if tex != null:
+			var s := (cell - GAP) * ROCK_SIZE
+			draw_texture_rect(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)), false)
+		_draw_layer_pill(c0 + Vector2(0, -cell * 0.02), cell * 0.42, hpv)
 		if scanner:
-			_draw_buried(r.get_center(), snap.buried[i])
+			_draw_buried(c0, snap.buried[i])
 		return
 	var col: Color = Pal.ROCK[clampi(hpv, 1, 3)]
 	var face := col.darkened(0.45)
@@ -519,29 +541,30 @@ func _draw_rock(i: int) -> void:
 		_draw_buried(c, snap.buried[i])
 
 
-## Tile-sprite ground: soil (two variants), a dug pit, or a rock block; bedrock stays empty so
-## the board reads as a floating island.
+## Painted ground: soil (two variants), a shallow dent one or two layers deep, a dry exhausted
+## floor; rock cells get soil under their rock sprite; bedrock stays empty (floating island).
 func _draw_tile(i: int, r: Rect2) -> void:
 	var t: int = snap.terrain[i]
 	if t == T.BEDROCK:
 		return
-	var tex: Texture2D
-	var tint := Color.WHITE
-	if t == T.ROCK:
-		tex = _tiles.rock
-	elif snap.depth[i] > 0:
-		tex = _tiles.pit
-		tint = Color.WHITE.darkened(0.12 * (mini(snap.depth[i], MAX_PIT) - 1))
-	else:
-		tex = _tiles.soil_a if (i * 7 + i / Board.W) % 3 else _tiles.soil_b
+	var name := "soil_a" if (i * 7 + i / Board.W) % 3 else "soil_b"
 	var res: int = snap.reserve[i] if t == T.GROUND else 1
-	if t == T.GROUND and res <= 0 and (snap.depth[i] > 0 or snap.token[i] == K.NONE):
-		tint = tint.darkened(0.35)
-	var h := cell * tex.get_height() / tex.get_width()
-	draw_texture_rect(tex, Rect2(r.position, Vector2(cell, h)), false, tint)
+	if t == T.GROUND:
+		var d: int = snap.depth[i]
+		if res <= 0 and (d > 0 or snap.token[i] == K.NONE):
+			name = "bare"
+		elif d > 0:
+			name = "dent1" if d == 1 else "dent2"
+	var tex := Art.tile(name)
+	var w := cell - GAP
+	var top := Rect2(r.position + Vector2(GAP * 0.5, 0), Vector2(w, w))
+	if _sink.has(i):  # the floor just dropped a layer: a quick dip
+		top.position.y += 4.0 * sin(PI * _ease(_sink[i]))
+	draw_texture_rect(tex, Rect2(top.position, Vector2(w, w * (1.0 + _band))), false)
 	if t == T.GROUND and res > 0:
 		var n := mini(res, 5)
-		var pill := Rect2(Vector2(r.get_center().x - (n * 16 + 10) * 0.5, r.end.y - 24), Vector2(n * 16 + 10, 18))
+		# vein pips sit on the block's front edge, clear of the ore on top
+		var pill := Rect2(Vector2(top.get_center().x - (n * 16 + 10) * 0.5, top.end.y - 9), Vector2(n * 16 + 10, 18))
 		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
 		for k in n:
 			draw_circle(Vector2(pill.position.x + 13 + k * 16, pill.get_center().y), 5.5, Pal.VEIN)
@@ -591,7 +614,7 @@ func _draw_move_hints(moving_to: int) -> void:
 			if hinted:
 				col = Color(Pal.WARN, 0.55 + 0.4 * sin(_time * 8.0))
 				draw_rect(_rect(ni, 4), col, false, 6.0)
-			_chevron(cell_center(snap.robot) + Vector2(d) * cell * 0.5, Vector2(d), col)
+			_chevron(cell_center(snap.robot) + Vector2(d) * Vector2(cell, pitch) * 0.5, Vector2(d), col)
 		elif tt == T.ROCK and drill:
 			var c := cell_center(ni) - Vector2(d) * cell * 0.36
 			draw_circle(c, 13, Color(Pal.WARN, 0.85))
@@ -608,6 +631,13 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> voi
 	if tk == K.NONE or sc <= 0.01:
 		return
 	var s := cell * 0.33 * sc
+	var art := Art.ore(kind) if tk == K.ORE and _art else null
+	if art != null:
+		var size := cell * ORE_SIZE * sc
+		draw_texture_rect(art, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)), false)
+		if flash > 0.0:
+			draw_circle(c, s * 1.3, Color(1, 1, 1, 0.55 * flash))
+		return
 	match tk:
 		K.ORE:
 			var col: Color = Pal.ORE[kind]
