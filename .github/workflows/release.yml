@@ -1,15 +1,23 @@
 name: Android release
 
-# Push a tag like v0.2.0 -> tests run, a signed APK is attached to a GitHub Release
-# (Obtainium picks it up from the repository URL).
+# Merge to main -> reads config/version from project.godot; if tag v<version> does not
+#   exist yet, tests run, a signed APK is built, and the tag + GitHub Release are created
+#   (Obtainium picks it up from the repository URL). Merges that keep the same version
+#   build nothing, so bump config/version in the PR that should ship.
+# Push a tag like v0.2.0 -> same build, released under that tag.
 # Manual run (workflow_dispatch) -> tests + APK uploaded as a build artifact only.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   GODOT_VERSION: 4.7.2
@@ -18,8 +26,46 @@ env:
   EXPECTED_CERT_SHA256: 686d38e47afbf1919b8af90098315bb5e41a55ea663405daac1dfe5f1893e7ce
 
 jobs:
-  android:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.plan.outputs.build }}
+      tag: ${{ steps.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Decide what to build
+        id: plan
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
+            echo "tag push: release $GITHUB_REF_NAME"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            ver=$(sed -n 's/^config\/version="\(.*\)"$/\1/p' project.godot)
+            if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "config/version in project.godot must look like 1.2.3, got '$ver'"; exit 1
+            fi
+            if git ls-remote --exit-code --tags origin "refs/tags/v$ver" > /dev/null; then
+              echo "v$ver is already released; bump config/version in project.godot to ship a new one"
+              echo "build=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "new version: release v$ver"
+              echo "build=true" >> "$GITHUB_OUTPUT"
+              echo "tag=v$ver" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "manual run: dev build, no release"
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
+
+  android:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ needs.plan.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
 
@@ -62,12 +108,12 @@ jobs:
       - name: Set version
         id: ver
         run: |
-          if [[ "$GITHUB_REF_TYPE" == tag ]]; then
-            name="${GITHUB_REF_NAME#v}"
+          if [[ -n "$RELEASE_TAG" ]]; then
+            name="${RELEASE_TAG#v}"
             IFS=. read -r ma mi pa <<< "${name%%-*}"
             # monotonically increasing and derived from the tag: v0.1.0 -> 1000, v1.2.3 -> 1002003
             code=$(( ma * 1000000 + mi * 1000 + pa ))
-            file="astro-miner-${GITHUB_REF_NAME}-android.apk"
+            file="astro-miner-${RELEASE_TAG}-android.apk"
           else
             name="0.0.${GITHUB_RUN_NUMBER}-dev"
             code=1
@@ -111,13 +157,16 @@ jobs:
           path: build/*.apk
 
       - name: Publish GitHub Release
-        if: github.ref_type == 'tag'
+        if: env.RELEASE_TAG != ''
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           out="build/${{ steps.ver.outputs.file }}"
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$out" --clobber
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$out" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" "$out" --title "Astro Miner $GITHUB_REF_NAME" --generate-notes
+            # creates the tag on this commit when it does not exist yet (merge to main);
+            # a tag made with the workflow token does not start another run
+            gh release create "$RELEASE_TAG" "$out" --target "$GITHUB_SHA" \
+              --title "Astro Miner $RELEASE_TAG" --generate-notes
           fi
