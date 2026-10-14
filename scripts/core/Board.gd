@@ -21,6 +21,7 @@ var terrain := PackedInt32Array()
 var hp := PackedInt32Array()       # rock layers left
 var buried := PackedInt32Array()   # what a rock hides
 var reserve := PackedInt32Array()  # ore layers left under a ground cell
+var dug := PackedInt32Array()      # layers dug out of a ground cell (drawn as a pit)
 var token := PackedInt32Array()
 var ore := PackedInt32Array()      # ore type when token == ORE
 var robot := 0
@@ -81,10 +82,10 @@ func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Arr
 	goals = site_goals.duplicate(true)
 	var n := W * H
 	terrain.resize(n); hp.resize(n); buried.resize(n); reserve.resize(n)
-	token.resize(n); ore.resize(n)
+	token.resize(n); ore.resize(n); dug.resize(n)
 	for i in n:
 		terrain[i] = Terrain.GROUND; hp[i] = 0; buried[i] = Buried.ORE
-		reserve[i] = 0; token[i] = Token.NONE; ore[i] = 0
+		reserve[i] = 0; token[i] = Token.NONE; ore[i] = 0; dug[i] = 0
 	assert(rows.size() == H, "site needs %d rows" % H)
 	for y in H:
 		var codes: PackedStringArray = String(rows[y]).split(" ", false)
@@ -368,6 +369,7 @@ func _resolve(steps: Array, pivot: int) -> void:
 func _dig(c: int) -> bool:
 	if reserve[c] > 0:
 		reserve[c] -= 1
+		dug[c] += 1
 		token[c] = Token.NONE
 		ore[c] = _surface_type(c)
 		token[c] = Token.ORE
@@ -603,7 +605,7 @@ func _line_through(tk: PackedInt32Array, orr: PackedInt32Array, c: int) -> bool:
 func clone() -> Board:
 	var b := Board.new()
 	b.terrain = terrain.duplicate(); b.hp = hp.duplicate(); b.buried = buried.duplicate()
-	b.reserve = reserve.duplicate(); b.token = token.duplicate(); b.ore = ore.duplicate()
+	b.reserve = reserve.duplicate(); b.dug = dug.duplicate(); b.token = token.duplicate(); b.ore = ore.duplicate()
 	b.robot = robot; b.energy = energy; b.haul = haul.duplicate()
 	b.extracted = extracted.duplicate(); b.stats = stats.duplicate()
 	b.goals = goals.duplicate(true); b.over = over; b.complete = complete
@@ -635,7 +637,7 @@ func goals_met() -> bool:
 func snapshot() -> Dictionary:
 	return {
 		"terrain": terrain.duplicate(), "hp": hp.duplicate(), "buried": buried.duplicate(),
-		"reserve": reserve.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
+		"reserve": reserve.duplicate(), "depth": dug.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken,
 		"crystals": stats.crystals,

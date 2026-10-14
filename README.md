@@ -20,7 +20,9 @@ plays (bigger battery, a drill, a deep scanner, bigger blasts).
 - **3+ in a line** of the same ore (orange squares, cyan circles, yellow triangles) is
   extracted. You gain the ore and refund some battery.
 - Each extraction **digs** the cell: new ore rises from below until the vein is exhausted
-  (the cell darkens; small pips show the layers left).
+  (each dug layer adds a stepped bench to the pit, neighbouring pits merge, and an exhausted
+  vein shows a bare cracked floor; warm pips at the bottom of the cell show the layers left).
+  Rock stands above the ground as stacked slabs, one per layer.
 - Rock next to an extraction **cracks** one layer (white pips on the rock). Broken rock opens
   fresh ground and reveals what it hid.
 - **4+ in a line** leaves a **blast charge**; step on it to blow up the 3×3 around you.
@@ -86,10 +88,13 @@ Every random decision uses the board's seeded RNG, so a seed plus a move list re
 
 ## Release pipeline
 
-`.github/workflows/release.yml`: pushing a tag `vX.Y.Z` runs the tests and a short simulation,
-exports a signed release APK with Godot headless, verifies the signing certificate against a
-pinned SHA-256 fingerprint, and attaches `astro-miner-vX.Y.Z-android.apk` to the GitHub
-Release. Version code is derived from the tag (`major*1000000 + minor*1000 + patch`), so it
+`.github/workflows/release.yml`: every push to `main` (a merged PR) reads `config/version`
+from `project.godot`. If tag `vX.Y.Z` does not exist yet, it runs the tests and a short
+simulation, exports a signed release APK with Godot headless, verifies the signing certificate
+against a pinned SHA-256 fingerprint, then creates the tag and a GitHub Release with
+`astro-miner-vX.Y.Z-android.apk` attached. If the version is already released, nothing is
+built, so **bump `config/version` in the PR that should ship**. Pushing a `vX.Y.Z` tag by hand
+still works the same way. Version code is derived from the tag (`major*1000000 + minor*1000 + patch`), so it
 always increases with the version. Signing material lives only in repository secrets
 (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_ALIAS`, `ANDROID_KEYSTORE_PASSWORD`).
 

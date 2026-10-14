@@ -146,6 +146,8 @@ func _test_extraction_and_depletion() -> void:
 	_ok(b.haul[2] >= 3, "haul receives one unit per chunk")
 	_ok(b.reserve[Board.idx(Vector2i(1, 1))] < res_before, "extraction digs the cell one layer")
 	_ok(b.token[Board.idx(Vector2i(1, 1))] == Board.Token.ORE, "new ore surfaces while reserve lasts")
+	_ok(b.dug[Board.idx(Vector2i(1, 1))] == 1 and b.dug[Board.idx(Vector2i(0, 0))] == 0,
+			"surfacing deepens the dug cell only")
 	# exhausted cells become empty
 	var shallow := ["_ _ _ _ _ _ _", "_ _ _ _ _ _ _", "_ _ _ _ _ _ _", "_ _ _ _ _ _ _",
 			"_ _ _ _ _ _ _", "_ _ _ _ _ _ _", "_ _ _ _ _ _ _", "_ _ _ _ _ _ _"]
@@ -154,6 +156,7 @@ func _test_extraction_and_depletion() -> void:
 	b.try_move(Vector2i(0, 1))
 	_ok(b.stats.groups == 1 and b.token[0] == Board.Token.NONE and b.token[1] == Board.Token.NONE,
 			"cells with no reserve are left empty after extraction")
+	_ok(b.dug[0] == 0, "an exhausted cell does not get deeper")
 
 
 func _test_energy() -> void:
