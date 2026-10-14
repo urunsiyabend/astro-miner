@@ -104,17 +104,31 @@ per dig. Same seed + same moves = same result (tested).
 
 ## 6. Objectives and sites
 
-Each site is a handcrafted terrain template; ore types are generated per dig from a seed
-(no initial lines; at least one match reachable within 2 steps, verified by search).
+Each site is a handcrafted terrain template; on open sites ore types are generated per dig
+from a seed (no initial lines; at least one match reachable within 2 steps, verified by search).
+
+**Tutorial sites** (marked *T*) come right before the site that uses their mechanic. They are
+fully hand-crafted: every token is placed by hand and the seed is fixed, so the opening and
+everything that surfaces afterwards is identical on every play. The play area is cut down with
+bedrock, the first useful move is unambiguous, and the hint arrow appears after 2 s idle on
+every turn (pointing at a visible crystal, energy cell or charge first, else the nearest
+match). Each tutorial's intended solution is replayed by the test suite.
 
 | # | Site | Teaches | Objective |
 |---|------|---------|-----------|
-| 1 | Landing Zone | moving, swapping, matching | Extract 12 Ferrite |
-| 2 | Rubble Field | matches crack rock | Break 8 rock |
-| 3 | Glint Pocket | buried crystals, pickups | Recover 2 crystals |
-| 4 | Shale Shelf | energy cells, depletion | Extract 15 Cryo + recover 1 crystal |
-| 5 | Deep Vein | deep reserves, blast charges | Extract 15 Lumen + recover 2 crystals |
-| 6 | Core Chamber | basalt shell (drill helps) | Recover 3 crystals |
+| 1 | First Step *T* | one move: the robot swaps with the ore it steps into | Extract 3 Ferrite |
+| 2 | Pull *T* | plan two steps: the ore you step into slides to where you stood | Extract 3 Cryo |
+| 3 | Landing Zone | moving, swapping, matching on a full site | Extract 12 Ferrite |
+| 4 | Veins *T* | matches dig the cell; new ore rises until the vein runs dry | Extract 24 ore |
+| 5 | Crack *T* | matches crack neighbouring rock; broken rock opens ground | Break 4 rock |
+| 6 | Rubble Field | rock bands | Break 8 rock |
+| 7 | Gem *T* | crystal under rock: crack it, then drive onto it | Recover 1 crystal |
+| 8 | Glint Pocket | buried crystals, pickups | Recover 2 crystals |
+| 9 | Low Battery *T* | every step costs energy; an energy cell refills it | Recover 1 crystal (start with 3 energy) |
+| 10 | Shale Shelf | energy cells, depletion | Extract 15 Cryo + recover 1 crystal |
+| 11 | Blast *T* | match 4 leaves a charge; its blast breaks basalt | Break 3 rock |
+| 12 | Deep Vein | deep reserves, blast charges | Extract 15 Lumen + recover 2 crystals |
+| 13 | Core Chamber | basalt shell (drill helps) | Recover 3 crystals |
 
 - Completing an objective ends the dig with a bonus (remaining energy → bonus ore, plus a
   first-clear crystal reward) and unlocks the next site.

@@ -32,9 +32,12 @@ func _initialize() -> void:
 	_test_goals_end_dig()
 	_test_determinism()
 	_test_generator_all_sites()
+	_test_tutorial_sites()
+	_test_pickup_hint()
 	_test_pulse()
 	_test_economy_rules()
 	_test_save_roundtrip()
+	_test_save_v1_migration()
 	_test_bot_smoke()
 	print("== %d passed, %d failed ==" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
@@ -260,7 +263,7 @@ func _test_goals_end_dig() -> void:
 
 
 func _test_determinism() -> void:
-	var site := Sites.get_site(3)
+	var site := Sites.get_site(Sites.index_of("shale"))
 	var a := Board.new()
 	var b := Board.new()
 	a.record = false
@@ -289,7 +292,7 @@ func _test_generator_all_sites() -> void:
 		for s in 40:
 			var b := Board.new()
 			b.record = false
-			b.setup(site.rows, 100 + s, {}, site.goals)
+			b.setup_site(site, 100 + s, {})
 			n += 1
 			if b.has_line():
 				bad_line += 1
@@ -363,10 +366,82 @@ func _test_save_roundtrip() -> void:
 
 
 func _test_bot_smoke() -> void:
-	var site := Sites.get_site(0)
+	var site := Sites.get_site(Sites.index_of("landing"))
 	var wins := 0
 	for s in 20:
 		var m := Bots.play(site, Economy.rules([0, 0, 0]), 500 + s, Bots.Kind.GREEDY)
 		if m.complete:
 			wins += 1
-	_ok(wins >= 16, "greedy bot clears the tutorial site in >=80%% of seeds (%d/20)" % wins)
+	_ok(wins >= 16, "greedy bot clears the first open site in >=80%% of seeds (%d/20)" % wins)
+
+
+# Intended solution of every hand-crafted tutorial site. Each must finish the site exactly on
+# its last move; if a layout edit breaks one, this fails before a player meets it.
+const TUTORIAL_SOLUTIONS := {
+	"step": "U", "pull": "UR", "veins": "URRL", "crack": "RDLL", "gem": "DUU",
+	"battery": "UDDDLLD", "blast": "UD",
+}
+
+
+func _test_tutorial_sites() -> void:
+	var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+	var guided := 0
+	for i in Sites.count():
+		var site := Sites.get_site(i)
+		if not site.get("guide", false):
+			continue
+		guided += 1
+		_ok(TUTORIAL_SOLUTIONS.has(site.id), "tutorial site %s has a recorded solution" % site.id)
+		var sol: String = TUTORIAL_SOLUTIONS.get(site.id, "")
+		var b := Board.new()
+		b.record = false
+		b.setup_site(site, 0, Economy.rules([0, 0, 0]))
+		_ok(not b.has_line(), "%s opens without a ready-made line" % site.id)
+		var ok := true
+		for k in sol.length():
+			var r := b.try_move(map[sol[k]])
+			if not r.ok or (b.over and k < sol.length() - 1):
+				ok = false
+				break
+		_ok(ok and b.complete, "%s is solved by %s" % [site.id, sol])
+	_ok(guided == TUTORIAL_SOLUTIONS.size(), "every recorded solution belongs to a tutorial site")
+	# the battery lesson must actually need the energy cell
+	var nb := Board.new()
+	nb.record = false
+	nb.setup_site(Sites.get_site(Sites.index_of("battery")), 0, Economy.rules([0, 0, 0]))
+	nb.try_move(Vector2i(0, -1))
+	_ok(nb.energy < 6, "Low Battery: after the first match the crystal is out of reach without the cell")
+
+
+func _test_pickup_hint() -> void:
+	var b := _board(OPEN, EMPTY)
+	b.robot = Board.idx(Vector2i(1, 1))
+	b.token[Board.idx(Vector2i(4, 1))] = Board.Token.CRYSTAL
+	var p := b.path_to_pickup(10)
+	_ok(p.size() == 3 and p[0] == 1, "hint routes toward a crystal in the open")
+	b.token[Board.idx(Vector2i(4, 1))] = Board.Token.NONE
+	_ok(b.path_to_pickup(10).is_empty(), "no pickup, no pickup route")
+
+
+func _test_save_v1_migration() -> void:
+	var path := "user://test_v1_save.json"
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"version": 1, "bank": [1, 2, 3, 4], "levels": [1, 0, 0],
+			"unlocked": 3, "cleared": [true, true, false, false, false, false]}))
+	f.close()
+	var game = load("res://autoload/Game.gd").new()
+	game.save_path = path
+	game.load_save()
+	var rubble := Sites.index_of("rubble")
+	_ok(game.cleared[Sites.index_of("landing")] and game.cleared[rubble], "v1 cleared sites keep their progress by id")
+	_ok(not game.cleared[Sites.index_of("glint")], "v1 uncleared sites stay uncleared")
+	_ok(game.unlocked == rubble + 2, "unlock follows the furthest cleared site")
+	_ok(game.bank == [1, 2, 3, 4] and game.levels == [1, 0, 0], "v1 bank and buildings survive")
+	game.save()
+	var again = load("res://autoload/Game.gd").new()
+	again.save_path = path
+	again.load_save()
+	_ok(again.cleared == game.cleared, "v2 save round trip keeps cleared sites")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	game.free()
+	again.free()
