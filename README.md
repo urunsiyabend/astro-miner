@@ -30,9 +30,12 @@ plays (bigger battery, a drill, a deep scanner, bigger blasts).
 - **Hint** shows the first step toward the nearest match. If nothing is in reach it turns into
   **Pulse**, which reshuffles the ore on the board for 3 energy.
 
-Colony buildings (three levels each). They start **locked**: a dig unlocks each one, Mira asks
-you to tap its glowing Build button (level 1 is free), and the next dig is a hand-crafted
-lesson for the new tool. Upgrades after that cost ore and crystals.
+Colony buildings (three levels each) appear **one at a time**. The colony shows only the
+buildings you have plus a teaser for the next one ("unlocks after dig #N"). When a dig unlocks
+a building, Mira announces it, the screen dims around its Build button with an arrow pointing
+at it (level 1 is free), she explains the new tool, and then the spotlight moves to DIG. The
+next dig is a full hand-made level that cannot be finished without that building but still
+mixes in matching, rock and energy. Upgrades after that cost ore and crystals.
 
 | Building | Effect |
 |---|---|

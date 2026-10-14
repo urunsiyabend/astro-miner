@@ -151,8 +151,9 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_hints_used = 0
 	_has_pending = false
 	_idle = 0.0
-	_lesson = site.get("guide", false) and not supply
-	_auto_hint = _lesson and site.get("auto_hint", true)
+	var guide: bool = site.get("guide", false)
+	_lesson = (guide or site.get("building_level", false)) and not supply
+	_auto_hint = guide and not supply and site.get("auto_hint", true)
 	if _result:
 		_result.queue_free()
 		_result = null
@@ -166,7 +167,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_script = []
 	# new-tool reminders, unless this dig is the hand-made lesson that teaches the tool anyway
 	var reminders := Game.take_reminders()
-	if not site.get("guide", false) or supply:
+	if not (site.get("guide", false) or site.get("building_level", false)) or supply:
 		for line in reminders:
 			_script.append({"say": line})
 	if not supply:
