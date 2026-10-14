@@ -33,11 +33,12 @@ class Chip extends Control:
 
 	func _draw() -> void:
 		var c := Vector2(38, size.y * 0.5)
-		var s := 20.0 * (1.0 + 0.35 * _pop)
+		var s := 30.0 * (1.0 + 0.35 * _pop)
 		Widgets.draw_res_icon(self, c, s, res)
 		var fs := Pal.FS
-		draw_string(_font, Vector2(72, size.y * 0.5 + fs * 0.36), str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
-				Pal.TEXT.lerp(Pal.RES[res], _pop))
+		var p := Vector2(82, size.y * 0.5 + fs * 0.36)
+		draw_string_outline(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Color("2a1830"))
+		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[res], _pop))
 
 
 ## Battery bar whose length grows with capacity, so Power Station upgrades are visible.
@@ -71,7 +72,8 @@ class EnergyBar extends Control:
 	func _draw() -> void:
 		var h := size.y - 16
 		var full_w := size.x - 210
-		var w := full_w * float(capacity) / max_capacity
+		# starts at 60% of the room and grows to full with Power Station upgrades
+		var w := full_w * (0.6 + 0.4 * float(capacity - 20) / (max_capacity - 20))
 		var r := Rect2(Vector2(80, 8), Vector2(w, h))
 		var frac := clampf(float(energy) / maxf(1.0, capacity), 0.0, 1.0)
 		var col := Pal.GOOD if frac > 0.4 else (Pal.WARN if frac > 0.2 else Pal.BAD)
@@ -100,7 +102,9 @@ class EnergyBar extends Control:
 			draw_line(Vector2(x, inner.position.y + 4), Vector2(x, inner.end.y - 4), Color(0, 0, 0, 0.18), 2.0)
 		Widgets.draw_bolt(self, Vector2(38, size.y * 0.5), 24, col)
 		var txt := "%d/%d" % [energy, capacity]
-		draw_string(_font, Vector2(r.end.x + 16, size.y * 0.5 + Pal.FS * 0.36), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, Pal.TEXT)
+		var tp := Vector2(r.end.x + 16, size.y * 0.5 + Pal.FS * 0.36)
+		draw_string_outline(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, 8, Color("2a1830"))
+		draw_string(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS, Pal.TEXT)
 
 
 ## One objective with a progress bar.
@@ -149,7 +153,7 @@ class GoalStrip extends Control:
 
 	func _init(large := false) -> void:
 		big = large
-		custom_minimum_size = Vector2(0, 230 if large else 140)
+		custom_minimum_size = Vector2(0, 230 if large else 160)
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_font = ThemeDB.fallback_font
 

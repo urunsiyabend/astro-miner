@@ -28,6 +28,12 @@ static func label(text: String, size := Pal.FS, color := Pal.TEXT, align := HORI
 	return l
 
 
+## Dark outline for text drawn straight on painted art.
+static func outline(l: Label, px := 8) -> void:
+	l.add_theme_color_override("font_outline_color", Color("2a1830"))
+	l.add_theme_constant_override("outline_size", px)
+
+
 static func button(text: String, color := Pal.ACCENT, size := Pal.FS, min_h := 112) -> Button:
 	var b := Button.new()
 	b.text = text
