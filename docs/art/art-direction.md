@@ -76,8 +76,8 @@ yellow triangle). The painted versions must stay readable by shape alone.
      square tops plus a thin front band).
    - Pass it as `init_image` (weight 0.8) and the style target as `reference_image`.
    - Say in the prompt which image sets the camera and which sets the style.
-2. **One sheet per family.** Generate 4 related tiles on one 1024² sheet so they share light,
-   palette and brushwork. Model: `gemini-3.1-flash-image`, 2 CU per image.
+2. **One sheet per family.** Generate related pieces on one 1024² sheet (3×3 = 9 pieces) so they
+   share light, palette and brushwork. Model: `muse-image`, 0.2 CU per image (see below).
 3. **Key locally.** The background is pure `#00FF00`. `docs/art/tools/key.py` keys it out with
    despill and crops each quarter. Then resize to 256 wide.
 4. **Check in game** at native size, then record the asset in the manifest.
@@ -93,6 +93,38 @@ the brown earth front face shows beneath it; no side faces, no isometric angle.
 Top left: ... Top right: ... Bottom left: ... Bottom right: ...
 Keep the flat solid pure green background, no shadows on it, no text.
 ```
+
+## Keeping generation cheap
+
+Measured on Layer, 2026-10-14. The same 3×3 blockout and references were run on both models.
+
+| Model | Price | Result |
+|---|---|---|
+| `muse-image` | 0.2 CU per image | Keeps the blockout layout; style as good as gemini, hanging pieces better |
+| `gemini-3.1-flash-image` | 2 CU per image | Good, but 10× the price |
+
+Rules:
+1. **Draft and produce with `muse-image`.** Use gemini only if muse fails at a specific task.
+2. **Pack 9 pieces per image.** Use a 3×3 blockout; the 2×2 sheets gave only 4 pieces.
+   `docs/art/tools/key.py` cuts a sheet.
+3. **Batch 2 while exploring, then batch 1.** Muse has no reliable seed, so pick from 2 and
+   then iterate on the winner with an edit instead of regenerating the family.
+4. **Let the code multiply the art.**
+   - Depth is the pit tile drawn darker per layer.
+   - Variety comes from 3 soil variants placed in a scattered pattern.
+   - The island underside comes from 3 hanging pieces, drawn under every cell whose cell
+     below is empty.
+   - Flips and small tints add more variants for free.
+5. **Never regenerate a whole family for one bad piece.** Re-key it from the other batch image,
+   or do an edit run on that one quarter.
+6. **Use `estimate_forge_price` before every new kind of call.** Anything over 20 CU needs
+   approval.
+
+Sources for these practices:
+- [SpriteCook: whole autotile set on one 4×4 sheet](https://www.spritecook.ai/ai-tileset-generator)
+- [Sorceress: generate, then align and pack](https://sorceress.games/blog/ai-tileset-generator-game-ready-tilesets-from-a-prompt)
+- [Dual-grid tiling: 15 tiles instead of 47](https://github.com/pablogila/TileMapDual)
+- [Several items per generation cuts cost](https://hackernoon.com/how-i-cut-ai-video-generation-costs-by-8x)
 
 ## Acceptance checks
 
