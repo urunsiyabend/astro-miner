@@ -54,7 +54,7 @@ check, not a target. "Hand" = fixed layout with a recorded solution.
 | 6 | ring | vary | A rubble ring around a deep pocket, on shallow ground. | break 8 + 16 Ferrite | 100% |
 | 7 | rooms | **hard** | Two shallow rooms; open the wall before the first runs dry. Energy 18. | 18 Cryo | 73% |
 | 8 | glint | learn | A glinting rock hides a crystal: crack it, drive onto it. | 1 crystal + 10 ore | 96% |
-| 9 | zigzag | **super-hard**, short | Rubble zig-zag on scarce, shallow ground. Energy 15. | break 13 | 20% |
+| 9 | zigzag | **super-hard**, short | Rubble zig-zag on scarce, shallow ground. Energy 16. Eased after playtest: was 13 rocks / energy 15, which bots and the player cleared about 1 time in 5. | break 12 of 13 | 77% |
 | 10 | lode | reward | Mother lode, deep veins everywhere. **Unlocks the Power Station.** | 25 ore | 100% |
 
 ### Chapter 2: Glint Fields. New: Power Station, energy cell, blast charge. Battery 26.
