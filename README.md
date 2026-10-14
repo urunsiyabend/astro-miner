@@ -38,7 +38,9 @@ Colony buildings (three levels each):
 | Mining Workshop | Drill (bump rock to remove a layer) → stronger drill → cheaper drill + matches crack 2 layers |
 | Research Lab | Deep Scanner (see what rock hides) → 5×5 blasts → +1 energy per match |
 
-Six dig sites teach the mechanics one at a time; the last one needs upgrades.
+Thirteen dig sites. Each mechanic is introduced by a small hand-crafted tutorial site (fixed
+layout, fixed seed, hint arrow) right before the open site that uses it; the last site needs
+upgrades. Progress is saved by site id, so new sites never shift it.
 
 ## Install on Android (Obtainium)
 

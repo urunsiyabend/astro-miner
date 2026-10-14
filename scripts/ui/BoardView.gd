@@ -409,7 +409,7 @@ func _draw_ground(i: int) -> void:
 			draw_rect(Rect2(cur.position, Vector2(cur.size.x, step * 0.5)), Color(0, 0, 0, 0.18))
 		prev = cur
 	var res: int = snap.reserve[i]
-	if res <= 0:
+	if res <= 0 and (snap.depth[i] > 0 or snap.token[i] == K.NONE):
 		# vein exhausted: bare, cracked floor instead of just a darker shade
 		var f := prev.grow(-cell * 0.06)
 		draw_rect(f, Pal.FLOOR_BARE)
