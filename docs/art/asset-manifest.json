@@ -1,252 +1,693 @@
 {
   "schema_version": 1,
   "art_direction_brief": "docs/art/art-direction.md",
-  "budget_note": "~56 CU for one batch of 4 per tile (gemini-3.1-flash-image); ~6 CU with muse-image. Jobs over 20 CU need approval.",
+  "style_target": "docs/art/style-target-c2.png",
+  "geometry_blockout": "docs/art/topdown-blockout.png",
+  "budget_note": "gemini-3.1-flash-image: 2 CU per image; one 2x2 sheet = one family of 4. Jobs over 20 CU need approval.",
   "assets": [
     {
       "id": "soil_a",
-      "role": "visual target: base ground",
+      "role": "plain ground",
       "path": "assets/tiles/soil_a.png",
-      "status": "planned",
+      "status": "in-game",
       "technical": {
-        "dimensions": "256x256",
-        "alpha": false,
-        "anchor": "center",
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": true
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
         "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image, tileability ORGANIC, batch 4 (~8 CU)",
-        "creator": "",
-        "created_at": "",
-        "license": "",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference d9c6c54c-4a6f-4fe9-8582-13722451c132, output 71e108b7-bd64-4fa5-ad60-2c0777ebe6c4), keyed with docs/art/tools/key.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-14",
+        "license": "Generated in the owner's Layer workspace",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: dusty alien soil, fine speckle, base #74546d, shade #5a4058, highlight #8a6a83. Seamless tileable, fully filled."
+        "prompt_or_source_record": "Image 1 is a flat blockout of four game tiles seen from straight above; Image 2 is the art style reference. Paint the four tiles of Image 1 in the hand-painted stylised style of Image 2 (painterly brush texture, lavender-purple soil tops with small pebbles, warm brown layered earth with strata, thin warm outlines, soft warm light). Keep Image 1's camera and geometry exactly: viewed from straight above, each tile's top face is a square with softly rounded corners, and only a thin band of the brown earth front face shows beneath it; no side faces, no isometric angle. Top left: plain soil tile with a few tiny pebbles. Top right: the same soil tile with different pebbles and a small crack. Bottom left: the same tile with a square pit dug into its top, darker earth floor and inner walls visible. Bottom right: the same tile with a chunky cracked grey boulder with purple crystal veins sitting on top, seen from above. Keep the flat solid pure green background, no shadows on it, no text."
       },
       "verification": {
-        "native_scale_reviewed": false,
-        "in_engine_reviewed": false,
-        "technical_checks_passed": false,
+        "native_scale_reviewed": true,
+        "in_engine_reviewed": true,
+        "technical_checks_passed": true,
         "approved_by": ""
-      }
+      },
+      "notes": ""
     },
     {
       "id": "soil_b",
-      "role": "ground variant",
+      "role": "plain ground variant",
       "path": "assets/tiles/soil_b.png",
-      "status": "planned",
+      "status": "in-game",
       "technical": {
-        "dimensions": "256x256",
-        "alpha": false,
-        "anchor": "center",
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": true
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
         "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference d9c6c54c-4a6f-4fe9-8582-13722451c132, output 71e108b7-bd64-4fa5-ad60-2c0777ebe6c4), keyed with docs/art/tools/key.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-14",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "Image 1 is a flat blockout of four game tiles seen from straight above; Image 2 is the art style reference. Paint the four tiles of Image 1 in the hand-painted stylised style of Image 2 (painterly brush texture, lavender-purple soil tops with small pebbles, warm brown layered earth with strata, thin warm outlines, soft warm light). Keep Image 1's camera and geometry exactly: viewed from straight above, each tile's top face is a square with softly rounded corners, and only a thin band of the brown earth front face shows beneath it; no side faces, no isometric angle. Top left: plain soil tile with a few tiny pebbles. Top right: the same soil tile with different pebbles and a small crack. Bottom left: the same tile with a square pit dug into its top, darker earth floor and inner walls visible. Bottom right: the same tile with a chunky cracked grey boulder with purple crystal veins sitting on top, seen from above. Keep the flat solid pure green background, no shadows on it, no text."
+      },
+      "verification": {
+        "native_scale_reviewed": true,
+        "in_engine_reviewed": true,
+        "technical_checks_passed": true,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "pit",
+      "role": "dug cell (all depths for now)",
+      "path": "assets/tiles/pit.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference d9c6c54c-4a6f-4fe9-8582-13722451c132, output 71e108b7-bd64-4fa5-ad60-2c0777ebe6c4), keyed with docs/art/tools/key.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-14",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "Image 1 is a flat blockout of four game tiles seen from straight above; Image 2 is the art style reference. Paint the four tiles of Image 1 in the hand-painted stylised style of Image 2 (painterly brush texture, lavender-purple soil tops with small pebbles, warm brown layered earth with strata, thin warm outlines, soft warm light). Keep Image 1's camera and geometry exactly: viewed from straight above, each tile's top face is a square with softly rounded corners, and only a thin band of the brown earth front face shows beneath it; no side faces, no isometric angle. Top left: plain soil tile with a few tiny pebbles. Top right: the same soil tile with different pebbles and a small crack. Bottom left: the same tile with a square pit dug into its top, darker earth floor and inner walls visible. Bottom right: the same tile with a chunky cracked grey boulder with purple crystal veins sitting on top, seen from above. Keep the flat solid pure green background, no shadows on it, no text."
+      },
+      "verification": {
+        "native_scale_reviewed": true,
+        "in_engine_reviewed": true,
+        "technical_checks_passed": true,
+        "approved_by": ""
+      },
+      "notes": "replace with pit_1..pit_3, one per depth"
+    },
+    {
+      "id": "rock",
+      "role": "rock cell (all layer counts for now)",
+      "path": "assets/tiles/rock.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference d9c6c54c-4a6f-4fe9-8582-13722451c132, output 71e108b7-bd64-4fa5-ad60-2c0777ebe6c4), keyed with docs/art/tools/key.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-14",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "Image 1 is a flat blockout of four game tiles seen from straight above; Image 2 is the art style reference. Paint the four tiles of Image 1 in the hand-painted stylised style of Image 2 (painterly brush texture, lavender-purple soil tops with small pebbles, warm brown layered earth with strata, thin warm outlines, soft warm light). Keep Image 1's camera and geometry exactly: viewed from straight above, each tile's top face is a square with softly rounded corners, and only a thin band of the brown earth front face shows beneath it; no side faces, no isometric angle. Top left: plain soil tile with a few tiny pebbles. Top right: the same soil tile with different pebbles and a small crack. Bottom left: the same tile with a square pit dug into its top, darker earth floor and inner walls visible. Bottom right: the same tile with a chunky cracked grey boulder with purple crystal veins sitting on top, seen from above. Keep the flat solid pure green background, no shadows on it, no text."
+      },
+      "verification": {
+        "native_scale_reviewed": true,
+        "in_engine_reviewed": true,
+        "technical_checks_passed": true,
+        "approved_by": ""
+      },
+      "notes": "replace with rock_1..rock_3 (rubble, stone, basalt)"
+    },
+    {
+      "id": "pit_1",
+      "role": "dug 1 layer",
+      "path": "assets/tiles/pit_1.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same soil as soil_a with a few small pebbles and a shallow dent; reference soil_a. Seamless."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
+    },
+    {
+      "id": "pit_2",
+      "role": "dug 2 layers",
+      "path": "assets/tiles/pit_2.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "pit_3",
+      "role": "dug 3+ layers",
+      "path": "assets/tiles/pit_3.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
     },
     {
       "id": "floor_bare",
-      "role": "exhausted cell floor",
+      "role": "exhausted cell, dry and cracked",
       "path": "assets/tiles/floor_bare.png",
       "status": "planned",
       "technical": {
-        "dimensions": "256x256",
-        "alpha": false,
-        "anchor": "center",
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": true
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
-        "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: dry cracked darker floor #2c2732, a few thin cracks; reference soil_a. Seamless."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
     },
     {
-      "id": "bedrock",
-      "role": "walls and board frame",
-      "path": "assets/tiles/bedrock.png",
+      "id": "rock_1",
+      "role": "rubble, 1 layer",
+      "path": "assets/tiles/rock_1.png",
       "status": "planned",
       "technical": {
-        "dimensions": "256x256",
-        "alpha": false,
-        "anchor": "center",
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": true
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
-        "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: very dark low-contrast void rock #0b0810 to #1f1729; reference soil_a. Seamless."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
     },
     {
-      "id": "rock_rubble",
-      "role": "1-layer rock",
-      "path": "assets/tiles/rock_rubble.png",
+      "id": "rock_2",
+      "role": "stone, 2 layers",
+      "path": "assets/tiles/rock_2.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "rock_3",
+      "role": "basalt, 3 layers",
+      "path": "assets/tiles/rock_3.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x307",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "ore_ferrite",
+      "role": "Ferrite chunk (orange, square silhouette)",
+      "path": "assets/tiles/ore_ferrite.png",
       "status": "planned",
       "technical": {
         "dimensions": "256x256",
         "alpha": true,
-        "anchor": "center",
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": false
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
-        "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: single chunky rounded-octagon rock seen from above, one layer, light grey-violet #b3a9c2, chipped, centred on plain solid background; then background removal."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
     },
     {
-      "id": "rock_stone",
-      "role": "2-layer rock",
-      "path": "assets/tiles/rock_stone.png",
+      "id": "ore_cryo",
+      "role": "Cryo chunk (cyan, round silhouette)",
+      "path": "assets/tiles/ore_cryo.png",
       "status": "planned",
       "technical": {
         "dimensions": "256x256",
         "alpha": true,
-        "anchor": "center",
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": false
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
-        "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same rock family, two stacked slabs, mid violet-grey #75698f, visible strata; reference rock_rubble."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
     },
     {
-      "id": "rock_basalt",
-      "role": "3-layer rock",
-      "path": "assets/tiles/rock_basalt.png",
+      "id": "ore_lumen",
+      "role": "Lumen chunk (yellow, triangle silhouette)",
+      "path": "assets/tiles/ore_lumen.png",
       "status": "planned",
       "technical": {
         "dimensions": "256x256",
         "alpha": true,
-        "anchor": "center",
+        "anchor": "top-left of cell",
         "frames": 1,
-        "filtering": "linear+mipmaps",
-        "seamless": false
+        "filtering": "linear+mipmaps"
       },
       "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
         "palette",
-        "top-down view",
-        "light-direction",
-        "detail density"
+        "outline",
+        "brushwork"
       ],
       "source": {
-        "kind": "generated",
-        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
         "creator": "",
         "created_at": "",
         "license": "",
         "attribution": "",
-        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same rock family, three stacked slabs, dark #3e3452, dense, angular cracks; reference rock_rubble."
+        "prompt_or_source_record": ""
       },
       "verification": {
         "native_scale_reviewed": false,
         "in_engine_reviewed": false,
         "technical_checks_passed": false,
         "approved_by": ""
-      }
+      },
+      "notes": ""
+    },
+    {
+      "id": "crystal",
+      "role": "crystal pickup",
+      "path": "assets/tiles/crystal.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "cell",
+      "role": "energy cell pickup",
+      "path": "assets/tiles/cell.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "charge",
+      "role": "blast charge",
+      "path": "assets/tiles/charge.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "robot",
+      "role": "mining robot, facing down",
+      "path": "assets/tiles/robot.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
+    },
+    {
+      "id": "island_edge",
+      "role": "hanging rocks under bottom-edge tiles",
+      "path": "assets/tiles/island_edge.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x128",
+        "alpha": true,
+        "anchor": "top-left of cell",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "visual_locks": [
+        "top-down camera",
+        "front band ~20%",
+        "palette",
+        "outline",
+        "brushwork"
+      ],
+      "source": {
+        "kind": "planned",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image, blockout init + C2 reference",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": ""
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      },
+      "notes": ""
     }
   ]
 }
