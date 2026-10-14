@@ -277,6 +277,12 @@ static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) 
 				pts.append(c + Vector2(cos(a), sin(a)) * s * (0.85 + 0.08 * sin(k * 2.3)))
 			ci.draw_colored_polygon(pts, Pal.ROCK[1])
 			ci.draw_polyline(PackedVector2Array([c + Vector2(-s * 0.1, -s * 0.6), c + Vector2(s * 0.1, -s * 0.05), c + Vector2(-s * 0.15, s * 0.3), c + Vector2(s * 0.05, s * 0.7)]), Pal.ROCK[3], 5.0, true)
+		"blast":
+			ci.draw_arc(c, s * 0.62, 0, TAU, 24, Pal.CHARGE, s * 0.22, true)
+			ci.draw_circle(c, s * 0.24, Pal.CHARGE)
+			for k in 8:
+				var d := Vector2.from_angle(TAU * k / 8.0)
+				ci.draw_line(c + d * s * 0.8, c + d * s * 1.0, Pal.CHARGE, 5.0, true)
 		_:  # any ore
 			draw_res_icon(ci, c + Vector2(-s * 0.45, s * 0.3), s * 0.45, 0)
 			draw_res_icon(ci, c + Vector2(s * 0.45, s * 0.3), s * 0.45, 1)

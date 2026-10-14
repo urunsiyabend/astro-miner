@@ -2,13 +2,17 @@ class_name Sites
 extends RefCounted
 
 ## The campaign: digs in play order, one after the other. Players never see a site list or
-## site names; they press "Dig" in the colony and get the next one.
+## site names; they press "Dig" in the colony and get the next one. The order follows the
+## master sheet in docs/design/level-plan.md: chapters of 10 with a learn / vary / breather /
+## hard / super-hard / reward rhythm, a building unlocked at the end of each chapter and that
+## building's own hand-made dig right after it. Digs with an "ore" layout are always the same;
+## the others keep their shape and goals but get fresh ore every attempt.
+## Mira's script is said the first time a dig is played and never repeated.
 ## Terrain codes: see Board._parse_cell(). Rows are 7 cells wide, 8 rows tall. Optional keys:
 ##   "ore":    hand-placed tokens (see Board._place_layout); the opening is always the same
 ##   "seed":   fixed seed, so what surfaces after each match is always the same
 ##   "energy": starting energy (below the battery capacity)
-##   "guide":  hand-crafted lesson; the hint arrow shows up quickly on every turn
-##   "auto_hint": false keeps that arrow away when finding the answer is the lesson
+##   "guide":  hand-made lesson (fixed layout); its intended solution is replayed by the tests
 ##   "needs":  colony building level required before this dig can start
 ##   "unlock": building that becomes available once this dig is cleared; Mira then asks you
 ##             to build it (level 1 is free) and points you at DIG
@@ -20,8 +24,8 @@ extends RefCounted
 
 const LIST := [
 	{
-		"id": "first", "guide": true, "seed": 3,
-		"goals": [{"type": "chunks", "n": 15}],
+		"id": "first", "guide": true, "seed": 42,
+		"goals": [{"type": "ore", "ore": 0, "n": 6}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
@@ -29,43 +33,160 @@ const LIST := [
 			"# . . . . . #",
 			"# . . @ . . #",
 			"# . . . . . #",
-			"# . . . . . #",
+			"# # # # # # #",
 			"# # # # # # #",
 		],
 		"ore": [
 			"- - - - - - -",
 			"- - - - - - -",
-			"- C L L C L -",
+			"- C L F C L -",
 			"- L C F L C -",
 			"- C F - F L -",
 			"- L C L C F -",
-			"- F L C F C -",
+			"- - - - - - -",
 			"- - - - - - -",
 		],
 		"script": [
-			{"say": "Hi, I'm Mira, chief of the Corvo IV colony. You drive our mining robot."},
-			{"say": "The colony runs on ore. Line up 3 chunks of the same kind and the robot extracts them."},
-			{"say": "The robot swaps places with the ore it steps into. Swipe up: that Ferrite drops into a line of 3.", "until": "match", "focus": [Vector2i(3, 4), Vector2i(3, 3)]},
-			{"say": "Extracted! Each match digs that ground one layer deeper, and new ore rises from below.", "focus": [Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4)]},
-			{"say": "The yellow pips show how much ore is left down there. When they run out, that vein is dry."},
-			{"say": "Every step costs 1 energy from the bar up top, and matches give some back. Extract 15 ore!"},
+			{"say": "Hi, I'm Mira, chief of the Corvo IV colony. You drive our mining robot, and the colony runs on the ore you bring home."},
+			{"say": "Swipe up: the robot swaps places with the Ferrite above it, and three Ferrite line up.", "until": "match", "focus": [Vector2i(3, 3), Vector2i(3, 4), Vector2i(2, 4), Vector2i(4, 4)]},
+			{"say": "Extracted! New ore rises from below. Line up 6 Ferrite in all."},
 		],
 	},
 	{
-		"id": "landing", "unlock": 0,
-		"goals": [{"type": "ore", "ore": 0, "n": 12}],
+		"id": "drag",
+		"goals": [{"type": "ore", "ore": 1, "n": 9}],
 		"rows": [
-			"1 . . . . . 1",
+			"# # # # # # #",
+			"# # . . . # #",
+			"# . . . . . #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# . . . . . #",
+			"# # . . . # #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "vein",
+		"goals": [{"type": "chunks", "n": 15}],
+		"rows": [
+			"# # # # # # #",
+			"# : . o . : #",
+			"# : . o . : #",
+			"# : . o . : #",
+			"# : . @ . : #",
+			"# : . o . : #",
+			"# : . o . : #",
+			"# # # # # # #",
+		],
+		"script": [
+			{"say": "The yellow pips under a chunk show how much ore is left below it. The middle vein runs deep, the edges dry up fast.", "focus": [Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 5), Vector2i(3, 6)]},
+		],
+	},
+	{
+		"id": "landing",
+		"goals": [{"type": "ore", "ore": 2, "n": 12}],
+		"rows": [
+			"# . . . . . #",
 			". . . . . . .",
 			". . . . . . .",
 			". . . @ . . .",
 			". . . . . . .",
 			". . . . . . .",
-			"1 . . . . . 1",
-			"# 1 1 . 1 1 #",
+			". . . . . . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "rocks",
+		"goals": [{"type": "rock", "n": 4}],
+		"rows": [
+			"# # # # # # #",
+			"# 1 1 1 1 1 #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# . . . . . #",
+			"# . . . . . #",
+			"# . . . . . #",
+			"# # # # # # #",
 		],
 		"script": [
-			{"say": "A full dig site. Every step drags one chunk behind you, so plan your route. We need 12 Ferrite."},
+			{"say": "Rock! The robot can't drive through it, but a match right next to it cracks it. Make a line just under the rocks.", "until": "reveal", "focus": [Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(5, 1)]},
+			{"say": "Broken rock turns into ground with fresh ore in it. Break 4."},
+		],
+	},
+	{
+		"id": "ring", "energy": 18,
+		"goals": [{"type": "rock", "n": 8}, {"type": "ore", "ore": 0, "n": 16}],
+		"rows": [
+			"# : : : : : #",
+			": : : : : : :",
+			": : 1 1 1 : :",
+			": : 1 o 1 : :",
+			": : 1 1 1 : :",
+			": : : @ : : :",
+			": : : : : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "rooms", "energy": 18,
+		"goals": [{"type": "ore", "ore": 1, "n": 18}],
+		"rows": [
+			"# # # # # # #",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			": @ : 1 : : :",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			"# # # # # # #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "glint",
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 10}],
+		"rows": [
+			"# # # # # # #",
+			"# . . 1c . . #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# 1 . . . 1 #",
+			"# . . . . . #",
+			"# . . . . . #",
+			"# # # # # # #",
+		],
+		"script": [
+			{"say": "That rock glints: there's a crystal inside! Make a match next to it to crack it open.", "until": "reveal", "focus": [Vector2i(3, 1)]},
+			{"say": "Drive onto the crystal to pick it up. The colony needs crystals for its bigger buildings.", "until": "crystal", "focus": [Vector2i(3, 1)]},
+		],
+	},
+	{
+		"id": "zigzag", "energy": 15,
+		"goals": [{"type": "rock", "n": 13}],
+		"rows": [
+			"# # # # # # #",
+			": _ : 1 : _ :",
+			"1 1 : 1 : 1 1",
+			": 1 _ : _ 1 :",
+			": 1 1 : 1 1 :",
+			"_ : 1 @ 1 : _",
+			"# : : _ : : #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "lode", "unlock": 0,
+		"goals": [{"type": "chunks", "n": 25}],
+		"rows": [
+			"o o . o . o o",
+			"o . . o . . o",
+			". . o o o . .",
+			"o o o @ o o o",
+			". . o o o . .",
+			"o . . o . . o",
+			"o o . o . o o",
+			"# o o . o o #",
 		],
 	},
 	{
@@ -100,12 +221,40 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rocks", "guide": true, "seed": 4,
-		"goals": [{"type": "rock", "n": 4}, {"type": "crystal", "n": 1}],
+		"id": "route",
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			"1 . 1c 1 1c . 1",
+			". . . . . . .",
+			"# . . . . . #",
+			"# # . . . # #",
+			"# # . @ . # #",
+			"# # . . . # #",
+			"# # . . . # #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "nearby",
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			". . . . . . .",
+			". o . . . o .",
+			". . 1c . 1c . .",
+			". . . @ . . .",
+			". o . . . o .",
+			". . . . . . .",
+			". . . . . . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "battery", "guide": true, "seed": 5, "energy": 6,
+		"goals": [{"type": "ore", "ore": 0, "n": 12}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
-			"# 1 1 1c 1 1 #",
+			"# . . 1e . . #",
 			"# . . @ . . #",
 			"# . . . . . #",
 			"# . . . . . #",
@@ -115,68 +264,73 @@ const LIST := [
 		"ore": [
 			"- - - - - - -",
 			"- - - - - - -",
-			"- - - - - - -",
-			"- C C - L F -",
-			"- F L C F L -",
-			"- L F L C F -",
-			"- C L F L C -",
+			"- C L - F C -",
+			"- C F - F F -",
+			"- F L C L C -",
+			"- C C L F L -",
+			"- L F C C F -",
 			"- - - - - - -",
 		],
 		"script": [
-			{"say": "Rock! The robot can't drive through it."},
-			{"say": "But a match right next to rock cracks it. Each white pip on a rock is one layer."},
-			{"say": "Swipe down: the Cryo below you lines up with the two beside you, right under the rocks.", "until": "reveal", "focus": [Vector2i(3, 4), Vector2i(1, 3), Vector2i(2, 3)]},
-			{"say": "Cracked open! Broken rock turns into fresh ground, and some rock hides things. A crystal!", "focus": [Vector2i(3, 2)]},
-			{"say": "Drive onto the crystal to pick it up.", "until": "crystal", "focus": [Vector2i(3, 2)]},
-			{"say": "Crystals are rare. The colony needs them for its bigger buildings. Break one more rock to finish."},
+			{"say": "The battery is nearly flat! When it hits zero, the robot has to head home."},
+			{"say": "Swipe left: three Ferrite line up right under that rock and crack it.", "until": "reveal", "focus": [Vector2i(2, 3), Vector2i(3, 2)]},
+			{"say": "An energy cell was buried in there. Drive onto it to recharge.", "until": "cell", "focus": [Vector2i(3, 2)]},
 		],
 	},
 	{
-		"id": "rubble",
-		"goals": [{"type": "rock", "n": 8}],
-		"rows": [
-			". . . . . . .",
-			". . . @ . . .",
-			". . . . . . .",
-			"1 2 1 1 1 2 1",
-			"2 1 2e 1 2 1 2",
-			". . . . . . .",
-			". . 1 1 1 . .",
-			"# . . . . . #",
-		],
-		"script": [
-			{"say": "A rock field. Matches crack the rock next to them: break 8."},
-		],
-	},
-	{
-		"id": "glint",
+		"id": "checker",
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
-			"# . . . . . #",
-			". . . @ . . .",
 			". . . . . . .",
-			". 1 2c 1 2c 1 .",
-			"2 2 1 . 1 2 2",
-			"2 1 . . . 1 2",
-			"# 2 2 2 2 2 #",
-			"# # 3 3c 3 # #",
-		],
-		"script": [
-			{"say": "Crystal readings under this rock. Crack it open and collect 2 crystals."},
+			". 1 . 1c . 1 .",
+			". . . . . . .",
+			". 1e . 1 . 1e .",
+			". . . @ . . .",
+			". 1 . 1c . 1 .",
+			". . . . . . .",
+			"# . . . . . #",
 		],
 	},
 	{
-		"id": "power", "guide": true, "seed": 7, "energy": 2,
-		"goals": [{"type": "crystal", "n": 1}],
+		"id": "shallows", "energy": 20,
+		"goals": [{"type": "crystal", "n": 3}],
+		"rows": [
+			": : : : : : :",
+			"1c : : : : : 1c",
+			": : 1e : 1e : :",
+			": : : @ : : :",
+			": : : : : : :",
+			": : 1e : 1e : :",
+			": : : 1c : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "deep",
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
+		"rows": [
+			"o . . . . . o",
+			". o . . . o .",
+			". . o 1c o . .",
+			". . . @ . . .",
+			". . o . o . .",
+			". o . . . o .",
+			"o . . . . . o",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "charge", "guide": true, "seed": 9,
+		"goals": [{"type": "blast", "n": 2}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
+			"# 1 1 1 1 1 #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# . . . . . #",
+			"# . . . . . #",
 			"# # # # # # #",
-			"# _ _ _ _ _ #",
-			"# _ _ @_ _ _ #",
-			"# 3 3 3e 3 3 #",
-			"# # # _ # # #",
-			"# _ _ _ # # #",
 		],
 		"ore": [
 			"- - - - - - -",
@@ -184,34 +338,43 @@ const LIST := [
 			"- - - - - - -",
 			"- C L F C L -",
 			"- F F - F C -",
+			"- L C L L F -",
+			"- C L C F C -",
 			"- - - - - - -",
-			"- - - - - - -",
-			"- c - - - - -",
 		],
 		"script": [
-			{"say": "Careful, the battery is almost flat! When it hits zero the robot has to come home."},
-			{"say": "Line up 4 at once and you also get a blast charge."},
+			{"say": "Line up 4 at once and the robot leaves a blast charge behind."},
 			{"say": "Swipe up: that lines up 4 Ferrite.", "until": "charge", "focus": [Vector2i(3, 3), Vector2i(1, 4), Vector2i(2, 4), Vector2i(4, 4)]},
-			{"say": "There's the charge. Step onto it to set it off. Blasts smash even dark basalt.", "until": "blast", "focus": [Vector2i(3, 4)]},
-			{"say": "An energy cell was buried in that basalt. Drive over it to refill the battery.", "until": "cell", "focus": [Vector2i(3, 5)]},
-			{"say": "Full power! Now bring that crystal home.", "until": "crystal", "focus": [Vector2i(1, 7)]},
+			{"say": "There's the charge. Step onto it to set it off!", "until": "blast", "focus": [Vector2i(3, 4)]},
+			{"say": "Boom! A blast clears everything around it, rock too. Make another line of 4 and set off one more."},
 		],
 	},
 	{
-		"id": "shale", "unlock": 1,
-		"goals": [{"type": "ore", "ore": 1, "n": 15}, {"type": "crystal", "n": 1}],
+		"id": "well", "energy": 16,
+		"goals": [{"type": "crystal", "n": 1}],
 		"rows": [
-			": : : : : : :",
-			": : : @ : : :",
-			": : : : : : :",
-			"2 1e 2 2 2 1e 2",
-			". . . . . . .",
-			". . . . . . .",
-			"2 2 3 2c 3 2 2",
-			"# 3 3 3 3 3 #",
+			"# . . . . . #",
+			"# . . @ . . #",
+			"# . . . . . #",
+			"# 1 . 1 . 1 #",
+			"# . 1 . 1 . #",
+			"# 1 . 1e . 1 #",
+			"# # 1 . 1 # #",
+			"# # # 1c # # #",
 		],
-		"script": [
-			{"say": "Shallow ground: these veins run dry fast. Energy cells hide under the rock."},
+	},
+	{
+		"id": "garden", "unlock": 1,
+		"goals": [{"type": "crystal", "n": 3}],
+		"rows": [
+			". . 1c . 1c . .",
+			". o . . . o .",
+			". . . . . . .",
+			"1c . . @ . . 1c",
+			". . . . . . .",
+			". o . . . o .",
+			". . 1e . 1e . .",
+			"# . . . . . #",
 		],
 	},
 	{
@@ -247,24 +410,108 @@ const LIST := [
 		],
 	},
 	{
-		"id": "vein",
-		"goals": [{"type": "ore", "ore": 2, "n": 15}, {"type": "crystal", "n": 2}],
+		"id": "stone",
+		"goals": [{"type": "rock", "n": 4}],
 		"rows": [
-			"2 o 2 . 2 o 2",
-			"2 o 1 . 1 o 2",
-			"1 . . @ . . 1",
-			"2c . . . . . 2c",
-			"1 . . . . . 1",
-			"2 o 1 . 1 o 2",
-			"2 o 2 . 2 o 2",
-			"# 3 3e 3 3 3 #",
+			"# # # # # # #",
+			". 2 2 . 2 2 .",
+			". . . . . . .",
+			". . . @ . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
+			"# . . . . . #",
 		],
 		"script": [
-			{"say": "Deep veins here, they keep giving. Match 4 for charges, they clear rock fast."},
+			{"say": "Stone has 2 layers: one match only chips it. Crack it twice, drill it, or blast it.", "focus": [Vector2i(1, 1), Vector2i(2, 1), Vector2i(4, 1), Vector2i(5, 1)]},
 		],
 	},
 	{
-		"id": "core", "unlock": 2,
+		"id": "seam",
+		"goals": [{"type": "chunks", "n": 25}],
+		"rows": [
+			"o o o o o o o",
+			". . . . . . .",
+			"o o o o o o o",
+			". . . @ . . .",
+			"o o o o o o o",
+			". . . . . . .",
+			"o o o o o o o",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "pockets", "energy": 20,
+		"goals": [{"type": "crystal", "n": 3}],
+		"rows": [
+			". . . . . . .",
+			". 3c . . . 3c .",
+			". . . . . . .",
+			". . . @ . . .",
+			". . . . . . .",
+			". . . 3c . . .",
+			". . . . . . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "maze", "energy": 20,
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			". . 3 . . . .",
+			". . 3 . 3 3 .",
+			"3c . 3 . . 3 .",
+			". . . . 3 3c .",
+			"3 3 . @ . . .",
+			". . . . 3 . 3",
+			". 3 3 . 3 . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "rubble",
+		"goals": [{"type": "rock", "n": 12}],
+		"rows": [
+			". . . . . . .",
+			". . . @ . . .",
+			". . . . . . .",
+			"1 1e 1 1 1 1e 1",
+			"1 1 1e 1 1e 1 1",
+			". . . . . . .",
+			". . 1 1 1 . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "strata", "energy": 20,
+		"goals": [{"type": "rock", "n": 10}],
+		"rows": [
+			"o . 2 . 2 . o",
+			". 2 . . . 2 .",
+			"2 . o . o . 2",
+			". . . @ . . .",
+			"2 . o . o . 2",
+			". 2 . . . 2 .",
+			"o . 2 . 2 . o",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "shale",
+		"goals": [{"type": "ore", "ore": 1, "n": 15}, {"type": "crystal", "n": 1}],
+		"rows": [
+			": : : : : : :",
+			": : : @ : : :",
+			": : : : : : :",
+			"2 1e 2 2 2 1e 2",
+			". . . . . . .",
+			". . . . . . .",
+			"2 2 3 2c 3 2 2",
+			"# 3 3 3 3 3 #",
+		],
+	},
+	{
+		"id": "core",
 		"goals": [{"type": "crystal", "n": 3}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
@@ -277,8 +524,19 @@ const LIST := [
 			". . . @ . . .",
 			"o . . . . . o",
 		],
-		"script": [
-			{"say": "The crystals sit inside a basalt shell. Swipe into rock to drill it, and use charges."},
+	},
+	{
+		"id": "openseam", "unlock": 2,
+		"goals": [{"type": "chunks", "n": 30}],
+		"rows": [
+			"2 o 2 . 2 o 2",
+			"2 o 1 . 1 o 2",
+			"1 . . @ . . 1",
+			"2e . . . . . 2e",
+			"1 . . . . . 1",
+			"2 o 1 . 1 o 2",
+			"2 o 2 . 2 o 2",
+			"# 3 3e 3 3 3 #",
 		],
 	},
 	{
@@ -314,7 +572,6 @@ const LIST := [
 	},
 ]
 
-
 static func count() -> int:
 	return LIST.size()
 
@@ -329,6 +586,7 @@ static func goal_text(g: Dictionary) -> String:
 		"rock": return "Break %d rock" % g.n
 		"chunks": return "Extract %d ore" % g.n
 		"crystal": return "Recover %d crystal%s" % [g.n, "" if g.n == 1 else "s"]
+		"blast": return "Set off %d blast%s" % [g.n, "" if g.n == 1 else "s"]
 	return "?"
 
 
