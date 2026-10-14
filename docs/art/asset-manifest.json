@@ -1,0 +1,252 @@
+{
+  "schema_version": 1,
+  "art_direction_brief": "docs/art/art-direction.md",
+  "budget_note": "~56 CU for one batch of 4 per tile (gemini-3.1-flash-image); ~6 CU with muse-image. Jobs over 20 CU need approval.",
+  "assets": [
+    {
+      "id": "soil_a",
+      "role": "visual target: base ground",
+      "path": "assets/tiles/soil_a.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": false,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": true
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image, tileability ORGANIC, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: dusty alien soil, fine speckle, base #74546d, shade #5a4058, highlight #8a6a83. Seamless tileable, fully filled."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "soil_b",
+      "role": "ground variant",
+      "path": "assets/tiles/soil_b.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": false,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": true
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same soil as soil_a with a few small pebbles and a shallow dent; reference soil_a. Seamless."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "floor_bare",
+      "role": "exhausted cell floor",
+      "path": "assets/tiles/floor_bare.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": false,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": true
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: dry cracked darker floor #2c2732, a few thin cracks; reference soil_a. Seamless."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "bedrock",
+      "role": "walls and board frame",
+      "path": "assets/tiles/bedrock.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": false,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": true
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image, ref soil_a, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: very dark low-contrast void rock #0b0810 to #1f1729; reference soil_a. Seamless."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "rock_rubble",
+      "role": "1-layer rock",
+      "path": "assets/tiles/rock_rubble.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": false
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: single chunky rounded-octagon rock seen from above, one layer, light grey-violet #b3a9c2, chipped, centred on plain solid background; then background removal."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "rock_stone",
+      "role": "2-layer rock",
+      "path": "assets/tiles/rock_stone.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": false
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same rock family, two stacked slabs, mid violet-grey #75698f, visible strata; reference rock_rubble."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    },
+    {
+      "id": "rock_basalt",
+      "role": "3-layer rock",
+      "path": "assets/tiles/rock_basalt.png",
+      "status": "planned",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "center",
+        "frames": 1,
+        "filtering": "linear+mipmaps",
+        "seamless": false
+      },
+      "visual_locks": [
+        "palette",
+        "top-down view",
+        "light-direction",
+        "detail density"
+      ],
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI: gemini-3.1-flash-image + remove background, batch 4 (~8 CU)",
+        "creator": "",
+        "created_at": "",
+        "license": "",
+        "attribution": "",
+        "prompt_or_source_record": "ROLE: production game tile for a top-down mobile puzzle game. VIEW: straight top-down orthographic, no perspective. ART DIRECTION: clean stylised 2D mobile game art, soft painted gradients, matte, purple-violet palette, light from the top edge, low detail density. EXCLUDE: text, numbers, grass, plants, water, sky, characters, isometric view, black outlines, photorealism, frame, vignette. SUBJECT: same rock family, three stacked slabs, dark #3e3452, dense, angular cracks; reference rock_rubble."
+      },
+      "verification": {
+        "native_scale_reviewed": false,
+        "in_engine_reviewed": false,
+        "technical_checks_passed": false,
+        "approved_by": ""
+      }
+    }
+  ]
+}
