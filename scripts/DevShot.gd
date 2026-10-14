@@ -47,6 +47,20 @@ func _run() -> void:
 	else:
 		main.colony.refresh()
 		await get_tree().create_timer(0.5).timeout
+		# ASTRO_TALK=n taps through n of Mira's colony lines; ASTRO_BUY=b then buys building b
+		var talk := int(OS.get_environment("ASTRO_TALK")) if OS.has_environment("ASTRO_TALK") else 0
+		for k in talk * 2:
+			if main.colony._dialog.visible:
+				main.colony._dialog._advance()
+		await get_tree().create_timer(0.4).timeout
+		if OS.has_environment("ASTRO_BUY"):
+			main.colony._spot.close()
+			main.colony._buy(int(OS.get_environment("ASTRO_BUY")))
+			await get_tree().create_timer(0.3).timeout
+			for k in 8:
+				if main.colony._dialog.visible:
+					main.colony._dialog._advance()
+		await get_tree().create_timer(0.6).timeout
 	print("main size ", main.size, " colony ", main.colony.size, " vis ", main.colony.visible)
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()

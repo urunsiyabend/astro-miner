@@ -156,3 +156,85 @@ class Coach extends PanelContainer:
 			return
 		_t -= delta
 		modulate.a = clampf(_t * 2.0, 0.0, 1.0)
+
+
+## Spotlight: dims everything except one button, points at it with a bouncing arrow and lets
+## Mira say what to do. Only that button can be tapped; the tap runs `on_tap`.
+class Spotlight extends Control:
+	var target: Control
+	var _coach: Coach
+	var _t := 0.0
+	var _on_tap: Callable
+
+	func _ready() -> void:
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		visible = false
+		_coach = Coach.new()
+		_coach.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+		add_child(_coach)
+
+	func point(t: Control, text: String, on_tap: Callable) -> void:
+		target = t
+		_on_tap = on_tap
+		visible = true
+		_t = 0.0
+		var r := _rect()
+		# Mira talks from the half of the screen the button is not in
+		if r.get_center().y > size.y * 0.5:
+			_coach.offset_top = 70
+		else:
+			_coach.offset_top = size.y - 300
+		_coach.offset_left = 32
+		_coach.offset_right = -32
+		_coach.offset_bottom = _coach.offset_top + 170
+		_coach.say(text)
+
+	func close() -> void:
+		visible = false
+		target = null
+
+	func _rect() -> Rect2:
+		if target == null or not is_instance_valid(target):
+			return Rect2()
+		var g := target.get_global_rect().grow(14)
+		return Rect2(g.position - global_position, g.size)
+
+	func _process(delta: float) -> void:
+		if visible:
+			_t += delta
+			queue_redraw()
+
+	func _draw() -> void:
+		var r := _rect()
+		var dim := Color(0, 0, 0, 0.7)
+		draw_rect(Rect2(0, 0, size.x, r.position.y), dim)
+		draw_rect(Rect2(0, r.end.y, size.x, size.y - r.end.y), dim)
+		draw_rect(Rect2(0, r.position.y, r.position.x, r.size.y), dim)
+		draw_rect(Rect2(r.end.x, r.position.y, size.x - r.end.x, r.size.y), dim)
+		var pulse := 0.5 + 0.5 * sin(_t * 6.0)
+		draw_rect(r, Color(Pal.WARN, 0.6 + 0.4 * pulse), false, 6.0)
+		# arrow pointing at the button, bobbing toward it
+		var below := r.get_center().y < size.y * 0.5
+		var tip := Vector2(r.get_center().x, r.end.y + 16 if below else r.position.y - 16)
+		var dir := -1.0 if below else 1.0  # +1 points down
+		var bob := 14.0 * sin(_t * 5.0)
+		tip.y -= dir * (bob + 14.0)
+		var head := PackedVector2Array([tip, tip + Vector2(-38, -dir * 46), tip + Vector2(38, -dir * 46)])
+		draw_colored_polygon(head, Pal.WARN)
+		draw_rect(Rect2(tip.x - 14, tip.y - dir * 46 - (66 if dir > 0 else 0), 28, 66), Pal.WARN)
+
+	func _gui_input(event: InputEvent) -> void:
+		var pos := Vector2.INF
+		if event is InputEventScreenTouch and event.pressed:
+			pos = event.position
+		elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			pos = event.position
+		if pos == Vector2.INF:
+			return
+		accept_event()
+		if _rect().has_point(pos):
+			var cb := _on_tap
+			close()
+			if cb.is_valid():
+				cb.call()
