@@ -11,6 +11,9 @@ signal settled
 
 const T := Board.Terrain
 const K := Board.Token
+const MAX_PIT := 4          # deepest level drawn; deeper pits look the same
+const PIT_STEP := 0.09      # wall width per dug layer, as a fraction of a cell
+const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 
 var snap: Dictionary = {}
 var scanner := false
@@ -30,6 +33,7 @@ var _shake := 0.0
 var _flash := {}   # cell -> 1..0
 var _rise := {}    # cell -> 0..1
 var _jolt := {}    # rock cell -> 1..0
+var _sink := {}    # ground cell whose floor just dropped a layer -> 0..1
 var _rings := []   # {c: Vector2, r0, r1, t, dur, color}
 var _bump := {"cell": -1, "t": 0.0, "dir": Vector2.ZERO}
 var _face := Vector2(0, 1)
@@ -202,6 +206,10 @@ func _reveal_fx(cells: Array) -> void:
 
 
 func _apply(s: Dictionary) -> void:
+	if snap.has("depth") and s.has("depth"):
+		for i in Board.W * Board.H:
+			if s.depth[i] > snap.depth[i]:
+				_sink[i] = 0.0
 	snap = s
 	snap_changed.emit(snap)
 
@@ -217,6 +225,10 @@ func _process(delta: float) -> void:
 		_rise[k] += delta / 0.16
 		if _rise[k] >= 1.0:
 			_rise.erase(k)
+	for k in _sink.keys():
+		_sink[k] += delta / 0.22
+		if _sink[k] >= 1.0:
+			_sink.erase(k)
 	for k in _jolt.keys():
 		_jolt[k] -= delta / 0.25
 		if _jolt[k] <= 0.0:
@@ -290,8 +302,12 @@ func _draw() -> void:
 		moving_to = _cur.to
 		moving_from = _cur.from
 		mt = _ease(_t)
+	# ground first (pits included), then raised rock on top so its shadow falls on the ground
 	for i in Board.W * Board.H:
-		_draw_terrain(i)
+		_draw_ground(i)
+	for i in Board.W * Board.H:
+		if snap.terrain[i] == T.ROCK:
+			_draw_rock(i)
 	_draw_move_hints(moving_to)
 	for i in Board.W * Board.H:
 		if snap.terrain[i] != T.GROUND:
@@ -299,11 +315,12 @@ func _draw() -> void:
 		if i == moving_to:
 			if _cur.swap:
 				var from_p := cell_center(moving_to).lerp(cell_center(moving_from), mt)
-				_draw_token(from_p, snap.token[i], snap.ore[i], 1.0, 0.0)
+				var dsc := lerpf(_depth_scale(moving_to), _depth_scale(moving_from), mt)
+				_draw_token(from_p, snap.token[i], snap.ore[i], dsc, 0.0)
 			else:
-				_draw_token(cell_center(i), snap.token[i], snap.ore[i], 1.0 - mt, 0.0)
+				_draw_token(cell_center(i), snap.token[i], snap.ore[i], (1.0 - mt) * _depth_scale(i), 0.0)
 			continue
-		var sc := 1.0
+		var sc := _depth_scale(i)
 		if _rise.has(i):
 			sc = _back_out(_rise[i])
 		var fl: float = _flash.get(i, 0.0)
@@ -312,14 +329,17 @@ func _draw() -> void:
 		_draw_token(cell_center(i), snap.token[i], snap.ore[i], sc, fl)
 	# robot
 	var rp := cell_center(snap.robot)
+	var rsc := _depth_scale(snap.robot)
 	if moving_to != -1:
 		rp = cell_center(moving_from).lerp(cell_center(moving_to), mt)
+		# the robot visibly steps down into a pit or climbs out of it
+		rsc = lerpf(_depth_scale(moving_from), _depth_scale(moving_to), mt)
 	elif not _cur.is_empty() and _cur.type == "drill":
 		var tgt := cell_center(_cur.cell)
 		rp = rp.lerp(tgt, 0.28 * sin(PI * _t))
 	if _bump.t > 0.0:
 		rp += _bump.dir * cell * 0.12 * sin(PI * _bump.t)
-	_draw_robot(rp)
+	_draw_robot(rp, rsc)
 	for r in _rings:
 		var k: float = r.t / r.dur
 		var col: Color = r.color
@@ -336,56 +356,151 @@ func _rect(i: int, inset := 3.0) -> Rect2:
 	return Rect2(o + Vector2(inset, inset), Vector2(cell - inset * 2, cell - inset * 2))
 
 
-func _draw_terrain(i: int) -> void:
-	var r := _rect(i)
-	match snap.terrain[i]:
-		T.BEDROCK:
-			var rr := _rect(i, 0)
-			draw_rect(rr, Pal.BEDROCK)
-			for k in 3:
-				var a := rr.position + Vector2(rr.size.x * (0.2 + k * 0.3), rr.size.y)
-				draw_line(a, a + Vector2(rr.size.x * 0.3, -rr.size.y) * 0.9, Color(1, 1, 1, 0.04), 3.0)
-		T.GROUND:
-			var res: int = snap.reserve[i]
-			_round_rect(r, Pal.ground(res), 16)
-			if res <= 0:
-				_round_rect(r.grow(-cell * 0.08), Pal.GROUND_EMPTY.darkened(0.3), 12)
-			# vein reserve pips
-			for k in mini(res, 5):
-				var pp := r.position + Vector2(r.size.x - 14 - k * 16, r.size.y - 13)
-				draw_circle(pp, 5, Color(1, 1, 1, 0.28))
-		T.ROCK:
-			_round_rect(r, Pal.GROUND_EMPTY, 16)
-			var hpv: int = snap.hp[i]
-			var col: Color = Pal.ROCK[clampi(hpv, 1, 3)]
-			var c := r.get_center()
-			var rad := r.size.x * 0.5
-			var pts := PackedVector2Array()
-			for k in 8:
-				var a := TAU * (k + 0.5) / 8.0
-				var wob := 0.9 + 0.08 * sin(i * 3.7 + k * 1.9)
-				pts.append(c + Vector2(cos(a), sin(a)) * rad * wob)
-			draw_colored_polygon(pts, col)
-			pts.append(pts[0])
-			draw_polyline(pts, col.lightened(0.25), 4.0, true)
-			# crack lines: more layers removed = more cracks
-			var cracks := 3 - hpv + 1
-			for k in cracks:
-				var a := float(i * 13 + k * 47) * 0.37
-				var p0 := c + Vector2(cos(a), sin(a)) * rad * 0.1
-				var p1 := c + Vector2(cos(a + 0.5), sin(a + 0.5)) * rad * 0.55
-				var p2 := c + Vector2(cos(a + 0.2), sin(a + 0.2)) * rad * 0.85
-				draw_polyline(PackedVector2Array([p0, p1, p2]), col.darkened(0.45), 4.0, true)
-			# layer counter: a dark pill with one bright pip per remaining layer
-			var pill := Rect2(r.position + Vector2(r.size.x * 0.5 - 12 - hpv * 9, 4), Vector2(24 + hpv * 18 - 6, 22))
-			_round_rect(pill, Color(0, 0, 0, 0.55), 11)
-			for k in hpv:
-				draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
-			if hpv >= 3:
-				pts[pts.size() - 1] = pts[0]
-				draw_polyline(pts, Color("1a1424"), 7.0, true)
-			if scanner:
-				_draw_buried(c, snap.buried[i])
+## Things sitting in a pit are drawn a little smaller, as if seen from further away.
+func _depth_scale(i: int) -> float:
+	if not snap.has("depth"):
+		return 1.0
+	return 1.0 - 0.05 * mini(snap.depth[i], MAX_PIT)
+
+
+## Dug level of a cell for drawing: 0 for the surface, rock, bedrock and outside the board.
+func _level(p: Vector2i) -> int:
+	if not Board.inside(p) or not snap.has("depth"):
+		return 0
+	var i := Board.idx(p)
+	if snap.terrain[i] != T.GROUND:
+		return 0
+	return mini(snap.depth[i], MAX_PIT)
+
+
+func _draw_ground(i: int) -> void:
+	var r := _rect(i, 0)
+	if snap.terrain[i] == T.BEDROCK:
+		draw_rect(r, Pal.BEDROCK)
+		for k in 3:
+			var a := r.position + Vector2(r.size.x * (0.2 + k * 0.3), r.size.y)
+			draw_line(a, a + Vector2(r.size.x * 0.3, -r.size.y) * 0.9, Color(1, 1, 1, 0.04), 3.0)
+		return
+	draw_rect(r, Pal.ground_level(0))
+	if snap.terrain[i] != T.GROUND:
+		return
+	# Pit: one stepped bench per dug layer, like an open-pit mine seen from above. A side
+	# only gets a wall where the neighbour is shallower, so neighbouring pits merge into one
+	# hole and depth differences read as cliffs. Light comes from the top of the screen:
+	# north walls are in shadow, south walls are lit.
+	var p := Board.pos(i)
+	var d := _level(p)
+	var nb := [_level(p + Vector2i(0, -1)), _level(p + Vector2i(1, 0)),
+			_level(p + Vector2i(0, 1)), _level(p + Vector2i(-1, 0))]  # N E S W
+	var step := cell * PIT_STEP
+	var prev := r
+	for k in range(1, d + 1):
+		var w := step
+		if k == d and _sink.has(i):
+			w *= _ease(_sink[i])
+		var ins := [w if nb[0] < k else 0.0, w if nb[1] < k else 0.0,
+				w if nb[2] < k else 0.0, w if nb[3] < k else 0.0]
+		var cur := Rect2(prev.position + Vector2(ins[3], ins[0]),
+				prev.size - Vector2(ins[1] + ins[3], ins[0] + ins[2]))
+		_wall(prev, cur, ins, Pal.ground_level(k - 1))
+		draw_rect(cur, Pal.ground_level(k))
+		# the north wall casts a soft shadow onto the floor below it
+		if ins[0] > 0.0:
+			draw_rect(Rect2(cur.position, Vector2(cur.size.x, step * 0.5)), Color(0, 0, 0, 0.18))
+		prev = cur
+	var res: int = snap.reserve[i]
+	if res <= 0:
+		# vein exhausted: bare, cracked floor instead of just a darker shade
+		var f := prev.grow(-cell * 0.06)
+		draw_rect(f, Pal.FLOOR_BARE)
+		var c := f.get_center()
+		for k in 3:
+			var a := float(i * 7 + k * 53) * 0.61
+			var p0 := c + Vector2(cos(a), sin(a)) * f.size.x * 0.12
+			var p1 := c + Vector2(cos(a + 0.4), sin(a + 0.4)) * f.size.x * 0.42
+			draw_line(p0, p1, Color(0, 0, 0, 0.35), 3.0, true)
+	# grid seam so cells stay readable inside a merged pit
+	draw_rect(r.grow(-1), Color(0, 0, 0, 0.16), false, 2.0)
+	# ore layers left under the floor: warm pips on a dark pill (same language as rock)
+	if res > 0:
+		var n := mini(res, 5)
+		var pill := Rect2(Vector2(r.get_center().x - (n * 16 + 10) * 0.5, r.end.y - 22), Vector2(n * 16 + 10, 18))
+		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
+		for k in n:
+			draw_circle(Vector2(pill.position.x + 13 + k * 16, pill.get_center().y), 5.5, Pal.VEIN)
+
+
+## Four wall bands between an outer and an inner rect; ins = [N, E, S, W] widths.
+func _wall(o: Rect2, n: Rect2, ins: Array, base: Color) -> void:
+	var otl := o.position
+	var otr := Vector2(o.end.x, o.position.y)
+	var obr := o.end
+	var obl := Vector2(o.position.x, o.end.y)
+	var itl := n.position
+	var itr := Vector2(n.end.x, n.position.y)
+	var ibr := n.end
+	var ibl := Vector2(n.position.x, n.end.y)
+	if ins[3] > 0.5:
+		draw_colored_polygon(PackedVector2Array([otl, itl, ibl, obl]), base.darkened(0.3))
+	if ins[1] > 0.5:
+		draw_colored_polygon(PackedVector2Array([itr, otr, obr, ibr]), base.darkened(0.15))
+	if ins[0] > 0.5:
+		draw_colored_polygon(PackedVector2Array([otl, otr, itr, itl]), base.darkened(0.55))
+	if ins[2] > 0.5:
+		draw_colored_polygon(PackedVector2Array([ibl, ibr, obr, obl]), base.lightened(0.12))
+
+
+## Rock stands above the ground: one stacked slab per layer, a cast shadow to the south,
+## and the layer pill on its top face.
+func _draw_rock(i: int) -> void:
+	var r := _rect(i, 0)
+	var hpv: int = snap.hp[i]
+	var col: Color = Pal.ROCK[clampi(hpv, 1, 3)]
+	var face := col.darkened(0.45)
+	var hstep := cell * ROCK_STEP
+	var base := r.get_center() + Vector2(0, cell * 0.07)
+	var rad := cell * 0.42
+	var shape := PackedVector2Array()
+	for k in 8:
+		var a := TAU * (k + 0.5) / 8.0
+		var wob := 0.9 + 0.08 * sin(i * 3.7 + k * 1.9)
+		shape.append(Vector2(cos(a), sin(a)) * rad * wob)
+	# cast shadow, longer for taller rock
+	draw_colored_polygon(_moved(shape, base + Vector2(hstep * 0.4, hstep * (0.6 + hpv * 0.5))), Color(0, 0, 0, 0.32))
+	# side: one slab per remaining layer, with a seam between slabs
+	for k in hpv:
+		var slab := _moved(shape, base - Vector2(0, hstep * k))
+		draw_colored_polygon(slab, face)
+		var seam := slab.duplicate()
+		seam.append(seam[0])
+		draw_polyline(seam, face.darkened(0.35), 2.0, true)
+	var c := base - Vector2(0, hstep * hpv)
+	var top := _moved(shape, c)
+	draw_colored_polygon(top, col)
+	var rim := top.duplicate()
+	rim.append(rim[0])
+	draw_polyline(rim, col.lightened(0.25), 4.0, true)
+	# crack lines: more layers removed = more cracks
+	for k in 3 - hpv + 1:
+		var a := float(i * 13 + k * 47) * 0.37
+		var p0 := c + Vector2(cos(a), sin(a)) * rad * 0.1
+		var p1 := c + Vector2(cos(a + 0.5), sin(a + 0.5)) * rad * 0.55
+		var p2 := c + Vector2(cos(a + 0.2), sin(a + 0.2)) * rad * 0.85
+		draw_polyline(PackedVector2Array([p0, p1, p2]), col.darkened(0.45), 4.0, true)
+	# layer counter: a dark pill with one bright pip per remaining layer
+	var pill := Rect2(Vector2(c.x - 12 - hpv * 9, c.y - rad * 0.95), Vector2(24 + hpv * 18 - 6, 22))
+	_round_rect(pill, Color(0, 0, 0, 0.55), 11)
+	for k in hpv:
+		draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
+	if scanner:
+		_draw_buried(c, snap.buried[i])
+
+
+static func _moved(pts: PackedVector2Array, by: Vector2) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for q in pts:
+		out.append(q + by)
+	return out
 
 
 func _draw_buried(c: Vector2, b: int) -> void:
@@ -489,8 +604,8 @@ func _battery(c: Vector2, s: float, col: Color) -> void:
 	draw_line(c + Vector2(s * 0.25, -s * 0.05), c + Vector2(0, s * 0.5), Pal.BG, 5.0)
 
 
-func _draw_robot(c: Vector2) -> void:
-	var s := cell * 0.4
+func _draw_robot(c: Vector2, scale := 1.0) -> void:
+	var s := cell * 0.4 * scale
 	var low: bool = snap.energy <= 5
 	draw_circle(c + Vector2(0, s * 0.95), s * 0.8, Color(0, 0, 0, 0.3))
 	var body := Rect2(c - Vector2(s, s * 0.9), Vector2(s * 2, s * 1.8))
@@ -508,7 +623,7 @@ func _draw_robot(c: Vector2) -> void:
 	draw_circle(c + Vector2(s * 0.35, -s * 0.18) + look, s * 0.15, Pal.ACCENT)
 	# energy readout on the chest (Six Match puts the counter on the character)
 	var txt := str(snap.energy)
-	var fs := int(cell * 0.3)
+	var fs := int(cell * 0.3 * scale)
 	var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
 	draw_string(_font, c + Vector2(-w * 0.5, s * 0.72), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
 			Pal.BAD if low else Color("1b2638"))
