@@ -85,7 +85,7 @@ A move in direction *d* from robot cell *A* toward cell *B*:
    5. Every rock orthogonally adjacent to a group loses crack power layers (1, Workshop Lv3:
       2), once per group. Rock at 0 is **revealed**: becomes ground showing its content.
    6. Surfaced ore can form new lines → cascade ("vein chain").
-5. **Detonation** (charge): every cell in the 3×3 (Lab Lv2: 5×5) around the robot:
+5. **Detonation** (charge): every cell in the 3×3 around the robot:
    ore extracted (counts as resource, digs the cell), crystals/cells collected, rock −2.
    No energy refund for blast extraction, then the resolve loop runs.
 6. If energy is 0 after resolution, the dig ends.
@@ -124,18 +124,27 @@ icons with counters sit right above the board; mined chunks that count fly into 
 | # | Dig | What Mira teaches | Goal |
 |---|-----|-------------------|------|
 | 1 | first (lesson) | robot swaps with the ore it steps into, lines of 3, digging and veins, energy | Extract 15 ore |
-| 2 | landing | routes on a full site | Extract 12 Ferrite |
+| 2 | landing → unlocks **Power Station** | routes on a full site | Extract 12 Ferrite |
 | 3 | rocks (lesson) | matches crack rock, rock hides things, picking up crystals | Break 4 rock + 1 crystal |
 | 4 | rubble | rock fields | Break 8 rock |
 | 5 | glint | buried crystals | Recover 2 crystals |
 | 6 | power (lesson) | low battery, match 4 for a charge, blasts break basalt, energy cells | Recover 1 crystal (start with 2 energy) |
-| 7 | shale | shallow veins, energy cells | Extract 15 Cryo + 1 crystal |
-| 8 | vein | deep veins, charges | Extract 15 Lumen + 2 crystals |
-| 9 | core | needs the Mining Workshop (drill) | Recover 3 crystals |
+| 7 | shale → unlocks **Mining Workshop** | shallow veins, energy cells | Extract 15 Cryo + 1 crystal |
+| 8 | drill (lesson) | the drill: swipe into rock, one layer per bump, 2 energy | Recover 1 crystal |
+| 9 | vein | deep veins, charges | Extract 15 Lumen + 2 crystals |
+| 10 | core → unlocks **Research Lab** | basalt shell: drill and charges | Recover 3 crystals |
+| 11 | scan (lesson) | the scanner: one drill's worth of energy, pick the rock with the crystal icon (no auto hint) | Recover 1 crystal |
+
+**Buildings are unlocked by the campaign.** Clearing a dig with `unlock` makes that building
+available; Mira announces it in the colony, its Build button pulses ("Build free": level 1
+costs nothing) and the DIG button reads "Build first" until it is built. The dig right after
+needs it and is the hand-crafted lesson for its tool. On lesson digs the Hint button never
+offers Pulse; with nothing else in reach it points at the cell Mira is talking about.
 
 Lesson digs place every token by hand and pin the seed; the test suite replays each one's
-intended solution. After the last dig, and whenever the next dig needs a building, the DIG
-button starts a **supply run**: a cleared open site with a fresh random layout.
+intended solution with the buildings the campaign provides by then. After the last dig the DIG
+button starts a **supply run**: a cleared open site with a fresh random layout. Every dig opens
+with a goal card that cannot be dismissed for the first 1.5 s.
 
 - Completing an objective ends the dig with a bonus (remaining energy → bonus ore, plus a
   first-clear crystal reward).
@@ -152,10 +161,10 @@ Three buildings, three levels each; every level changes a rule:
 |---|---|---|---|
 | Power Station | Battery 26 | Battery 32 | Battery 40 |
 | Mining Workshop | **Drill**: bump rock to remove 1 layer (2 energy) | Drill removes 2 layers | Drill costs 1; matches crack 2 layers |
-| Research Lab | **Deep Scanner**: see what is buried under rock | Blast charges hit 5×5 | +1 energy per match |
+| Research Lab | **Deep Scanner**: see what is buried under rock | Broken rock opens 3-layer veins (was 5×5 blasts: removed, it trivialised boards) | +1 energy per match |
 
-Costs are listed in `scripts/core/Economy.gd` and tuned so that the first upgrade is
-affordable after ~1-2 digs and roughly 3-5 upgrades happen in a 10-15 minute session.
+Costs are listed in `scripts/core/Economy.gd`. Level 1 of every building is free (the campaign
+unlocks it and asks you to build it); levels 2 and 3 cost ore and crystals.
 
 The colony screen shows the three buildings growing (more modules/lights per level), the
 resource bank, each building's next effect and cost, and the site list.

@@ -113,7 +113,12 @@ func refresh(celebrate := -1) -> void:
 		_cards.add_child(_card(b))
 	_sound_btn.text = "Sound: %s" % ("on" if Game.sfx_on else "off")
 	var next := Game.next_dig()
-	if next >= 0 and Game.can_start(next):
+	_go_btn.disabled = false
+	if Game.pending_build() >= 0:
+		# a freshly unlocked building comes first: its tool is what the next dig teaches
+		_go_btn.text = "BUILD FIRST"
+		_go_btn.disabled = true
+	elif next >= 0 and Game.can_start(next):
 		_go_btn.text = "DIG  ·  #%d" % (next + 1)
 		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.WARN, 28))
 	else:
@@ -121,11 +126,25 @@ func refresh(celebrate := -1) -> void:
 		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
 	if is_inside_tree():
 		_advice.say(Story.advice())
+		_announce_unlocks.call_deferred()
 	var t: Dictionary = Game.totals
 	var mpm := float(t.moves) / maxf(1.0, t.groups)
 	_log.text = "Digs %d · cleared %d · battery depleted %d · recalled %d\nMoves %d · extractions %d (%.1f moves each) · cascades %d\nRock broken %d · crystals %d · pulses %d · hints %d · upgrades %d" % [
 		t.digs, t.clears, t.exhausted, t.recalled, t.moves, t.groups, mpm, t.cascades,
 		t.rocks, t.crystals, t.pulses, t.hints, t.upgrades]
+
+
+## Mira announces a building the last dig unlocked (once).
+func _announce_unlocks() -> void:
+	if not visible or _dialog.is_open():
+		return
+	for b in Economy.BUILDINGS.size():
+		var key := "unlock_%d" % b
+		if Game.building_unlocked(b) and not Game.tips_seen.has(key):
+			Game.tips_seen[key] = true
+			Game.save()
+			_dialog.say(Story.UNLOCK[b])
+			return
 
 
 func _on_go() -> void:
@@ -147,6 +166,15 @@ func _card(b: int) -> Control:
 	icon.level = lv
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	h.add_child(icon)
+	if lv == 0 and not Game.building_unlocked(b):
+		# locked: a dim silhouette that tells you more is coming
+		p.modulate = Color(1, 1, 1, 0.45)
+		var lk := VBoxContainer.new()
+		lk.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lk.add_child(Ui.label("Locked", Pal.FS, Pal.DIM))
+		lk.add_child(Ui.label("Keep digging to unlock it", Pal.FS_TINY, Pal.MUTED))
+		h.add_child(lk)
+		return p
 	var info := VBoxContainer.new()
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info.add_theme_constant_override("separation", 4)
@@ -168,6 +196,13 @@ func _card(b: int) -> Control:
 		btn.disabled = true
 	elif not Economy.can_afford(Game.bank, c):
 		btn.disabled = true
+	if lv == 0:
+		btn.text = "Build\nfree"
+		# pulse until tapped: this is the button Mira is talking about
+		btn.pivot_offset = Vector2(105, 50)
+		var tw := btn.create_tween().set_loops()
+		tw.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.45).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(btn, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_SINE)
 	btn.pressed.connect(func(): _buy(b))
 	h.add_child(btn)
 	return p

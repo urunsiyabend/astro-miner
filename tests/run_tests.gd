@@ -243,12 +243,13 @@ func _test_charge_and_blast() -> void:
 	var chunks_before: int = b.stats.chunks
 	b.try_move(Vector2i(0, -1))
 	_ok(b.stats.blasts >= 1 and b.stats.chunks >= chunks_before + 7, "stepping on a charge blasts the 3x3 around it")
-	b = _board(OPEN, ores, Economy.rules([0, 0, 2]))
-	_ok(b.cfg.blast_radius == 2, "Research Lab Lv2 enlarges blasts to 5x5")
-	b.try_move(Vector2i(0, 1))
-	chunks_before = b.stats.chunks
-	b.try_move(Vector2i(0, -1))
-	_ok(b.stats.chunks >= chunks_before + 15, "5x5 blast extracts far more ore")
+	_ok(Economy.rules([3, 3, 3]).get("blast_radius", 1) == 1, "no building enlarges blasts (5x5 broke the game)")
+	var rich := _board(OPEN, EMPTY, Economy.rules([0, 0, 2]))
+	rich.terrain[0] = Board.Terrain.ROCK
+	rich.hp[0] = 1
+	rich.buried[0] = Board.Buried.ORE
+	rich._damage_rock(0, 1, [])
+	_ok(rich.reserve[0] == 3, "Research Lab Lv2: broken rock opens a 3-layer vein")
 
 
 func _test_goals_end_dig() -> void:
@@ -290,6 +291,8 @@ func _test_generator_all_sites() -> void:
 	var n := 0
 	for si in Sites.count():
 		var site := Sites.get_site(si)
+		if site.has("ore"):
+			continue  # hand-placed lessons are checked by replaying their solutions
 		for s in 40:
 			var b := Board.new()
 			b.record = false
@@ -328,12 +331,13 @@ func _ore_count(b: Board) -> int:
 
 func _test_economy_rules() -> void:
 	var r0 := Economy.rules([0, 0, 0])
-	_ok(r0.capacity == 20 and not r0.drill and not r0.scanner and r0.blast_radius == 1, "base rules")
+	_ok(r0.capacity == 20 and not r0.drill and not r0.scanner and r0.reveal_reserve == 2, "base rules")
 	var r3 := Economy.rules([3, 3, 3])
 	_ok(r3.capacity == 40 and r3.drill and r3.drill_cost == 1 and r3.drill_power == 2 and r3.scanner
-			and r3.blast_radius == 2 and r3.refund_bonus == 1 and r3.crack_power == 2, "max rules")
+			and r3.reveal_reserve == 3 and r3.refund_bonus == 1 and r3.crack_power == 2, "max rules")
 	_ok(Economy.cost(0, 3).is_empty(), "no cost past max level")
-	_ok(not Economy.can_afford([0, 0, 0, 0], Economy.cost(0, 0)), "cannot afford with empty bank")
+	_ok(Economy.can_afford([0, 0, 0, 0], Economy.cost(0, 0)), "the first level of a building is free")
+	_ok(not Economy.can_afford([0, 0, 0, 0], Economy.cost(0, 1)), "upgrades cannot be afforded with an empty bank")
 	for b in Economy.BUILDINGS.size():
 		_ok(Economy.BUILDINGS[b].effects.size() == Economy.MAX_LEVEL + 1, "effects text per level")
 
@@ -342,24 +346,27 @@ func _test_save_roundtrip() -> void:
 	var game = load("res://autoload/Game.gd").new()
 	game.save_path = "user://test_save.json"
 	game.reset()
+	game.cleared[Sites.index_of("landing")] = true  # landing unlocks the Power Station
+	game.bank = [50, 40, 30, 1]
+	_ok(game.buy(0), "Power Station Lv1 is free once unlocked")
+	_ok(game.levels[0] == 1 and game.bank == [50, 40, 30, 1], "the free level costs nothing")
+	_ok(not game.buy(0), "Lv2 needs crystals the bank lacks")
 	game.bank = [50, 40, 30, 3]
-	_ok(game.buy(0), "buy Power Station Lv1 with enough resources")
-	_ok(game.levels[0] == 1 and game.bank[0] == 30 and game.bank[1] == 28, "buy deducts the cost")
-	_ok(not game.buy(0), "Lv2 needs crystals/ore the bank lacks")
+	_ok(game.buy(0) and game.bank[0] == 5 and game.bank[3] == 1, "Lv2 deducts its cost")
 	var site := Sites.get_site(0)
 	var b := Board.new()
 	b.record = false
 	b.setup(site.rows, 9, game.rules(), site.goals)
 	b.haul = PackedInt32Array([5, 6, 7, 1])
 	var res: Dictionary = game.finish_dig(0, b, "energy")
-	_ok(game.bank[0] == 35 and game.bank[3] == 4 and not res.first_clear, "failed dig still banks the haul")
+	_ok(game.bank[0] == 10 and game.bank[3] == 2 and not res.first_clear, "failed dig still banks the haul")
 	b.complete = true
 	res = game.finish_dig(0, b, "complete")
 	_ok(res.first_clear and game.unlocked == 2 and game.cleared[0], "first clear unlocks the next site")
 	var other = load("res://autoload/Game.gd").new()
 	other.save_path = "user://test_save.json"
 	other.load_save()
-	_ok(other.bank == game.bank and other.levels == game.levels and other.unlocked == 2, "save/load round trip")
+	_ok(other.bank == game.bank and other.levels == game.levels and other.cleared == game.cleared, "save/load round trip")
 	_ok(other.totals.digs == 2, "totals persisted")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_save.json"))
 	game.free()
@@ -379,7 +386,7 @@ func _test_bot_smoke() -> void:
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL",
+	"first": "UUD", "rocks": "DLUURDD", "power": "UDDDDLL", "drill": "RRRRR", "scan": "LL",
 }
 
 
@@ -395,7 +402,7 @@ func _test_tutorial_sites() -> void:
 		var sol: String = TUTORIAL_SOLUTIONS.get(site.id, "")
 		var b := Board.new()
 		b.record = false
-		b.setup_site(site, 0, Economy.rules([0, 0, 0]))
+		b.setup_site(site, 0, Economy.rules(_campaign_levels(i)))
 		_ok(not b.has_line(), "%s opens without a ready-made line" % site.id)
 		var ok := true
 		for k in sol.length():
@@ -432,8 +439,14 @@ func _test_campaign_flow() -> void:
 	_ok(game.next_dig() == 0, "a new colony starts at the first dig")
 	var core := Sites.index_of("core")
 	_ok(not game.can_start(core), "the basalt-shell dig waits for the Mining Workshop")
-	game.bank = [99, 99, 99, 9]
+	for b in 3:
+		_ok(not game.building_unlocked(b) and not game.buy(b), "building %d starts locked" % b)
+	game.cleared[Sites.index_of("shale")] = true
+	_ok(game.building_unlocked(1) and game.pending_build() == 1, "clearing shale unlocks the Workshop, which is now due")
+	var drill := Sites.index_of("drill")
+	_ok(drill == Sites.index_of("shale") + 1 and not game.can_start(drill), "the drill lesson comes next and waits for the build")
 	_ok(game.buy(1), "build the Mining Workshop")
+	_ok(game.pending_build() == -1 and game.can_start(drill), "built: the drill lesson can start")
 	_ok(game.can_start(core), "with the drill the basalt-shell dig can start")
 	var lines: Array = game.take_reminders()
 	_ok(lines.size() == 1 and String(lines[0]).contains("drill"), "Mira reminds about the drill at the next dig")
@@ -460,3 +473,13 @@ func _test_scripts_compile() -> void:
 	for p in paths:
 		var sc := load(p) as GDScript
 		_ok(sc != null and sc.can_instantiate(), "%s compiles" % p)
+
+
+## Building levels a player has at campaign dig i: every building unlocked earlier, at level 1.
+func _campaign_levels(i: int) -> Array:
+	var lv := [0, 0, 0]
+	for j in i:
+		var u: int = Sites.get_site(j).get("unlock", -1)
+		if u >= 0:
+			lv[u] = 1
+	return lv

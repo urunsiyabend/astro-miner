@@ -2,6 +2,8 @@ class_name Economy
 extends RefCounted
 
 ## Colony buildings, their costs, and how levels translate into Board rules.
+## Buildings start locked; the campaign unlocks them (Sites "unlock") and the first level is
+## free, so getting a new tool is one guided tap. Upgrades after that cost ore and crystals.
 
 const RES_NAMES := ["Ferrite", "Cryo", "Lumen", "Crystal"]
 
@@ -10,19 +12,19 @@ const BUILDINGS := [
 		"id": "power", "name": "Power Station",
 		"effects": ["Battery 20", "Battery 26", "Battery 32", "Battery 40"],
 		# cost per level 1..3: [ferrite, cryo, lumen, crystal]
-		"costs": [[20, 12, 0, 0], [45, 30, 0, 2], [80, 55, 0, 4]],
+		"costs": [[0, 0, 0, 0], [45, 30, 0, 2], [80, 55, 0, 4]],
 	},
 	{
 		"id": "workshop", "name": "Mining Workshop",
 		"effects": ["No drill", "Drill: bump rock, -1 layer (2 energy)",
 				"Drill removes 2 layers", "Drill costs 1, matches crack 2 layers"],
-		"costs": [[15, 0, 15, 0], [0, 40, 40, 2], [70, 0, 70, 4]],
+		"costs": [[0, 0, 0, 0], [0, 40, 40, 2], [70, 0, 70, 4]],
 	},
 	{
 		"id": "lab", "name": "Research Lab",
 		"effects": ["No scanner", "Deep Scanner: see what rock hides",
-				"Blast charges hit 5x5", "+1 energy per match"],
-		"costs": [[0, 12, 18, 0], [35, 35, 0, 3], [0, 60, 80, 5]],
+				"Broken rock opens richer veins (3 layers)", "+1 energy per match"],
+		"costs": [[0, 0, 0, 0], [35, 35, 0, 3], [0, 60, 80, 5]],
 	},
 ]
 
@@ -57,7 +59,7 @@ static func rules(levels: Array) -> Dictionary:
 	r.drill_cost = 1 if w >= 3 else 2
 	r.crack_power = 2 if w >= 3 else 1
 	r.scanner = l >= 1
-	r.blast_radius = 2 if l >= 2 else 1
+	r.reveal_reserve = 3 if l >= 2 else 2
 	r.refund_bonus = 1 if l >= 3 else 0
 	return r
 
