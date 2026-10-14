@@ -30,23 +30,24 @@ plays (bigger battery, a drill, a deep scanner, bigger blasts).
 - **Hint** shows the first step toward the nearest match. If nothing is in reach it turns into
   **Pulse**, which reshuffles the ore on the board for 3 energy.
 
-Colony buildings (three levels each):
+Colony buildings (three levels each). They start **locked**: a dig unlocks each one, Mira asks
+you to tap its glowing Build button (level 1 is free), and the next dig is a hand-crafted
+lesson for the new tool. Upgrades after that cost ore and crystals.
 
 | Building | Effect |
 |---|---|
 | Power Station | Battery 20 → 26 → 32 → 40 |
 | Mining Workshop | Drill (bump rock to remove a layer) → stronger drill → cheaper drill + matches crack 2 layers |
-| Research Lab | Deep Scanner (see what rock hides) → 5×5 blasts → +1 energy per match |
+| Research Lab | Deep Scanner (see what rock hides) → broken rock opens 3-layer veins → +1 energy per match |
 
 There is no level list: the colony has one **DIG** button and digs simply follow each other.
 **Mira**, the colony chief, explains everything as it comes up. Three hand-crafted lesson digs
 (fixed layout and seed) each teach several mechanics through her lines: some wait for a tap,
 others stay under the board until you have done what she asked, with the cells she means
 pulsing. Every dig opens with its goal as big icons, and the goal icons sit right above the
-board while you play. The last site needs the Mining Workshop's drill; when a dig needs a
-building you don't have yet, the button becomes a **supply run** on a site you already cleared.
-When you build something, Mira explains the new tool on the spot and reminds you at the start
-of the next dig.
+board while you play; the goal card stays up for a moment before it can be tapped away. When a
+dig unlocks a building, the DIG button waits ("Build first") until you build it. After the
+last dig the button becomes a **supply run** on a site you already cleared.
 
 ## Install on Android (Obtainium)
 

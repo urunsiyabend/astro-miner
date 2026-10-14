@@ -42,7 +42,25 @@ func rules() -> Dictionary:
 	return Economy.rules(levels)
 
 
+## A building is unlocked once the dig that brings it (Sites "unlock") is cleared.
+func building_unlocked(b: int) -> bool:
+	for i in Sites.count():
+		if cleared[i] and Sites.get_site(i).get("unlock", -1) == b:
+			return true
+	return false
+
+
+## Unlocked building still at level 0: the colony asks you to build it before moving on.
+func pending_build() -> int:
+	for b in Economy.BUILDINGS.size():
+		if levels[b] == 0 and building_unlocked(b):
+			return b
+	return -1
+
+
 func buy(building: int) -> bool:
+	if not building_unlocked(building):
+		return false
 	var lv: int = levels[building]
 	var c := Economy.cost(building, lv)
 	if not Economy.can_afford(bank, c):
