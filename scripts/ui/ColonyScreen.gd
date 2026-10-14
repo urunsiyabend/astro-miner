@@ -29,6 +29,15 @@ func _ready() -> void:
 	bg.color = Pal.BG
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var art := Art.background()
+	if art != null:
+		var sky := TextureRect.new()
+		sky.texture = art
+		sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sky.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		sky.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky)
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -132,10 +141,10 @@ func refresh(celebrate := -1) -> void:
 		_go_btn.disabled = true
 	elif next >= 0 and Game.can_start(next):
 		_go_btn.text = "DIG  ·  #%d" % (next + 1)
-		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.WARN, 28))
+		Ui.paint_button(_go_btn, Pal.WARN)
 	else:
 		_go_btn.text = "SUPPLY RUN"
-		_go_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_go_btn, Pal.ACCENT)
 	if is_inside_tree():
 		var line := Story.advice()
 		if line == "":

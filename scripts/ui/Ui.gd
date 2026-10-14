@@ -33,19 +33,37 @@ static func button(text: String, color := Pal.ACCENT, size := Pal.FS, min_h := 1
 	b.text = text
 	b.custom_minimum_size = Vector2(0, min_h)
 	b.add_theme_font_size_override("font_size", size)
-	b.add_theme_color_override("font_color", Pal.BG)
-	b.add_theme_color_override("font_hover_color", Pal.BG)
-	b.add_theme_color_override("font_pressed_color", Pal.BG)
-	b.add_theme_color_override("font_disabled_color", Pal.MUTED)
-	b.add_theme_stylebox_override("normal", box(color, 28))
-	b.add_theme_stylebox_override("hover", box(color.lightened(0.12), 28))
-	b.add_theme_stylebox_override("pressed", box(color.darkened(0.15), 28))
-	b.add_theme_stylebox_override("disabled", box(Pal.PANEL_HI, 28))
+	paint_button(b, color)
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	return b
 
 
-static func panel(color := Pal.PANEL, radius := 28) -> PanelContainer:
+## Give a button the painted art for `color` (falls back to flat boxes without the art).
+## White text with a dark outline reads on every button colour.
+static func paint_button(b: Button, color: Color) -> void:
+	var art := Art.button_style(color)
+	if art == null:
+		b.add_theme_color_override("font_color", Pal.BG)
+		b.add_theme_color_override("font_hover_color", Pal.BG)
+		b.add_theme_color_override("font_pressed_color", Pal.BG)
+		b.add_theme_color_override("font_disabled_color", Pal.MUTED)
+		b.add_theme_stylebox_override("normal", box(color, 28))
+		b.add_theme_stylebox_override("hover", box(color.lightened(0.12), 28))
+		b.add_theme_stylebox_override("pressed", box(color.darkened(0.15), 28))
+		b.add_theme_stylebox_override("disabled", box(Pal.PANEL_HI, 28))
+		return
+	for st in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(st, Art.button_style(color, st))
+	for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(c, Color.WHITE)
+	b.add_theme_color_override("font_disabled_color", Pal.DIM)
+	b.add_theme_color_override("font_outline_color", Color("2a1830"))
+	b.add_theme_constant_override("outline_size", 10)
+
+
+## A framed panel: the painted panel art ("panel"), or the lighter "plate" for slim bars.
+static func panel(color := Pal.PANEL, radius := 28, piece := "panel") -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", box(color, radius))
+	var art := Art.style(piece)
+	p.add_theme_stylebox_override("panel", art if art != null else box(color, radius))
 	return p

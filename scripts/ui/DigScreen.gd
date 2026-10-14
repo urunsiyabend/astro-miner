@@ -50,6 +50,15 @@ func _ready() -> void:
 	bg.color = Pal.BG
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var art := Art.background()
+	if art != null:
+		var sky := TextureRect.new()
+		sky.texture = art
+		sky.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		sky.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		sky.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		sky.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(sky)
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -417,13 +426,13 @@ func _refresh_reach() -> void:
 				_reach = [di]
 				break
 		_hint_btn.text = "Hint"
-		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_hint_btn, Pal.ACCENT)
 		if not _reach.is_empty():
 			return
 	if _reach.is_empty():
 		if board.can_pulse():
 			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost
-			_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.CRYSTAL, 28))
+			Ui.paint_button(_hint_btn, Pal.CRYSTAL)
 			_say("No line of 3 within reach. Pulse reshuffles the ore, or Recall to bank your haul.", 4.0)
 		else:
 			_hint_btn.text = "Hint"
@@ -431,7 +440,7 @@ func _refresh_reach() -> void:
 			_coach.say("Nothing left in reach. Tap Recall to bank your haul and try again.")
 	else:
 		_hint_btn.text = "Hint"
-		_hint_btn.add_theme_stylebox_override("normal", Ui.box(Pal.ACCENT, 28))
+		Ui.paint_button(_hint_btn, Pal.ACCENT)
 
 
 func _on_hint() -> void:
