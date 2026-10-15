@@ -53,7 +53,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "drag",
+		"id": "drag", "energy": 20,
 		"goals": [{"type": "ore", "ore": 1, "n": 9}],
 		"rows": [
 			"# # # # # # #",
@@ -67,7 +67,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "vein",
+		"id": "vein", "energy": 15,
 		"goals": [{"type": "chunks", "n": 15}],
 		"rows": [
 			"# # # # # # #",
@@ -84,7 +84,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "landing",
+		"id": "landing", "energy": 22,
 		"goals": [{"type": "ore", "ore": 2, "n": 12}],
 		"rows": [
 			"# . . . . . #",
@@ -98,7 +98,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rocks",
+		"id": "rocks", "energy": 32,
 		"goals": [{"type": "rock", "n": 4}],
 		"rows": [
 			"# # # # # # #",
@@ -116,7 +116,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "glint",
+		"id": "glint", "energy": 16,
 		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 10}],
 		"rows": [
 			"# # # # # # #",
@@ -134,8 +134,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "ring", "energy": 18,
-		"goals": [{"type": "rock", "n": 8}, {"type": "ore", "ore": 0, "n": 23}],
+		"id": "ring", "energy": 26,
+		"goals": [{"type": "rock", "n": 5}, {"type": "ore", "ore": 0, "n": 14}],
 		"rows": [
 			"# : : : : : #",
 			": : : : : : :",
@@ -148,8 +148,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rooms",
-		"goals": [{"type": "ore", "ore": 1, "n": 17}],
+		"id": "rooms", "energy": 27,
+		"goals": [{"type": "ore", "ore": 1, "n": 12}],
 		"rows": [
 			"# # # # # # #",
 			": : : 1 : : :",
@@ -162,7 +162,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "zigzag", "energy": 16,
+		"id": "zigzag", "energy": 35,
 		"goals": [{"type": "rock", "n": 12}],
 		"rows": [
 			"# # # # # # #",
@@ -176,7 +176,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "lode", "unlock": 0,
+		"id": "lode", "energy": 15, "unlock": 0,
 		"goals": [{"type": "chunks", "n": 25}],
 		"rows": [
 			"o o . o . o o",
@@ -221,7 +221,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "nearby",
+		"id": "nearby", "energy": 16,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			". . . . . . .",
@@ -235,7 +235,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "battery", "guide": true, "seed": 5, "energy": 6,
+		"id": "battery", "guide": true, "seed": 5, "energy": 9,
 		"goals": [{"type": "ore", "ore": 0, "n": 12}],
 		"rows": [
 			"# # # # # # #",
@@ -294,7 +294,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "checker",
+		"id": "checker", "energy": 32,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			". . . . . . .",
@@ -308,7 +308,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "route",
+		"id": "route", "energy": 39,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			"1 . 1c 1 1c . 1",
@@ -322,8 +322,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "deep",
-		"goals": [{"type": "crystal", "n": 1}, {"type": "ore", "ore": 2, "n": 25}],
+		"id": "deep", "energy": 29,
+		"goals": [{"type": "crystal", "n": 1}, {"type": "ore", "ore": 2, "n": 14}],
 		"rows": [
 			"o : : : : : o",
 			": o : : : o :",
@@ -336,7 +336,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "shallows", "energy": 20,
+		"id": "shallows", "energy": 30,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			": : : : : : :",
@@ -350,7 +350,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "well", "energy": 20,
+		"id": "well", "energy": 30,
 		"goals": [{"type": "crystal", "n": 1}],
 		"rows": [
 			"# . . . . . #",
@@ -364,7 +364,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "garden", "unlock": 1,
+		"id": "garden", "energy": 40, "unlock": 1,
 		"goals": [{"type": "crystal", "n": 3}],
 		"rows": [
 			". . 1c . 1c . .",
@@ -378,7 +378,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "vaults", "building_level": true, "seed": 32,
+		"id": "vaults", "building_level": true, "seed": 32, "energy": 42,
 		"goals": [{"type": "crystal", "n": 2}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
@@ -410,7 +410,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "stone",
+		"id": "stone", "energy": 45,
 		"goals": [{"type": "rock", "n": 4}],
 		"rows": [
 			"# # # # # # #",
@@ -427,7 +427,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "seam",
+		"id": "seam", "energy": 16,
 		"goals": [{"type": "chunks", "n": 32}],
 		"rows": [
 			"o o o o o o o",
@@ -441,8 +441,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rubble",
-		"goals": [{"type": "rock", "n": 17}],
+		"id": "rubble", "energy": 28,
+		"goals": [{"type": "rock", "n": 9}],
 		"rows": [
 			". . . . . . .",
 			". . . @ . . .",
@@ -455,8 +455,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "strata", "energy": 17,
-		"goals": [{"type": "rock", "n": 11}],
+		"id": "strata", "energy": 39,
+		"goals": [{"type": "rock", "n": 6}],
 		"rows": [
 			"o . 2 . 2 . o",
 			". 2 . . . 2 .",
@@ -469,7 +469,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "pockets", "energy": 20,
+		"id": "pockets", "energy": 45,
 		"goals": [{"type": "crystal", "n": 3}],
 		"rows": [
 			". . . . . . .",
@@ -483,7 +483,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "maze",
+		"id": "maze", "energy": 45,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			". . 2 . . . .",
@@ -497,7 +497,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "shale",
+		"id": "shale", "energy": 34,
 		"goals": [{"type": "ore", "ore": 1, "n": 12}, {"type": "crystal", "n": 1}],
 		"rows": [
 			": : : : : : :",
@@ -511,7 +511,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "core",
+		"id": "core", "energy": 45,
 		"goals": [{"type": "crystal", "n": 2}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
@@ -526,7 +526,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "openseam", "unlock": 2,
+		"id": "openseam", "energy": 22, "unlock": 2,
 		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"2 o 2 . 2 o 2",
@@ -540,7 +540,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "readings", "building_level": true, "seed": 33, "energy": 14,
+		"id": "readings", "building_level": true, "seed": 33, "energy": 42,
 		"goals": [{"type": "crystal", "n": 2}],
 		"needs": {"building": 2, "level": 1},
 		"rows": [
