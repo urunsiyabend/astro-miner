@@ -14,6 +14,7 @@ var _advice: Dialog.Coach
 var _dialog: Dialog.Overlay
 var _spot: Dialog.Spotlight
 var _scroll: ScrollContainer
+var _press_scroll := 0  # scroll position when the finger went down (a drag is not a tap)
 var _build_btns := {}
 var _log: Label
 var _sound_btn: Button
@@ -75,7 +76,7 @@ func _ready() -> void:
 	col.add_child(_advice)
 
 	_go_btn = Ui.button("", Pal.WARN, Pal.FS_BIG, 150)
-	_go_btn.pressed.connect(_on_go)
+	_go_btn.pressed.connect(func(): if not _scrolled(): _on_go())
 	col.add_child(_go_btn)
 
 	col.add_child(Ui.label("COLONY BUILDINGS", Pal.FS_SMALL, Pal.MUTED))
@@ -92,12 +93,14 @@ func _ready() -> void:
 	_sound_btn = Ui.button("", Pal.PANEL_HI.lightened(0.25), Pal.FS_SMALL, 90)
 	_sound_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_sound_btn.pressed.connect(func():
+		if _scrolled():
+			return
 		Game.sfx_on = not Game.sfx_on
 		Game.save()
 		refresh())
 	_reset_btn = Ui.button("Reset progress", Pal.PANEL_HI.lightened(0.25), Pal.FS_SMALL, 90)
 	_reset_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_reset_btn.pressed.connect(_on_reset)
+	_reset_btn.pressed.connect(func(): if not _scrolled(): _on_reset())
 	row.add_child(_sound_btn)
 	row.add_child(_reset_btn)
 	col.add_child(row)
@@ -134,6 +137,7 @@ func refresh(celebrate := -1) -> void:
 	var nu := Game.next_unlock()
 	if not nu.is_empty():
 		_cards.add_child(_teaser(nu[0], nu[1]))
+	_let_scroll(_scroll)
 	_sound_btn.text = "Sound: %s" % ("on" if Game.sfx_on else "off")
 	var next := Game.next_dig()
 	_go_btn.disabled = false
@@ -210,6 +214,25 @@ func _teaser(b: int, dig: int) -> Control:
 	return p
 
 
+## Panels and buttons stop touches by default, so a drag that starts on a card never reached
+## the ScrollContainer and the screen did not move. Pass the touches on instead; buttons still
+## get their taps, and _scrolled() drops a tap that was really a drag.
+func _let_scroll(n: Node) -> void:
+	for c in n.get_children():
+		if c is Control and (c as Control).mouse_filter == Control.MOUSE_FILTER_STOP:
+			(c as Control).mouse_filter = Control.MOUSE_FILTER_PASS
+		_let_scroll(c)
+
+
+func _input(e: InputEvent) -> void:
+	if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+		_press_scroll = _scroll.scroll_vertical
+
+
+func _scrolled() -> bool:
+	return absi(_scroll.scroll_vertical - _press_scroll) > 12
+
+
 func _on_go() -> void:
 	var next := Game.next_dig()
 	if next >= 0 and Game.can_start(next):
@@ -257,7 +280,7 @@ func _card(b: int) -> Control:
 		var tw := btn.create_tween().set_loops()
 		tw.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.45).set_trans(Tween.TRANS_SINE)
 		tw.tween_property(btn, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_SINE)
-	btn.pressed.connect(func(): _buy(b))
+	btn.pressed.connect(func(): if not _scrolled(): _buy(b))
 	h.add_child(btn)
 	_build_btns[b] = btn
 	return p
