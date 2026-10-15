@@ -16,7 +16,10 @@ var fxl: FxLayer
 var _title: Label
 var _goals: Widgets.GoalStrip
 var _energy: Widgets.EnergyBar
+var _haul: Widgets.HaulChip
+var _haul_pop: Control  # breakdown of the haul, shown for a moment when the haul is tapped
 var _chips: Array = []
+var _top_plate: Control
 var _coach: Dialog.Coach
 var _dialog: Dialog.Overlay
 var _mission: Control
@@ -71,23 +74,19 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
-	# top HUD, one plate: dig number and battery, then this dig's haul; both rows centred
-	# with extra room at the plate's sides
+	# top HUD, one plate: dig number, battery, and this dig's haul as one compact slot
+	# (tap it for the breakdown). Extra room at the plate's sides.
 	var top_plate := Ui.panel(Pal.PANEL, 28, "plate")
+	_top_plate = top_plate
 	col.add_child(top_plate)
 	var inner := MarginContainer.new()
 	for side in ["left", "right"]:
-		inner.add_theme_constant_override("margin_" + side, 28)
-	inner.add_theme_constant_override("margin_top", 6)
-	inner.add_theme_constant_override("margin_bottom", 10)
+		inner.add_theme_constant_override("margin_" + side, 24)
 	top_plate.add_child(inner)
-	var rows := VBoxContainer.new()
-	rows.add_theme_constant_override("separation", 8)
-	inner.add_child(rows)
 	var top := HBoxContainer.new()
 	top.alignment = BoxContainer.ALIGNMENT_CENTER
-	top.add_theme_constant_override("separation", 20)
-	rows.add_child(top)
+	top.add_theme_constant_override("separation", 18)
+	inner.add_child(top)
 	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
 	_title.custom_minimum_size.x = 230
 	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -98,16 +97,10 @@ func _ready() -> void:
 	_energy.custom_minimum_size.y = 88
 	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_energy)
-
-	var chips := HBoxContainer.new()
-	chips.alignment = BoxContainer.ALIGNMENT_CENTER
-	chips.add_theme_constant_override("separation", 18)
-	rows.add_child(chips)
-	for r in 4:
-		var c := Widgets.Chip.new(r)
-		c.custom_minimum_size.y = 64
-		_chips.append(c)
-		chips.add_child(c)
+	_haul = Widgets.HaulChip.new()
+	_haul.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_haul.tapped.connect(_toggle_haul)
+	top.add_child(_haul)
 
 	_goals = Widgets.GoalStrip.new()
 	col.add_child(_goals)
@@ -139,12 +132,46 @@ func _ready() -> void:
 	fxl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fxl)
 	for r in 4:
-		var chip: Widgets.Chip = _chips[r]
-		fxl.targets[r] = chip.icon_global
+		fxl.targets[r] = _haul.icon_global
 	fxl.targets["energy"] = _energy.target_global
 
 	_dialog = Dialog.Overlay.new()
 	add_child(_dialog)
+
+
+## The haul per gem, on a plate under the top bar, for a few seconds.
+func _toggle_haul() -> void:
+	if _haul_pop != null:
+		_hide_haul()
+		return
+	_haul_pop = Ui.panel(Pal.PANEL, 28, "plate")
+	_haul_pop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 18)
+	_haul_pop.add_child(row)
+	for r in 4:
+		var c := Widgets.Chip.new(r)
+		c.custom_minimum_size.y = 64
+		c.set_value(_haul.values[r])
+		_chips.append(c)
+		row.add_child(c)
+	add_child(_haul_pop)
+	_haul_pop.global_position = _top_plate.global_position + Vector2(0, _top_plate.size.y + 6)
+	_haul_pop.size.x = _top_plate.size.x
+	_haul_pop.modulate.a = 0.0
+	var tw := _haul_pop.create_tween()
+	tw.tween_property(_haul_pop, "modulate:a", 1.0, 0.15)
+	tw.tween_interval(2.5)
+	tw.tween_property(_haul_pop, "modulate:a", 0.0, 0.25)
+	tw.tween_callback(_hide_haul)
+
+
+func _hide_haul() -> void:
+	if _haul_pop != null:
+		_haul_pop.queue_free()
+		_haul_pop = null
+	_chips.clear()
 
 
 ## Start campaign dig `index`, or a supply run on that site (random layout, no lessons).
@@ -163,9 +190,11 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 		board.setup_site(site, s, rules)
 	_title.text = "Supply run" if supply else "Dig %d" % (index + 1)
 	_goals.set_goals(site.goals)
-	# ore that counts toward a goal flies into its goal icon, the rest into the haul chips
+	# ore that counts toward a goal flies into its goal icon, the rest into the haul slot
+	_haul.values = [0, 0, 0, 0]
+	_hide_haul()
 	for r in 4:
-		fxl.targets[r] = (_chips[r] as Widgets.Chip).icon_global
+		fxl.targets[r] = _haul.icon_global
 	for i in site.goals.size():
 		var g: Dictionary = site.goals[i]
 		if g.type == "ore":
@@ -235,15 +264,20 @@ func _show_mission(goals: Array) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 14)
 	panel.add_child(v)
-	v.add_child(Ui.label("SUPPLY RUN" if supply else "THIS DIG", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
+	if supply:
+		v.add_child(Ui.label("Supply run", Pal.FS, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
 	var strip := Widgets.GoalStrip.new(true)
 	strip.set_goals(goals)
 	v.add_child(strip)
 	var words := []
 	for g in goals:
 		words.append(Sites.goal_text(g))
-	v.add_child(Ui.label(" + ".join(words), Pal.FS_SMALL, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
-	var tap := Ui.label("tap to start", Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	v.add_child(Ui.label(" + ".join(words), Pal.FS, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	# a real button (tapping anywhere works too); it shows once the goal had time to be read
+	var tap := Ui.button("Start", Pal.WARN, Pal.FS_BIG, 120)
+	tap.custom_minimum_size.x = 420
+	tap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	tap.pressed.connect(_close_mission)
 	tap.modulate.a = 0.0
 	v.add_child(tap)
 	# the card stays up for a moment so the goal is actually read, then invites the tap
@@ -381,7 +415,8 @@ func _do_move(dir: Vector2i) -> void:
 
 func _on_snap(s: Dictionary) -> void:
 	_energy.set_energy(s.energy, board.cfg.capacity)
-	for r in 4:
+	_haul.set_values(s.haul)
+	for r in _chips.size():
 		(_chips[r] as Widgets.Chip).set_value(s.haul[r])
 	var site := Sites.get_site(site_index)
 	for i in site.goals.size():
