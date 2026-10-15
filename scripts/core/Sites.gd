@@ -3,8 +3,8 @@ extends RefCounted
 
 ## The campaign: digs in play order, one after the other. Players never see a site list or
 ## site names; they press "Dig" in the colony and get the next one. The order follows the
-## master sheet in docs/design/level-plan.md: chapters of 10 with a learn / vary / breather /
-## hard / super-hard / reward rhythm, a building unlocked at the end of each chapter and that
+## master sheet in docs/design/level-plan.md: chapters of 10 whose difficulty climbs step by step
+## up to a reward dig, a building unlocked at the end of each chapter and that
 ## building's own hand-made dig right after it. Digs with an "ore" layout are always the same;
 ## the others keep their shape and goals but get fresh ore every attempt.
 ## Mira's script is said the first time a dig is played and never repeated.
@@ -103,7 +103,7 @@ const LIST := [
 		"rows": [
 			"# # # # # # #",
 			"# 1 1 1 1 1 #",
-			"# . . . . . #",
+			"# o o o o o #",
 			"# . . @ . . #",
 			"# . . . . . #",
 			"# . . . . . #",
@@ -113,34 +113,6 @@ const LIST := [
 		"script": [
 			{"say": "Rock! The robot can't drive through it, but a match right next to it cracks it. Make a line just under the rocks.", "until": "reveal", "focus": [Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(5, 1)]},
 			{"say": "Broken rock turns into ground with fresh ore in it. Break 4."},
-		],
-	},
-	{
-		"id": "ring", "energy": 18,
-		"goals": [{"type": "rock", "n": 8}, {"type": "ore", "ore": 0, "n": 16}],
-		"rows": [
-			"# : : : : : #",
-			": : : : : : :",
-			": : 1 1 1 : :",
-			": : 1 o 1 : :",
-			": : 1 1 1 : :",
-			": : : @ : : :",
-			": : : : : : :",
-			"# : : : : : #",
-		],
-	},
-	{
-		"id": "rooms", "energy": 18,
-		"goals": [{"type": "ore", "ore": 1, "n": 18}],
-		"rows": [
-			"# # # # # # #",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			": @ : 1 : : :",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			"# # # # # # #",
-			"# # # # # # #",
 		],
 	},
 	{
@@ -159,6 +131,34 @@ const LIST := [
 		"script": [
 			{"say": "That rock glints: there's a crystal inside! Make a match next to it to crack it open.", "until": "reveal", "focus": [Vector2i(3, 1)]},
 			{"say": "Drive onto the crystal to pick it up. The colony needs crystals for its bigger buildings.", "until": "crystal", "focus": [Vector2i(3, 1)]},
+		],
+	},
+	{
+		"id": "ring", "energy": 18,
+		"goals": [{"type": "rock", "n": 8}, {"type": "ore", "ore": 0, "n": 23}],
+		"rows": [
+			"# : : : : : #",
+			": : : : : : :",
+			": : 1 1 1 : :",
+			": : 1 o 1 : :",
+			": : 1 1 1 : :",
+			": : : @ : : :",
+			": : : : : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "rooms",
+		"goals": [{"type": "ore", "ore": 1, "n": 17}],
+		"rows": [
+			"# # # # # # #",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			": @ : 1 : : :",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			"# # # # # # #",
+			"# # # # # # #",
 		],
 	},
 	{
@@ -221,20 +221,6 @@ const LIST := [
 		],
 	},
 	{
-		"id": "route",
-		"goals": [{"type": "crystal", "n": 2}],
-		"rows": [
-			"1 . 1c 1 1c . 1",
-			". . . . . . .",
-			"# . . . . . #",
-			"# # . . . # #",
-			"# # . @ . # #",
-			"# # . . . # #",
-			"# # . . . # #",
-			"# # # # # # #",
-		],
-	},
-	{
 		"id": "nearby",
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
@@ -278,48 +264,6 @@ const LIST := [
 		],
 	},
 	{
-		"id": "checker",
-		"goals": [{"type": "crystal", "n": 2}],
-		"rows": [
-			". . . . . . .",
-			". 1 . 1c . 1 .",
-			". . . . . . .",
-			". 1e . 1 . 1e .",
-			". . . @ . . .",
-			". 1 . 1c . 1 .",
-			". . . . . . .",
-			"# . . . . . #",
-		],
-	},
-	{
-		"id": "shallows", "energy": 20,
-		"goals": [{"type": "crystal", "n": 3}],
-		"rows": [
-			": : : : : : :",
-			"1c : : : : : 1c",
-			": : 1e : 1e : :",
-			": : : @ : : :",
-			": : : : : : :",
-			": : 1e : 1e : :",
-			": : : 1c : : :",
-			"# : : : : : #",
-		],
-	},
-	{
-		"id": "deep",
-		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
-		"rows": [
-			"o . . . . . o",
-			". o . . . o .",
-			". . o 1c o . .",
-			". . . @ . . .",
-			". . o . o . .",
-			". o . . . o .",
-			"o . . . . . o",
-			"# . . . . . #",
-		],
-	},
-	{
 		"id": "charge", "guide": true, "seed": 9,
 		"goals": [{"type": "blast", "n": 2}],
 		"rows": [
@@ -350,17 +294,73 @@ const LIST := [
 		],
 	},
 	{
-		"id": "well", "energy": 16,
+		"id": "checker",
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			". . . . . . .",
+			". 1 . 1c . 1 .",
+			". . . . . . .",
+			". 1e . 1 . 1e .",
+			". . . @ . . .",
+			". 1 . 1c . 1 .",
+			". . . . . . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "route",
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			"1 . 1c 1 1c . 1",
+			". . . . . . .",
+			"# . . . . . #",
+			"# # . . . # #",
+			"# # . @ . # #",
+			"# # . . . # #",
+			"# # . . . # #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "deep",
+		"goals": [{"type": "crystal", "n": 1}, {"type": "ore", "ore": 2, "n": 25}],
+		"rows": [
+			"o : : : : : o",
+			": o : : : o :",
+			": : o 1c o : :",
+			": : : @ : : :",
+			": : o : o : :",
+			": o : : : o :",
+			"o : : : : : o",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "shallows", "energy": 20,
+		"goals": [{"type": "crystal", "n": 2}],
+		"rows": [
+			": : : : : : :",
+			"1c : : : : : 1c",
+			": : 1e : 1e : :",
+			": : : @ : : :",
+			": : : : : : :",
+			": : 1e : 1e : :",
+			": : : 1c : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "well", "energy": 20,
 		"goals": [{"type": "crystal", "n": 1}],
 		"rows": [
 			"# . . . . . #",
 			"# . . @ . . #",
-			"# . . . . . #",
-			"# 1 . 1 . 1 #",
+			"# 1 . . . 1 #",
 			"# . 1 . 1 . #",
-			"# 1 . 1e . 1 #",
-			"# # 1 . 1 # #",
-			"# # # 1c # # #",
+			"# 1 . . . 1 #",
+			"# . 1 . 1 . #",
+			"# . . 1e . . #",
+			"# # . 1c . # #",
 		],
 	},
 	{
@@ -428,15 +428,43 @@ const LIST := [
 	},
 	{
 		"id": "seam",
-		"goals": [{"type": "chunks", "n": 25}],
+		"goals": [{"type": "chunks", "n": 32}],
 		"rows": [
 			"o o o o o o o",
 			". . . . . . .",
-			"o o o o o o o",
+			": : : : : : :",
 			". . . @ . . .",
 			"o o o o o o o",
 			". . . . . . .",
-			"o o o o o o o",
+			": : : : : : :",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "rubble",
+		"goals": [{"type": "rock", "n": 17}],
+		"rows": [
+			". . . . . . .",
+			". . . @ . . .",
+			". . . . . . .",
+			"1 1e 1 1 1 1e 1",
+			"1 1 1e 1 1e 1 1",
+			". . . . . . .",
+			". . 1 1 1 . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "strata", "energy": 17,
+		"goals": [{"type": "rock", "n": 11}],
+		"rows": [
+			"o . 2 . 2 . o",
+			". 2 . . . 2 .",
+			"2 . o . o . 2",
+			". . . @ . . .",
+			"2 . o . o . 2",
+			". 2 . . . 2 .",
+			"o . 2 . 2 . o",
 			"# . . . . . #",
 		],
 	},
@@ -455,50 +483,22 @@ const LIST := [
 		],
 	},
 	{
-		"id": "maze", "energy": 20,
+		"id": "maze",
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
-			". . 3 . . . .",
-			". . 3 . 3 3 .",
-			"3c . 3 . . 3 .",
-			". . . . 3 3c .",
-			"3 3 . @ . . .",
+			". . 2 . . . .",
+			". . 3 . 2 2 .",
+			"2c . 3 . . 3 .",
+			". . . . 3 2c .",
+			"2 3 . @ . . .",
 			". . . . 3 . 3",
-			". 3 3 . 3 . .",
-			"# . . . . . #",
-		],
-	},
-	{
-		"id": "rubble",
-		"goals": [{"type": "rock", "n": 12}],
-		"rows": [
-			". . . . . . .",
-			". . . @ . . .",
-			". . . . . . .",
-			"1 1e 1 1 1 1e 1",
-			"1 1 1e 1 1e 1 1",
-			". . . . . . .",
-			". . 1 1 1 . .",
-			"# . . . . . #",
-		],
-	},
-	{
-		"id": "strata", "energy": 20,
-		"goals": [{"type": "rock", "n": 10}],
-		"rows": [
-			"o . 2 . 2 . o",
-			". 2 . . . 2 .",
-			"2 . o . o . 2",
-			". . . @ . . .",
-			"2 . o . o . 2",
-			". 2 . . . 2 .",
-			"o . 2 . 2 . o",
+			". 3 2 . 3 . .",
 			"# . . . . . #",
 		],
 	},
 	{
 		"id": "shale",
-		"goals": [{"type": "ore", "ore": 1, "n": 15}, {"type": "crystal", "n": 1}],
+		"goals": [{"type": "ore", "ore": 1, "n": 12}, {"type": "crystal", "n": 1}],
 		"rows": [
 			": : : : : : :",
 			": : : @ : : :",
@@ -506,13 +506,13 @@ const LIST := [
 			"2 1e 2 2 2 1e 2",
 			". . . . . . .",
 			". . . . . . .",
-			"2 2 3 2c 3 2 2",
+			"2 2 3 1c 3 2 2",
 			"# 3 3 3 3 3 #",
 		],
 	},
 	{
 		"id": "core",
-		"goals": [{"type": "crystal", "n": 3}],
+		"goals": [{"type": "crystal", "n": 2}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
 			"o . . . . . o",
