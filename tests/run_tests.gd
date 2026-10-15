@@ -168,12 +168,11 @@ func _test_energy() -> void:
 	b.energy = 10
 	b.try_move(Vector2i(0, 1))
 	var groups: int = b.stats.groups
-	_ok(b.energy >= 10 - 1 + 2, "3-match refunds 2 energy (net +1)")
-	_ok(b.stats.energy_refunded >= 2 * groups, "refund counted per group")
+	_ok(groups >= 1 and b.energy == 9 and b.stats.energy_refunded == 0, "a match gives no energy back: every move costs 1")
 	b = _board(OPEN, _with(EMPTY, {Vector2i(0, 1): "L", Vector2i(1, 1): "L", Vector2i(2, 1): "L", Vector2i(3, 1): "R", Vector2i(3, 2): "L"}))
 	b.energy = 10
 	b.try_move(Vector2i(0, 1))
-	_ok(b.energy >= 10 - 1 + 3, "4-match refunds 3 energy")
+	_ok(b.energy == 9, "a 4-match gives no energy back either")
 	b = _board(OPEN, _with(EMPTY, {Vector2i(1, 1): "L", Vector2i(2, 1): "L", Vector2i(3, 1): "R", Vector2i(3, 2): "L"}))
 	b.energy = b.cfg.capacity
 	b.try_move(Vector2i(0, 1))
@@ -184,6 +183,12 @@ func _test_energy() -> void:
 	_ok(b.over and not b.complete and b.energy == 0, "dig ends when energy reaches 0 without a match")
 	var r := b.try_move(Vector2i(0, 1))
 	_ok(not r.ok and r.reason == "over", "no moves after the dig is over")
+	_ok(b.continue_with(5) and not b.over and b.energy == 5 and b.stats.continues == 1, "+5 energy continues a lost dig")
+	_ok(b.try_move(Vector2i(0, -1)).ok, "and the robot can move again")
+	var site := {"rows": OPEN, "goals": [{"type": "chunks", "n": 99}], "energy": 30}
+	b = Board.new()
+	b.setup_site(site, 1)
+	_ok(b.energy == 30 and b.cfg.capacity == 30, "a dig's energy is its move budget; the battery grows to hold it")
 	var rules := Economy.rules([2, 0, 0])
 	b = _board(OPEN, EMPTY, rules)
 	_ok(b.cfg.capacity == 32 and b.energy == 32, "Power Station Lv2 starts the dig with 32 energy")
@@ -443,7 +448,7 @@ func _test_tutorial_sites() -> void:
 	bat.record = false
 	var bi := Sites.index_of("battery")
 	bat.setup_site(Sites.get_site(bi), 0, Economy.rules(_campaign_levels(bi)))
-	_ok(bat.energy <= 6, "battery: the dig starts with a nearly flat battery")
+	_ok(bat.energy * 2 < bat.cfg.capacity, "battery: the dig starts with a nearly flat battery")
 	for ch in String(TUTORIAL_SOLUTIONS.battery):
 		bat.try_move(map[ch])
 	_ok(bat.complete and bat.stats.cells >= 1, "battery: the solution recharges from the buried cell")

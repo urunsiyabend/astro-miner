@@ -72,6 +72,9 @@ static func _value(b: Board, plan: bool) -> float:
 		v += have * 6.0
 	v += b.stats.chunks * 0.5
 	v += b.energy * 1.0
+	# a match is worth making for its own sake (it digs, cracks rock, surfaces new ore); this
+	# used to come from the energy a match refunded, before energy became a move budget
+	v += b.stats.groups * 2.0
 	v += b.stats.crystals * 8.0
 	if b.complete:
 		v += 200.0
