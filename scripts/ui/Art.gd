@@ -24,7 +24,16 @@ static func tex(path: String) -> Texture2D:
 	return _tex[path]
 
 
+## Planet whose tileset the board uses: "" = the first planet (assets/tiles/), otherwise
+## assets/tiles/<planet>/. A missing tile falls back to the first planet's.
+static var planet := ""
+
+
 static func tile(name: String) -> Texture2D:
+	if planet != "":
+		var t := tex("res://assets/tiles/%s/%s.png" % [planet, name])
+		if t != null:
+			return t
 	return tex("res://assets/tiles/%s.png" % name)
 
 
