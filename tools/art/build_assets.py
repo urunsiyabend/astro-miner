@@ -10,8 +10,8 @@ game needs to place art exactly, so nothing is tuned by eye in GDScript:
 - assets/ui/ui.json: per UI piece, the 9-slice margins (texture_margin: corners and borders
   that must not stretch), the content margins (the visible face, so text and icons centre on
   what the eye sees, not on the outline and the darker bottom lip) and the image size.
-- Ore and rock sprites share one canvas size per family and are centred on their optical
-  centre (alpha centroid / main body), so every sprite lands on the same point of a cell.
+- Ore and rock sprites share one canvas size per family and are centred on their box
+  (ores: outline box; rocks: main body), so every sprite lands on the same point of a cell.
   Every gem fits the same outer box, so all kinds read as the same size.
 
 It also writes docs/art/ui-slices.png, which draws the slice lines and content boxes for review.
@@ -136,10 +136,12 @@ def build_rocks():
             save(canvas, "rocks", "%s_%d.png" % (form, st))
 
 
-# --- ores: same canvas, same visual weight, optical centre --------------------------------
+# --- ores: same canvas, same visual weight, centred on their box --------------------------------
 ORE_CANVAS = 256
 ORE_BOX = 0.80   # every gem fits the same box: its longer side is this share of the canvas
 ORE_SQUAT = 0.62 # a gem much wider than tall (the capsule) gets at least this height
+# Gems sit on the centre of their outline box. (The alpha centroid lifted the triangle: its
+# centroid is low, so its tip ended up near the top of every slot.)
 
 
 def build_ores():
@@ -151,12 +153,33 @@ def build_ores():
         h, w = piece.shape[:2]
         scale = ORE_BOX * ORE_CANVAS / max(h, w)
         scale = min(max(scale, ORE_SQUAT * ORE_CANVAS / h), 0.95 * ORE_CANVAS / w)
-        cy, cx = ndimage.center_of_mass(a)
+        cy, cx = (h - 1) / 2, (w - 1) / 2
         im = Image.fromarray(piece)
         im = im.resize((round(im.width * scale), round(im.height * scale)), Image.LANCZOS)
         canvas = Image.new("RGBA", (ORE_CANVAS, ORE_CANVAS))
         canvas.alpha_composite(im, (round(ORE_CANVAS / 2 - cx * scale), round(ORE_CANVAS / 2 - cy * scale)))
         save(canvas, "ore", name + ".png")
+        if name == "sapphire":
+            # a little wider, so the slim diamond weighs as much as the other gems
+            wide = canvas.resize((round(ORE_CANVAS * 1.22), ORE_CANVAS), Image.LANCZOS)
+            off = (wide.width - ORE_CANVAS) // 2
+            wide = wide.crop((off, 0, off + ORE_CANVAS, ORE_CANVAS))
+            save(recolour(wide, CRYSTAL_HUE, 1.25), "ore", "crystal.png")
+
+
+# The crystal is the sapphire's cut in the game's crystal violet (Pal.CRYSTAL #c88bff), so it
+# matches the ores in size, light and brushwork.
+CRYSTAL_HUE = 0.76
+
+
+def recolour(im, hue, light):
+    """Move every pixel to one hue, keep saturation and value, brighten a little."""
+    a = np.asarray(im.convert("RGBA")).copy()
+    hsv = np.asarray(Image.fromarray(a[..., :3]).convert("HSV")).astype(np.float32)
+    hsv[..., 0] = hue * 255
+    hsv[..., 2] = np.clip(hsv[..., 2] * light, 0, 255)
+    a[..., :3] = np.asarray(Image.fromarray(hsv.astype(np.uint8), "HSV").convert("RGB"))
+    return Image.fromarray(a)
 
 
 # --- UI pieces: 9-slice and content margins measured from the pixels -----------------------

@@ -588,7 +588,11 @@ func _draw_buried(c: Vector2, b: int) -> void:
 	var s := cell * 0.2
 	match b:
 		Board.Buried.CRYSTAL:
-			_gem(c + Vector2(0, 6), s, Color(Pal.CRYSTAL, 0.85))
+			var gem := Art.ore(3) if _art else null
+			if gem != null:
+				draw_texture_rect(gem, Rect2(c + Vector2(0, 6) - Vector2(s, s) * 1.3, Vector2(s, s) * 2.6), false, Color(1, 1, 1, 0.85))
+			else:
+				_gem(c + Vector2(0, 6), s, Color(Pal.CRYSTAL, 0.85))
 		Board.Buried.CELL:
 			_battery(c + Vector2(0, 6), s, Color(Pal.CELL, 0.85))
 		Board.Buried.EMPTY:
@@ -661,7 +665,11 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> voi
 		K.CRYSTAL:
 			var glow := 0.5 + 0.5 * sin(_time * 4.0 + c.x)
 			draw_circle(c, s * 1.5, Color(Pal.CRYSTAL, 0.18 + 0.12 * glow))
-			_gem(c, s * 1.2, Pal.CRYSTAL)
+			var gem := Art.ore(3) if _art else null
+			if gem != null:
+				draw_texture_rect(gem, Rect2(c - Vector2(s, s) * 1.6, Vector2(s, s) * 3.2), false)
+			else:
+				_gem(c, s * 1.2, Pal.CRYSTAL)
 		K.CELL:
 			draw_circle(c, s * 1.4, Color(Pal.CELL, 0.15))
 			_battery(c, s, Pal.CELL)

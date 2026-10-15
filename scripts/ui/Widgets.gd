@@ -41,6 +41,67 @@ class Chip extends Control:
 		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[res], _pop))
 
 
+## This dig's haul in one small slot: the four gems and the total. Ore that is not a goal flies
+## here; the slot then shows the gem that came in for a moment. Tap it for the breakdown.
+## (Mobile puzzle HUDs keep the top bar for goals and moves; extras get one compact slot.)
+class HaulChip extends Control:
+	signal tapped
+	var values := [0, 0, 0, 0]
+	var _pop := 0.0
+	var _last := -1
+	var _font: Font
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(190, 76)
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		_font = ThemeDB.fallback_font
+
+	func set_values(v: Array) -> void:
+		for r in 4:
+			if v[r] > values[r]:
+				_last = r
+				_pop = 1.0
+		values = v.duplicate()
+		queue_redraw()
+
+	func total() -> int:
+		var t := 0
+		for x in values:
+			t += x
+		return t
+
+	func icon_global() -> Vector2:
+		return get_global_transform_with_canvas() * _icon_c()
+
+	func _icon_c() -> Vector2:
+		return Vector2(44, size.y * 0.5)
+
+	func _gui_input(e: InputEvent) -> void:
+		if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
+			tapped.emit()
+			accept_event()
+
+	func _process(delta: float) -> void:
+		if _pop > 0.0:
+			_pop = maxf(0.0, _pop - delta * 1.2)
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := _icon_c()
+		if _pop > 0.0 and _last >= 0:
+			# the gem that just came in, popping
+			Widgets.draw_res_icon(self, c, 26.0 * (1.0 + 0.3 * minf(1.0, _pop * 2.0)), _last)
+		else:
+			for r in 4:
+				var o := Vector2(-17 if r % 2 == 0 else 17, -16 if r < 2 else 16)
+				Widgets.draw_res_icon(self, c + o, 15.0, r)
+		var fs := Pal.FS
+		var p := Vector2(88, size.y * 0.5 + fs * 0.36)
+		var txt := str(total())
+		draw_string_outline(_font, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Pal.OUTLINE)
+		draw_string(_font, p, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[maxi(_last, 0)], minf(1.0, _pop * 2.0)))
+
+
 ## Battery bar whose length grows with capacity, so Power Station upgrades are visible.
 class EnergyBar extends Control:
 	var energy := 20
@@ -183,13 +244,33 @@ class GoalStrip extends Control:
 
 	func _icon_pos(i: int) -> Vector2:
 		var w := _slot_w()
-		var s := _icon_size()
 		if big:
 			return Vector2(w * (i + 0.5), size.y * 0.36)
-		return Vector2(w * i + w * 0.5 - s * 1.6, size.y * 0.45)
+		# icon + count are centred as one group in the face above the bar
+		var top := _top_area(i)
+		var txt := "%d/%d" % [goals[i].n, goals[i].n]
+		var tw := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS).x
+		var group := _icon_size() * 2.0 + 14.0 + tw
+		return Vector2(top.get_center().x - group * 0.5 + _icon_size(), top.get_center().y)
+
+	func _slot(i: int) -> Rect2:
+		var w := _slot_w()
+		return Rect2(Vector2(w * i + 8, 4), Vector2(w - 16, size.y - 8))
+
+	func _bar(i: int) -> Rect2:
+		var face := Art.face("plate", _slot(i))
+		return Rect2(Vector2(face.position.x + 16, face.end.y - 26), Vector2(face.size.x - 32, 20))
+
+	## The part of the slot's face above its progress bar.
+	func _top_area(i: int) -> Rect2:
+		var face := Art.face("plate", _slot(i))
+		return Rect2(face.position, Vector2(face.size.x, _bar(i).position.y - 6 - face.position.y))
 
 	func _icon_size() -> float:
-		return 62.0 if big else 50.0
+		if big:
+			return 62.0
+		# the icon art is ~1.9 s tall: keep it inside the area above the bar
+		return minf(46.0, (_top_area(0).size.y - 4.0) / 1.9) if goals.size() > 0 else 46.0
 
 	func _process(delta: float) -> void:
 		var any := false
@@ -208,7 +289,7 @@ class GoalStrip extends Control:
 			var done: bool = have[i] >= g.n
 			var c := _icon_pos(i)
 			var col := Pal.GOOD if done else Pal.TEXT
-			var slot := Rect2(Vector2(w * i + 8, 4), Vector2(w - 16, size.y - 8))
+			var slot := _slot(i)
 			var tint := Color.WHITE.lerp(Pal.GOOD, 0.35) if done else Color.WHITE.lerp(Color(1.3, 1.3, 1.3), _pop[i])
 			if not Art.draw(self, "plate", slot, tint):
 				var sb := StyleBoxFlat.new()
@@ -221,12 +302,12 @@ class GoalStrip extends Control:
 			var fs := Pal.FS_BIG if big else Pal.FS
 			var txt := ("x %d" % g.n) if big else ("%d/%d" % [have[i], g.n])
 			var tw := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-			var tp := Vector2(c.x - tw * 0.5, size.y * 0.82) if big else Vector2(c.x + s * 1.3, c.y + fs * 0.36)
+			var tp := Vector2(c.x - tw * 0.5, size.y * 0.82) if big else Vector2(c.x + s + 14.0, c.y + fs * 0.36)
+			draw_string_outline(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Pal.OUTLINE)
 			draw_string(_font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 			if not big:
-				var face := Art.face("plate", slot)
-				var bar := Rect2(Vector2(face.position.x + 16, face.end.y - 30), Vector2(face.size.x - 32, 22))
-				const K := 0.32  # bar art scale for a 22 px bar
+				var bar := _bar(i)
+				const K := 0.29  # bar art scale for a 20 px bar
 				var frac: float = float(have[i]) / g.n
 				if Art.draw(self, "bar_track", bar, Color.WHITE, K):
 					var inner := Art.face("bar_track", bar, K)
@@ -295,6 +376,10 @@ static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) 
 		"crystal":
 			draw_res_icon(ci, c, s * 0.85, 3)
 		"rock":
+			var rk := Art.rock(1, 1)
+			if rk != null:
+				ci.draw_texture_rect(rk, Rect2(c - Vector2(s, s) * 1.05, Vector2(s, s) * 2.1), false)
+				return
 			var pts := PackedVector2Array()
 			for k in 8:
 				var a := TAU * (k + 0.5) / 8.0
@@ -308,9 +393,9 @@ static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) 
 				var d := Vector2.from_angle(TAU * k / 8.0)
 				ci.draw_line(c + d * s * 0.8, c + d * s * 1.0, Pal.CHARGE, 5.0, true)
 		_:  # any ore
-			draw_res_icon(ci, c + Vector2(-s * 0.45, s * 0.3), s * 0.45, 0)
-			draw_res_icon(ci, c + Vector2(s * 0.45, s * 0.3), s * 0.45, 1)
-			draw_res_icon(ci, c + Vector2(0, -s * 0.4), s * 0.45, 2)
+			draw_res_icon(ci, c + Vector2(0, -s * 0.32), s * 0.42, 2)
+			draw_res_icon(ci, c + Vector2(-s * 0.42, s * 0.3), s * 0.42, 0)
+			draw_res_icon(ci, c + Vector2(s * 0.42, s * 0.3), s * 0.42, 1)
 
 
 static func draw_building_icon(ci: CanvasItem, c: Vector2, s: float, b: int, col: Color) -> void:
@@ -335,7 +420,7 @@ static func draw_building_icon(ci: CanvasItem, c: Vector2, s: float, b: int, col
 static func draw_res_icon(ci: CanvasItem, c: Vector2, s: float, res: int) -> void:
 	var t := Art.ore(res)
 	if t != null:
-		# ore sprites share one canvas with the gem on its optical centre, so every kind lands
+		# ore sprites share one canvas with the gem centred on its box, so every kind lands
 		# on the same point and looks the same size (see tools/art/build_assets.py)
 		ci.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 1.15, Vector2(s, s) * 2.3), false)
 		return
