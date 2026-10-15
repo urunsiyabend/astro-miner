@@ -25,12 +25,13 @@ static func label(text: String, size := Pal.FS, color := Pal.TEXT, align := HORI
 	l.add_theme_color_override("font_color", color)
 	l.horizontal_alignment = align
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	outline(l, 6 if size < Pal.FS else 8)
 	return l
 
 
-## Dark outline for text drawn straight on painted art.
+## Dark outline so text reads on painted art and on the sky. Every Ui.label gets one.
 static func outline(l: Label, px := 8) -> void:
-	l.add_theme_color_override("font_outline_color", Color("2a1830"))
+	l.add_theme_color_override("font_outline_color", Pal.OUTLINE)
 	l.add_theme_constant_override("outline_size", px)
 
 

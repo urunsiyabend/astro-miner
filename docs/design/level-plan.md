@@ -1,7 +1,7 @@
-# Level plan (master sheet), v2: as built
+# Level plan (master sheet), v3: as built
 
 Built from `docs/research/match3-level-design.md` and implemented in `scripts/core/Sites.gd`.
-Every dig has one idea, at most 3 elements (at most 1 new), a role in its chapter's sawtooth
+Every dig has one idea, at most 3 elements (at most 1 new), a place on its chapter's ramp
 and a board shape that differs from its neighbours.
 
 ## Decisions
@@ -17,6 +17,19 @@ and a board shape that differs from its neighbours.
   the battery nearly full, because matches refund more than moving costs. Difficulty comes
   from the ore running out (shallow `:` and empty `_` ground), from rock to get through, and
   from goal size. A low starting `energy` only matters on boards that are short of ore.
+
+- **A ramp, not a sawtooth.** v2 put a hard dig at X7 and a super-hard one at X9, with
+  breathers in between. In play, X8 to X9 felt like a wall (dig 9 cleared about 1 in 5,
+  dig 19 23 %, dig 29 10 %). v3 orders and tunes each chapter so it climbs step by step.
+  The last dig before the reward is the hardest, but only a little harder than the one
+  before it.
+
+  | Place in chapter | Bot clear rate |
+  |---|---|
+  | X1-X4: lesson, building dig, early digs | 90-100 % (or hand-made) |
+  | X5-X6 | about 85-90 % |
+  | X7-X9 | stepping down to about 75-80 % |
+  | X10: reward, unlocks a building | 100 % |
 
 ## Guidance budget (implemented)
 
@@ -44,49 +57,49 @@ check, not a target. "Hand" = fixed layout with a recorded solution.
 
 ### Chapter 1: Landing Zone. New: swap and match, veins, rubble, crystal. Battery 20.
 
-| # | id | Role | Idea | Goal | Bot |
-|---|---|---|---|---|---|
-| 1 | first | learn | One obvious swap lines up 3 Ferrite; the rest needs a little planning. 5×4 room. | 6 Ferrite | hand |
-| 2 | drag | learn | Plus-shaped room: chunks get dragged into lines. | 9 Cryo | 100% |
-| 3 | vein | learn | Deep middle vein, shallow edges. Mira explains the pips. | 15 ore | 100% |
-| 4 | landing | breather | Big open field. | 12 Lumen | 100% |
-| 5 | rocks | learn | A rubble band; matches under it crack it. | break 4 | 86% |
-| 6 | ring | vary | A rubble ring around a deep pocket, on shallow ground. | break 8 + 16 Ferrite | 100% |
-| 7 | rooms | **hard** | Two shallow rooms; open the wall before the first runs dry. Energy 18. | 18 Cryo | 73% |
-| 8 | glint | learn | A glinting rock hides a crystal: crack it, drive onto it. | 1 crystal + 10 ore | 96% |
-| 9 | zigzag | **super-hard**, short | Rubble zig-zag on scarce, shallow ground. Energy 16. Eased after playtest: was 13 rocks / energy 15, which bots and the player cleared about 1 time in 5. | break 12 of 13 | 77% |
-| 10 | lode | reward | Mother lode, deep veins everywhere. **Unlocks the Power Station.** | 25 ore | 100% |
+| # | id | Idea | Goal | Bot |
+|---|---|---|---|---|
+| 1 | first | One obvious swap lines up 3 Ferrite; the rest needs a little planning. 5×4 room. | 6 Ferrite | hand |
+| 2 | drag | Plus-shaped room: chunks get dragged into lines. | 9 Cryo | 100% |
+| 3 | vein | Deep middle vein, shallow edges. Mira explains the pips. | 15 ore | 100% |
+| 4 | landing | Big open field. | 12 Lumen | 100% |
+| 5 | rocks | A rubble band; matches under it crack it. | break 4 | 90% |
+| 6 | glint | A glinting rock hides a crystal: crack it, drive onto it. | 1 crystal + 10 ore | 96% |
+| 7 | ring | A rubble ring around a deep pocket, on shallow ground. Energy 18. | break 8 + 23 Ferrite | 90% |
+| 8 | rooms | Two shallow rooms; open the wall before the first runs dry. | 17 Cryo | 76% |
+| 9 | zigzag | Rubble zig-zag on scarce, shallow ground. Energy 16. | break 12 of 13 | 80% |
+| 10 | lode | Mother lode, deep veins everywhere. **Unlocks the Power Station.** | 25 ore | 100% |
 
 ### Chapter 2: Glint Fields. New: Power Station, energy cell, blast charge. Battery 26.
 
-| # | id | Role | Idea | Goal | Bot |
-|---|---|---|---|---|---|
-| 11 | longhaul | **Power level** | A long bare tunnel to a crystal; only the bigger battery reaches it. | 1 crystal | hand |
-| 12 | route | vary | T-shaped dig, two crystal rocks at the top: plan the route. | 2 crystals | 86% |
-| 13 | nearby | breather | Crystals next to the start, deep veins around. | 2 crystals | 96% |
-| 14 | battery | learn | Start with 6 energy; the rock right above hides an energy cell. | 12 Ferrite | hand |
-| 15 | checker | vary | Rock checkerboard with crystals and cells: which to open first? | 2 crystals | 90% |
-| 16 | shallows | **hard** | Shallow ground, crystals far apart, cells on the way. Energy 20. | 3 crystals | 50% |
-| 17 | deep | breather | Deep veins and a crystal in the middle. | 1 crystal + 15 ore | 96% |
-| 18 | charge | learn | A line of 4 leaves a charge; step on it. | set off 2 blasts | hand |
-| 19 | well | **super-hard**, short | A crystal at the bottom of a rubble well. Energy 16. | 1 crystal | 23% |
-| 20 | garden | reward | Crystal garden. **Unlocks the Mining Workshop.** | 3 crystals | 100% |
+| # | id | Idea | Goal | Bot |
+|---|---|---|---|---|
+| 11 | longhaul | **Power level.** A long bare tunnel to a crystal; only the bigger battery reaches it. | 1 crystal | hand |
+| 12 | nearby | Crystals next to the start, deep veins around. | 2 crystals | 96% |
+| 13 | battery | Start with 6 energy; the rock right above hides an energy cell. | 12 Ferrite | hand |
+| 14 | charge | A line of 4 leaves a charge; step on it. | set off 2 blasts | hand |
+| 15 | checker | Rock checkerboard with crystals and cells: which to open first? | 2 crystals | 90% |
+| 16 | route | T-shaped dig, two crystal rocks at the top: plan the route. | 2 crystals | 86% |
+| 17 | deep | Shallow field with deep pockets around a crystal. | 1 crystal + 25 Lumen | 80% |
+| 18 | shallows | Shallow ground, crystals far apart, cells on the way. Energy 20. | 2 crystals | 83% |
+| 19 | well | A crystal at the bottom of a rubble well; a straight shaft leads down past a cell. Energy 20. Was 23 %: the only way down was blocked. | 1 crystal | 76% |
+| 20 | garden | Crystal garden. **Unlocks the Mining Workshop.** | 3 crystals | 100% |
 
 ### Chapter 3: Basalt Shelf. New: drill, stone and basalt. Battery 26 + drill.
 
-| # | id | Role | Idea | Goal | Bot |
-|---|---|---|---|---|---|
-| 21 | vaults | **Workshop level** | Crystals sealed in basalt vaults: drill in through the doorways. | 2 crystals | hand |
-| 22 | stone | learn | Stone has 2 layers: crack twice, drill or blast. | break 4 | 90% |
-| 23 | seam | breather | Bands of deep veins. | 25 ore | 100% |
-| 24 | pockets | vary | Basalt pockets with crystals: drill or charge. Energy 20. | 3 crystals | 86% |
-| 25 | maze | **hard** | Basalt maze, two crystals. Energy 20. | 2 crystals | 46% |
-| 26 | rubble | breather | Soft rubble field full of energy cells. | break 12 | 100% |
-| 27 | strata | vary | Stone ring pattern around deep veins. Energy 20. | break 10 | 93% |
-| 28 | shale | **hard** | Shallow ground, stone bands, cells under rock. | 15 Cryo + 1 crystal | 66% |
-| 29 | core | **super-hard** | Three crystals inside a basalt shell. Needs the drill. | 3 crystals | 10% |
-| 30 | openseam | reward | Open seam ringed by rock. **Unlocks the Research Lab.** | 30 ore | 100% |
-| 31 | readings | **Lab level** | Ten rocks, two crystals, small battery: use the scanner. Energy 14. | 2 crystals | hand |
+| # | id | Idea | Goal | Bot |
+|---|---|---|---|---|
+| 21 | vaults | **Workshop level.** Crystals sealed in basalt vaults: drill in through the doorways. | 2 crystals | hand |
+| 22 | stone | Stone has 2 layers: crack twice, drill or blast. | break 4 | 90% |
+| 23 | seam | Bands of deep, plain and shallow ground. | 32 ore | 100% |
+| 24 | rubble | Soft rubble field full of energy cells. | break 17 | 96% |
+| 25 | strata | Stone ring pattern around deep veins. Energy 17. | break 11 | 83% |
+| 26 | pockets | Basalt pockets with crystals: drill or charge. Energy 20. | 3 crystals | 86% |
+| 27 | maze | Rock maze, two crystals in stone. | 2 crystals | 76% |
+| 28 | shale | Shallow ground, stone bands, cells under rock. | 12 Cryo + 1 crystal | 76% |
+| 29 | core | Crystals inside a basalt shell. Needs the drill. Was 3 crystals at 10 %. | 2 crystals | 76% |
+| 30 | openseam | Open seam ringed by rock. **Unlocks the Research Lab.** | 30 ore | 100% |
+| 31 | readings | **Lab level.** Ten rocks, two crystals, small battery: use the scanner. Energy 14. | 2 crystals | hand |
 
 ## Tuning
 
@@ -94,5 +107,5 @@ check, not a target. "Hand" = fixed layout with a recorded solution.
   Add `id:MOVES` to make the solver start with Mira's moves (e.g. `battery:L`).
 - From the research: play each dig about 10 times and look at energy left on wins and goals
   left on losses. Two reshuffles (Pulse) in one attempt mean the dig needs a redesign.
-- Super-hard digs (9, 19, 29) are short on purpose. If players stall there, loosen the energy
-  first, then the goal.
+- If players stall on a dig, loosen the goal or open a path through the rock first. Energy
+  changes barely move the clear rate on boards with enough ore.
