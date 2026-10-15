@@ -19,6 +19,8 @@ func _ready() -> void:
 func _run() -> void:
 	var main := get_parent()
 	var scene := OS.get_environment("ASTRO_SCENE")
+	if OS.has_environment("ASTRO_PLANET"):
+		Art.planet = OS.get_environment("ASTRO_PLANET")
 	await get_tree().create_timer(0.3).timeout
 	if scene == "dig":
 		var site := int(OS.get_environment("ASTRO_SITE")) if OS.has_environment("ASTRO_SITE") else 0

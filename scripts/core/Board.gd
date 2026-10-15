@@ -32,7 +32,7 @@ var extracted := PackedInt32Array([0, 0, 0])  # chunks per ore type (objective c
 var stats := {
 	"moves": 0, "drills": 0, "groups": 0, "cascade_groups": 0, "chunks": 0,
 	"rocks_broken": 0, "crystals": 0, "cells": 0, "charges_made": 0, "blasts": 0,
-	"energy_refunded": 0, "rejected": 0, "pulses": 0,
+	"energy_refunded": 0, "rejected": 0, "pulses": 0, "continues": 0,
 }
 var goals: Array = []  # [{type:"ore", ore:int, n:int} | {type:"rock", n} | {type:"crystal", n}]
 var over := false
@@ -43,8 +43,11 @@ var rng := RandomNumberGenerator.new()
 var cfg := {
 	"capacity": 20,
 	"ore_types": 3,
-	"refund_base": 2,      # energy for a group of 3
-	"refund_extra": 1,     # per chunk beyond 3
+	# Energy is the dig's move budget (casual match-3 "moves"): every step costs 1 and a
+	# match gives nothing back, so a dig ends when the budget runs out. Only energy cells
+	# (and the Lab bonus) add energy.
+	"refund_base": 0,      # energy for a group of 3
+	"refund_extra": 0,     # per chunk beyond 3
 	"refund_bonus": 0,     # Lab Lv3
 	"drill": false,
 	"drill_cost": 2,
@@ -78,11 +81,23 @@ static func inside(c: Vector2i) -> bool:
 ##   _  exhausted empty ground  @  robot start   #  bedrock
 ##   1/2/3 rock layers hiding ore; suffix c = crystal, e = energy cell, x = nothing
 ## Set up a dig for a site from Sites.LIST. A site may pin its own seed, hand-place every
-## token ("ore" rows) and start with less energy than the battery holds ("energy").
+## token ("ore" rows) and set its move budget ("energy"; the battery grows to hold it).
 func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> void:
 	setup(site.rows, int(site.get("seed", seed_value)), rules, site.goals, site.get("ore", []))
 	if site.has("energy"):
-		energy = mini(int(site.energy), cfg.capacity)
+		energy = int(site.energy)
+		cfg.capacity = maxi(cfg.capacity, energy)
+
+
+## Out of energy but not done: carry on with `n` more energy (the "+5 energy?" offer).
+func continue_with(n: int) -> bool:
+	if not over or complete or n <= 0:
+		return false
+	energy += n
+	cfg.capacity = maxi(cfg.capacity, energy)
+	over = false
+	stats.continues += 1
+	return true
 
 
 ## layout: optional rows of hand-placed tokens (F C L ore, c crystal, e energy cell,

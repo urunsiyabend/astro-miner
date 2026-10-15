@@ -85,10 +85,19 @@ def remove_ruled_lines(a, top):
 TILE_W = 256
 
 
-def build_tiles():
+# Planets: "" is the first planet (tiles_tops.png -> assets/tiles/), any other name has its own
+# sheets (tiles_tops_<name>.png -> assets/tiles/<name>/), painted over the first planet's sheets
+# so every tileset shares one geometry.
+PLANETS = ["", "verdis"]
+
+
+def build_tiles(planet=""):
     """Tops (soil, exhausted, shallow dents) from one sheet, layered earth bands from another."""
-    tops = key(os.path.join(SRC, "tiles_tops.png"))
-    bands = key(os.path.join(SRC, "tiles_bands.png"))
+    sfx = "_" + planet if planet else ""
+    if not os.path.exists(os.path.join(SRC, "tiles_tops%s.png" % sfx)):
+        return {}
+    tops = key(os.path.join(SRC, "tiles_tops%s.png" % sfx))
+    bands = key(os.path.join(SRC, "tiles_bands%s.png" % sfx))
     # slot in tiles_tops.png -> name; the band comes from the same slot of tiles_bands.png
     plan = {"soil_a": (0, 0), "soil_b": (1, 1), "bare": (3, 6), "dent1": (4, 2), "dent2": (5, 3)}
     meta = {}
@@ -103,7 +112,7 @@ def build_tiles():
         out = Image.new("RGBA", (TILE_W, TILE_W - 6 + band.height))
         out.alpha_composite(band, (0, TILE_W - 6))
         out.alpha_composite(top, (0, 0))
-        save(out, "tiles", name + ".png")
+        save(out, *(["tiles", planet, name + ".png"] if planet else ["tiles", name + ".png"]))
         meta[name] = {"size": [out.width, out.height]}
     return meta
 
@@ -341,7 +350,8 @@ def build_background():
 
 
 if __name__ == "__main__":
-    print("tiles", build_tiles())
+    for planet in PLANETS:
+        print("tiles", planet or "(first)", build_tiles(planet))
     build_rocks()
     build_ores()
     meta = build_ui()
