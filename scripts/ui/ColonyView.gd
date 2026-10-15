@@ -78,6 +78,7 @@ func _draw() -> void:
 			draw_arc(c, 60 + (1.0 - _celebrate[i]) * 160, 0, TAU, 40, Color(Pal.GOOD, _celebrate[i]), 8.0, true)
 	var lbl := "Colony level %d / 9" % total
 	var f := ThemeDB.fallback_font
+	draw_string_outline(f, Vector2(24, 48), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS_SMALL, 6, Pal.OUTLINE)
 	draw_string(f, Vector2(24, 48), lbl, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS_SMALL, Pal.DIM)
 
 

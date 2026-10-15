@@ -195,12 +195,12 @@ func _spot_dig() -> void:
 
 func _teaser(b: int, dig: int) -> Control:
 	var p := Ui.panel(Pal.PANEL, 26)
-	p.modulate = Color(1, 1, 1, 0.5)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 18)
 	p.add_child(h)
 	var icon := Widgets.BuildingIcon.new(b)
 	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	icon.modulate = Color(1, 1, 1, 0.5)
 	h.add_child(icon)
 	var v := VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL

@@ -8,8 +8,11 @@ const PANEL := Color("1f1729")
 const PANEL_HI := Color("2c2139")
 const LINE := Color("3d3050")
 const TEXT := Color("f3ecff")
-const DIM := Color("a596bd")
-const MUTED := Color("6c5f80")
+# Secondary text. Both stay light: all text also gets a dark outline (Ui.label), so it reads on
+# the painted panels and straight on the night sky.
+const DIM := Color("dcd2f0")
+const MUTED := Color("b9add2")
+const OUTLINE := Color("2a1830")
 const GOOD := Color("7dff9b")
 const WARN := Color("ffb347")
 const BAD := Color("ff5c7a")
@@ -37,7 +40,7 @@ const FS_HUGE := 72
 const FS_BIG := 52
 const FS := 40
 const FS_SMALL := 32
-const FS_TINY := 26
+const FS_TINY := 30
 
 
 static func ground_level(level: int) -> Color:

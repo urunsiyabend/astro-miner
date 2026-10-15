@@ -71,12 +71,23 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
-	# top HUD: dig number and battery on one plate, the haul on a second one
+	# top HUD, one plate: dig number and battery, then this dig's haul; both rows centred
+	# with extra room at the plate's sides
 	var top_plate := Ui.panel(Pal.PANEL, 28, "plate")
 	col.add_child(top_plate)
+	var inner := MarginContainer.new()
+	for side in ["left", "right"]:
+		inner.add_theme_constant_override("margin_" + side, 28)
+	inner.add_theme_constant_override("margin_top", 6)
+	inner.add_theme_constant_override("margin_bottom", 10)
+	top_plate.add_child(inner)
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 8)
+	inner.add_child(rows)
 	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 16)
-	top_plate.add_child(top)
+	top.alignment = BoxContainer.ALIGNMENT_CENTER
+	top.add_theme_constant_override("separation", 20)
+	rows.add_child(top)
 	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
 	_title.custom_minimum_size.x = 230
 	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
@@ -88,12 +99,10 @@ func _ready() -> void:
 	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(_energy)
 
-	var haul_plate := Ui.panel(Pal.PANEL, 28, "plate")
-	col.add_child(haul_plate)
 	var chips := HBoxContainer.new()
 	chips.alignment = BoxContainer.ALIGNMENT_CENTER
 	chips.add_theme_constant_override("separation", 18)
-	haul_plate.add_child(chips)
+	rows.add_child(chips)
 	for r in 4:
 		var c := Widgets.Chip.new(r)
 		c.custom_minimum_size.y = 64
