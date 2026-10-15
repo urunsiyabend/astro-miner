@@ -37,7 +37,7 @@ class Chip extends Control:
 		Widgets.draw_res_icon(self, c, s, res)
 		var fs := Pal.FS
 		var p := Vector2(82, size.y * 0.5 + fs * 0.36)
-		draw_string_outline(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Color("2a1830"))
+		draw_string_outline(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Pal.OUTLINE)
 		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[res], _pop))
 
 
@@ -133,9 +133,11 @@ class GoalRow extends Control:
 	func _draw() -> void:
 		var done := have >= need
 		var fs := Pal.FS_SMALL
+		draw_string_outline(_font, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 6, Pal.OUTLINE)
 		draw_string(_font, Vector2(0, fs), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.GOOD if done else Pal.TEXT)
 		var count := "%d / %d" % [have, need]
 		var cw := _font.get_string_size(count, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string_outline(_font, Vector2(size.x - cw, fs), count, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 6, Pal.OUTLINE)
 		draw_string(_font, Vector2(size.x - cw, fs), count, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.GOOD if done else Pal.DIM)
 		var r := Rect2(Vector2(0, fs + 12), Vector2(size.x, 12))
 		draw_rect(r, Pal.PANEL_HI)

@@ -305,14 +305,14 @@ def review(pieces, meta):
     sheet.save(os.path.join(ROOT, "docs", "art", "ui-slices.png"))
 
 
-# --- background: blurred once here, not every frame on the phone ---------------
+# --- background: cropped to the screen and dimmed slightly ---------------
 def build_background():
     bg = Image.open(os.path.join(SRC, "background.png")).convert("RGB")
     w, h = 1080, 1920
     s = max(w / bg.width, h / bg.height)
     bg = bg.resize((round(bg.width * s), round(bg.height * s)), Image.LANCZOS)
     bg = bg.crop(((bg.width - w) // 2, (bg.height - h) // 2, (bg.width - w) // 2 + w, (bg.height - h) // 2 + h))
-    bg = ImageEnhance.Brightness(bg.filter(ImageFilter.GaussianBlur(4))).enhance(0.95)
+    bg = ImageEnhance.Brightness(bg).enhance(0.95)
     os.makedirs(os.path.join(OUT, "bg"), exist_ok=True)
     bg.save(os.path.join(OUT, "bg", "space.jpg"), quality=88)
 
