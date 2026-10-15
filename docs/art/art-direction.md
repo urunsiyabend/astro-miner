@@ -106,7 +106,7 @@ game's art and measures everything the code needs, so nothing is placed by eye:
 | `assets/ore/*.png` | One 256 px canvas per gem, every gem fitted to the same outer box (80% of the canvas) and placed on its optical centre (alpha centroid). |
 | `assets/rocks/<form>_<state>.png` | 3 forms (boulder, stone, basalt = 1, 2, 3 starting layers) x 3 break states, one 320 px canvas, centred on the rock body (not on flying chips). `Art.rock(layers, left)` picks the sprite. |
 | `assets/tiles/*.png` | Square top + layered earth band. Rows are drawn `pitch` apart (cell + `Art.BAND_VISIBLE`), so each block shows its thickness; `BoardView.cell_origin()` is the only place a cell's position is computed. |
-| `assets/bg/space.jpg` | Background, darkened and blurred once here instead of per frame. |
+| `assets/bg/space.jpg` | Background (painted navy night sky, calm empty middle), blurred once here instead of per frame. |
 | `docs/art/ui-slices.png` | Review sheet: slice lines (magenta) and face boxes (cyan) on every piece. |
 
 Rebuild after replacing a source sheet. The code reads the new numbers and needs no change.
