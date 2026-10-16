@@ -43,6 +43,7 @@ const IDLE_GLOW := 4.0
 var _lesson := false
 var _low_warned := false   # the "5 moves left!" banner shows once per dig
 var _bonus_skip := false   # tap during the end-of-dig move conversion: finish it at once
+var force_treasure := false  # dev: always hide a chest in the next dig
 # Mira's script for this dig (see Sites): current step and the event a coach line waits for.
 var _script: Array = []
 var _step := 0
@@ -184,7 +185,16 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 		board.setup_site(open, s, rules)
 	else:
 		board.setup_site(site, s, rules)
-	_title.text = "Supply run" if supply else "Dig %d" % (index + 1)
+	# now and then a regular dig hides a treasure chest (never in a hand-made one)
+	var plain: bool = not (site.has("ore") or site.get("guide", false) or site.get("building_level", false)
+			or site.get("gold_rush", false)) and Sites.dig_number(index) >= 3
+	var trng := RandomNumberGenerator.new()
+	trng.seed = s ^ 0x7EA5
+	if plain and (force_treasure or Game.roll_treasure(trng)):
+		board.place_treasure(trng)
+	force_treasure = false
+	var num := Sites.dig_number(index)
+	_title.text = "Supply run" if supply else ("Gold Rush" if num == 0 else "Dig %d" % num)
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
 	# from clearing the dig, not from ore: the goal card shows the reward, the coin slot fills
@@ -272,12 +282,18 @@ func _show_mission(goals: Array) -> void:
 	v.add_theme_constant_override("separation", 10)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.add_child(v)
+	var rush := _rush()
 	if supply:
 		v.add_child(Widgets.JuicyText.new("Supply run", 56, Color("f3c9ff"), 0.05))
+	if rush:
+		var pic := Widgets.Picture.new("res://assets/ui/gold_rush.png", 300.0, 0.1)
+		pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(pic)
+		v.add_child(Widgets.JuicyText.new("Gold Rush!", 84, Pal.COIN, 0.3))
 	var gc := Widgets.GoalCard.new(goals)
 	gc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(gc)
-	if not supply:
+	if not supply and not rush:
 		# what clearing it pays (plus a Coin per move left)
 		var tag := Widgets.CoinTag.new(Economy.clear_coin(site_index), 0.5 + goals.size() * 0.12)
 		tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -304,6 +320,17 @@ func _close_mission(force := false) -> void:
 	_mission.queue_free()
 	_mission = null
 	_run_script()
+
+
+func _rush() -> bool:
+	return not supply and Sites.get_site(site_index).get("gold_rush", false)
+
+
+func _show_banner(text: String, rim := Color("ffb36b"), face := Color("e2563f"), hold := 0.45, fs := 72) -> void:
+	var bn := Widgets.Banner.new(text, rim, face, hold, fs)
+	add_child(bn)
+	move_child(bn, fxl.get_index())
+	bn.show_at(view.get_global_rect().get_center().y - global_position.y, size.x)
 
 
 # --- Mira's script ------------------------------------------------------------
@@ -408,7 +435,11 @@ func _do_move(dir: Vector2i) -> void:
 		view.bump(dir)
 		match r.reason:
 			"rock":
-				_say("Solid rock. Make a match right next to it to crack it.", 3.0)
+				var at := Board.pos(board.robot) + dir
+				if board.buried[Board.idx(at)] == Board.Buried.TREASURE:
+					_say("A treasure chest! Make a match right next to it to burst it open.", 3.0)
+				else:
+					_say("Solid rock. Make a match right next to it to crack it.", 3.0)
 			"energy":
 				_say("Not enough energy to drill.", 2.0)
 		return
@@ -439,6 +470,7 @@ func _on_snap(s: Dictionary) -> void:
 			"chunks": v = s.chunks
 			"crystal": v = s.crystals
 			"blast": v = s.blasts
+			"treasure": v = s.treasures
 		_hud.set_have(i, v)
 
 
@@ -448,18 +480,15 @@ func _on_settled() -> void:
 		view.focus = []
 		view.set_glow([])
 		_coach.clear()
-		if board.complete:
-			_play_bonus()
+		if board.complete or _rush():
+			_celebrate()
 		else:
 			get_tree().create_timer(0.45).timeout.connect(_show_result)
 		return
 	# the last moves: once per dig, after the move has played out
-	if board.energy <= Widgets.DigHud.LOW_MOVES and not _low_warned:
+	if board.energy <= Widgets.DigHud.LOW_MOVES and not _low_warned and not _rush():
 		_low_warned = true
-		var bn := Widgets.Banner.new("%d moves left!" % board.energy)
-		add_child(bn)
-		move_child(bn, fxl.get_index())
-		bn.show_at(view.get_global_rect().get_center().y - global_position.y, size.x)
+		_show_banner("%d moves left!" % board.energy)
 	_refresh_reach()
 	_first_encounters()
 	if _waiting != "" and _events.has(_waiting):
@@ -563,6 +592,15 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				fxl.fly(d.pos, 3, Pal.CRYSTAL)
 			fxl.burst(d.pos, Pal.CRYSTAL, 14, 520.0)
 			fxl.text(d.pos, "Crystal!", Pal.CRYSTAL, 56)
+		"treasure":
+			# the chest bursts: gold sparks, its amount, and its Coin flying into the slot
+			var n: int = board.cfg.treasure_coin
+			fxl.burst(d.pos, Pal.COIN, 18, 620.0)
+			fxl.text(d.pos, "+%d" % n, Pal.COIN, 80)
+			for k in n:
+				fxl.fly(d.pos, "coin", Pal.COIN, 0.12 + k * 0.07, 0.55,
+						Vector2(randf_range(-150, 150), randf_range(-200, -80)))
+			Sfx.play("pickup")
 		"debris":
 			fxl.burst(d.pos, d.color, 7, 380.0)
 		"reveal":
@@ -580,12 +618,29 @@ func _on_arrived(res) -> void:
 		Sfx.play("coin", 1.0 + 0.02 * mini(_hud.coin_shown, 30))
 
 
+## The dig is won (or a gold rush is over): say so loud and clear before anything else moves
+## (banner, confetti, the win jingle), then pay out.
+func _celebrate() -> void:
+	Sfx.play("win")
+	var title := "Dig Complete!"
+	if _rush():
+		title = "All chests!" if board.complete else "Gold Rush done!"
+	_show_banner(title, Color("a8f7b5"), Color("37b65a"), 0.9, 92)
+	var r := view.get_global_rect()
+	fxl.confetti(Vector2(r.get_center().x, r.position.y + r.size.y * 0.55), 110)
+	await get_tree().create_timer(1.35).timeout
+	if board.energy > 0 or board.complete:
+		_play_bonus()
+	else:
+		_show_result()
+
+
 ## The clear's payout, shown before the result card: the clear reward bursts off the board
 ## into the coin slot, then every move left leaves the Moves count and flies in as a Coin,
 ## faster and faster. A tap finishes it at once.
 func _play_bonus() -> void:
 	var moves := board.energy
-	var base := Economy.clear_coin(site_index)
+	var base := 0 if _rush() else Economy.clear_coin(site_index)
 	_hud.calm = true
 	_bonus_skip = false
 	var catcher := Control.new()
@@ -595,7 +650,7 @@ func _play_bonus() -> void:
 		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
 			_bonus_skip = true)
 	add_child(catcher)
-	await get_tree().create_timer(0.4).timeout
+	await get_tree().create_timer(0.15).timeout
 	var mid := view.get_global_rect().get_center()
 	for k in base:
 		var a := TAU * k / base
@@ -616,7 +671,7 @@ func _play_bonus() -> void:
 		# land the rest at once
 		_hud.set_energy(0, board.cfg.capacity)
 		view.snap["energy"] = 0
-		_hud.set_coin(base + moves)
+		_hud.set_coin(board.treasure_coin + base + moves)
 	await get_tree().create_timer(0.75).timeout
 	catcher.queue_free()
 	_show_result()
@@ -629,7 +684,9 @@ func _show_result() -> void:
 		return
 	var reason := "complete" if board.complete else ("energy" if board.energy <= 0 else "recall")
 	var res := Game.finish_dig(site_index, board, reason, _hints_used)
-	Sfx.play("win" if reason == "complete" else "lose")
+	reason = res.reason   # a gold rush that ran out of moves comes back as "rush"
+	if reason != "complete" and reason != "rush":
+		Sfx.play("lose")   # a win already played its jingle when it was celebrated
 	_result = Control.new()
 	_result.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(_result)
@@ -646,14 +703,17 @@ func _show_result() -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 26)
 	card.add_child(v)
-	var titles := {"complete": "Dig Complete!", "energy": "Out of Moves", "recall": "Back at Base"}
-	var colors := {"complete": Pal.GOOD, "energy": Pal.WARN, "recall": Pal.ACCENT}
+	var titles := {"complete": "Dig Complete!", "energy": "Out of Moves", "recall": "Back at Base",
+			"rush": "Gold Rush!"}
+	var colors := {"complete": Pal.GOOD, "energy": Pal.WARN, "recall": Pal.ACCENT, "rush": Pal.COIN}
+	if reason == "complete" and _rush():
+		reason = "rush"
 	v.add_child(Widgets.JuicyText.new(titles[reason], 88, colors[reason], 0.12))
 	v.add_child(Widgets.RewardRow.new(res.coin, res.star, 0.45))
 	var b1 := Widgets.JellyButton.new("Colony", Color("8ff0a4"), Color("37b65a"))
 	b1.pressed.connect(func(): finished.emit())
 	v.add_child(b1)
-	if reason != "complete" and not supply:
+	if reason != "complete" and reason != "rush" and not supply:
 		var b2 := Widgets.JellyButton.new("Try again", Color("c7a6f5"), Color("6b45b0"), 116.0, 46)
 		b2.pressed.connect(func(): start(site_index))
 		v.add_child(b2)

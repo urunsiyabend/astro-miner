@@ -244,11 +244,41 @@ func _finish_phase() -> void:
 			_next_step()
 
 
+## A treasure chest sits where a rock would: it bobs a little and glints now and then; a
+## match next to it (or a blast) bursts it open.
+func _draw_chest(i: int, r: Rect2) -> void:
+	var tex := Art.tex("res://assets/ui/treasure.png")
+	var c := r.get_center()
+	var ph := float(i) * 1.7
+	var bob := sin(_time * 2.4 + ph) * cell * 0.015
+	var glow := 0.5 + 0.5 * sin(_time * 3.0 + ph)
+	draw_circle(c + Vector2(0, cell * 0.04), cell * (0.4 + 0.03 * glow), Color(1.0, 0.82, 0.3, 0.16 + 0.1 * glow), true, -1.0, true)
+	var s := cell * 0.86
+	if tex != null:
+		_draw_lifted(tex, Rect2(c + Vector2(0, bob) - Vector2(s, s) * 0.5, Vector2(s, s)))
+	else:
+		_round_rect(Rect2(c - Vector2(s, s) * 0.35, Vector2(s, s) * 0.7), Pal.COIN, 10)
+	# a glint sweeping across every few seconds
+	var gt := fmod(_time + ph, 3.2)
+	if gt < 0.35:
+		var k := gt / 0.35
+		var p := c + Vector2(lerpf(-0.3, 0.3, k), lerpf(-0.18, 0.1, k)) * cell
+		var a := sin(k * PI)
+		var pts := PackedVector2Array()
+		for m in 8:
+			var ang := m * PI / 4.0
+			var rr := cell * 0.1 * a if m % 2 == 0 else cell * 0.025 * a
+			pts.append(p + Vector2(cos(ang), sin(ang)) * rr)
+		draw_colored_polygon(pts, Color(1, 1, 0.92, 0.9 * a))
+
+
 func _reveal_fx(cells: Array) -> void:
 	if cells.is_empty():
 		return
 	Sfx.play("reveal")
 	for c in cells:
+		if snap.buried[c] == Board.Buried.TREASURE:
+			fx.emit("treasure", {"pos": cell_global(c)})
 		_rise[c] = 0.0
 		_rings.append({"c": cell_center(c), "r0": cell * 0.2, "r1": cell * 0.9,
 				"t": 0.0, "dur": 0.4, "color": Pal.TEXT})
@@ -574,6 +604,9 @@ func _wall(o: Rect2, n: Rect2, ins: Array, base: Color) -> void:
 func _draw_rock(i: int) -> void:
 	var r := _rect(i, 0)
 	var hpv: int = snap.hp[i]
+	if snap.buried[i] == Board.Buried.TREASURE:
+		_draw_chest(i, r)
+		return
 	if _art:
 		var c0 := r.get_center()
 		var tex := Art.rock(snap.hp0[i] if snap.has("hp0") else hpv, hpv)

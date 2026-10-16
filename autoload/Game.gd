@@ -17,6 +17,7 @@ var totals := {}
 var dig_log := []  # most recent digs, local instrumentation only
 var reminders := []  # [building, level] pairs Mira still has to mention at the next dig
 var milestones_seen := 0  # star milestones the colony has already celebrated
+var treasure_dry := 0  # digs since a treasure chest last turned up (bad-luck protection)
 
 
 func _ready() -> void:
@@ -35,6 +36,7 @@ func reset() -> void:
 	dig_log = []
 	reminders = []
 	milestones_seen = 0
+	treasure_dry = 0
 	totals = {
 		"digs": 0, "clears": 0, "exhausted": 0, "recalled": 0, "moves": 0, "drills": 0,
 		"groups": 0, "cascades": 0, "chunks": 0, "pulses": 0, "upgrades": 0,
@@ -156,15 +158,18 @@ func take_reminders() -> Array:
 ## Bank a finished dig. reason: "complete" | "energy" | "recall".
 func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) -> Dictionary:
 	var haul := [board.haul[0], board.haul[1], board.haul[2], board.haul[3]]
-	var coin_gain := 0                 # Coin only for a clear (Economy: fixed + moves left)
+	var rush: bool = Sites.get_site(site_index).get("gold_rush", false)
+	var coin_gain: int = board.treasure_coin  # chests pay whatever happens next
 	var star_gain: int = haul[3]       # +1 Star per crystal recovered
 	var clear_coin := 0
 	var move_coin := 0
 	var first_clear := false
-	if reason == "complete":
-		clear_coin = Economy.clear_coin(site_index)
+	if rush and reason == "energy":
+		reason = "rush"                # a gold rush has no fail: the moves ran out, it's done
+	if reason == "complete" or reason == "rush":
+		clear_coin = 0 if rush else Economy.clear_coin(site_index)
 		move_coin = Economy.move_coin(board.energy)
-		coin_gain = clear_coin + move_coin
+		coin_gain += clear_coin + move_coin
 		if not cleared[site_index]:
 			first_clear = true
 			cleared[site_index] = true
@@ -196,7 +201,7 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 		dig_log.pop_front()
 	save()
 	return {"haul": haul, "coin": coin_gain, "star": star_gain, "clear_coin": clear_coin,
-			"move_coin": move_coin,
+			"move_coin": move_coin, "treasure_coin": board.treasure_coin,
 			"first_clear": first_clear, "reason": reason,
 			"next_unlocked": first_clear and site_index + 1 < Sites.count()}
 
@@ -205,7 +210,7 @@ func save() -> void:
 	var data := {
 		"version": SAVE_VERSION, "coin": coin, "star": star, "levels": levels, "unlocked": unlocked,
 		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
-		"dig_log": dig_log, "milestones_seen": milestones_seen,
+		"dig_log": dig_log, "milestones_seen": milestones_seen, "treasure_dry": treasure_dry,
 	}
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
@@ -247,6 +252,7 @@ func load_save() -> void:
 			unlocked = maxi(unlocked, mini(Sites.count(), i + 2))
 	sfx_on = bool(data.get("sfx_on", true))
 	tips_seen = data.get("tips_seen", {})
+	treasure_dry = int(data.get("treasure_dry", 0))
 	var t: Dictionary = data.get("totals", {})
 	for k in t:
 		totals[k] = int(t[k])
@@ -272,3 +278,11 @@ func _ints(a, n: int) -> Array:
 	for i in n:
 		out.append(int(a[i]) if a is Array and i < a.size() else 0)
 	return out
+
+
+## Does this dig hide a treasure chest? Rare, but every dig without one makes the next more
+## likely (bad-luck protection), and finding one resets it.
+func roll_treasure(rng: RandomNumberGenerator) -> bool:
+	var hit := rng.randf() < Economy.treasure_chance(treasure_dry)
+	treasure_dry = 0 if hit else treasure_dry + 1
+	return hit

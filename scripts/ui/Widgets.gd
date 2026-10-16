@@ -751,6 +751,11 @@ class BuildingIcon extends Control:
 
 static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) -> void:
 	match g.type:
+		"treasure":
+			var t := Art.tex("res://assets/ui/treasure.png")
+			if t != null:
+				ci.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 1.1, Vector2(s, s) * 2.2), false)
+				return
 		"ore":
 			draw_res_icon(ci, c, s * 0.8, g.ore)
 		"crystal":
@@ -849,6 +854,7 @@ static func goal_frame(g: Dictionary) -> Texture2D:
 		"ore": n = ["orange", "cyan", "yellow"][g.ore]
 		"crystal": n = "violet"
 		"rock": n = "grey"
+		"treasure": n = "yellow"
 	return Art.tex("res://assets/ui/slot_%s.png" % n)
 
 
@@ -1088,12 +1094,15 @@ class Banner extends Control:
 	var _t := 0.0
 	var _plate: Jelly
 	var _font: Font
-	const IN := 0.38
-	const HOLD := 1.0
-	const OUT := 0.3
+	const IN := 0.3
+	const OUT := 0.22
+	var hold := 0.45
+	var fs := 72
 
-	func _init(t: String, rim := Color("ffb36b"), face := Color("e2563f")) -> void:
+	func _init(t: String, rim := Color("ffb36b"), face := Color("e2563f"), hold_s := 0.45, font_px := 72) -> void:
 		text = t
+		hold = hold_s
+		fs = font_px
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_font = Widgets.game_font()
 		_plate = Jelly.new(rim, face.lightened(0.06), face.darkened(0.15))
@@ -1104,7 +1113,7 @@ class Banner extends Control:
 		add_child(_plate)
 
 	func show_at(y: float, w: float) -> void:
-		size = Vector2(w * 0.8, 150)
+		size = Vector2(w * 0.8, fs * 2.1)
 		position = Vector2(-size.x, y - size.y * 0.5)
 		_plate.setup(Rect2(Vector2.ZERO, size), 16.0, 60.0, 18.0)
 		pivot_offset = size * 0.5
@@ -1118,13 +1127,13 @@ class Banner extends Control:
 			var k := Widgets.back_out(_t / IN, 1.6)
 			position.x = lerpf(-size.x, mid, k)
 			rotation = -0.06 * (1.0 - k)
-		elif _t < IN + HOLD:
+		elif _t < IN + hold:
 			position.x = mid
 			rotation = 0.0
 			var h := _t - IN
 			scale = Vector2.ONE * (1.0 + 0.06 * sin(minf(h / 0.25, 1.0) * PI))
-		elif _t < IN + HOLD + OUT:
-			var k := (_t - IN - HOLD) / OUT
+		elif _t < IN + hold + OUT:
+			var k := (_t - IN - hold) / OUT
 			position.x = lerpf(mid, w + 20.0, k * k)
 			rotation = 0.05 * k
 		else:
@@ -1132,7 +1141,7 @@ class Banner extends Control:
 		queue_redraw()
 
 	func _draw() -> void:
-		Widgets.shadow_text(self, _font, size * 0.5, text, 72, Color.WHITE)
+		Widgets.shadow_text(self, _font, size * 0.5, text, fs, Color.WHITE)
 
 
 ## A coin and an amount, popping in after `delay` (the goal card's clear reward).
@@ -1162,4 +1171,31 @@ class CoinTag extends Control:
 		draw_set_transform(c, 0.0, Vector2(k, k))
 		Widgets.draw_currency_icon(self, Vector2(-42, 0), 34.0, false)
 		Widgets.shadow_text(self, _font, Vector2(34, 0), str(amount), 64, Color.WHITE.lerp(Pal.COIN, 0.55))
+		draw_set_transform(Vector2.ZERO)
+
+
+## A painted picture that pops in after `delay` (e.g. the gold rush emblem on its card).
+class Picture extends Control:
+	var tex: Texture2D
+	var delay := 0.0
+	var _t := 0.0
+
+	func _init(path: String, px: float, wait := 0.0) -> void:
+		tex = Art.tex(path)
+		delay = wait
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(px, px)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var k := Widgets.back_out((_t - delay) / 0.4)
+		if k <= 0.0 or tex == null:
+			return
+		var c := size * 0.5
+		var wob := sin(maxf(0.0, _t - delay - 0.4) * 2.2) * 0.03
+		draw_set_transform(c, wob, Vector2(k, k) * (1.0 + 0.03 * sin(_t * 3.0)))
+		draw_texture_rect(tex, Rect2(-size * 0.5, size), false)
 		draw_set_transform(Vector2.ZERO)

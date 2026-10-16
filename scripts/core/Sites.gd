@@ -134,6 +134,22 @@ const LIST := [
 		],
 	},
 	{
+		# gold rush: a bonus dig with no fail. Chests everywhere; open as many as the moves
+		# allow, every chest is Coin. Announced by its own card and banner (DigScreen).
+		"id": "rush1", "gold_rush": true, "energy": 14,
+		"goals": [{"type": "treasure", "n": 10}],
+		"rows": [
+			". . . . . . .",
+			". 1t . . . 1t .",
+			". . . 1t . . .",
+			"1t . . . . . 1t",
+			". . 1t @ 1t . .",
+			". . . . . . .",
+			". 1t . . . 1t .",
+			". . . 1t . . .",
+		],
+	},
+	{
 		"id": "ring", "energy": 26,
 		"goals": [{"type": "rock", "n": 5}, {"type": "ore", "ore": 0, "n": 14}],
 		"rows": [
@@ -354,6 +370,20 @@ const LIST := [
 			": o : : : o :",
 			"o : : : : : o",
 			"# : : : : : #",
+		],
+	},
+	{
+		"id": "rush2", "gold_rush": true, "energy": 16,
+		"goals": [{"type": "treasure", "n": 12}],
+		"rows": [
+			"1t . . 1t . . 1t",
+			". . . . . . .",
+			". 1t . . . 1t .",
+			". . 1t . 1t . .",
+			"1t . . @ . . 1t",
+			". . 1t . 1t . .",
+			". 1t . . . 1t .",
+			". . . 1t . . .",
 		],
 	},
 	{
@@ -609,6 +639,18 @@ static func goal_text(g: Dictionary) -> String:
 		"crystal": return "Recover %d crystal%s" % [g.n, "" if g.n == 1 else "s"]
 		"blast": return "Set off %d blast%s" % [g.n, "" if g.n == 1 else "s"]
 	return "?"
+
+
+## The number a dig is known by (gold rush bonus digs sit between digs and have none, so
+## inserting one does not renumber the campaign); 0 for a gold rush.
+static func dig_number(i: int) -> int:
+	if LIST[clampi(i, 0, LIST.size() - 1)].get("gold_rush", false):
+		return 0
+	var n := 0
+	for j in mini(i + 1, LIST.size()):
+		if not LIST[j].get("gold_rush", false):
+			n += 1
+	return n
 
 
 static func index_of(id: String) -> int:

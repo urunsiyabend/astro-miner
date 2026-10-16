@@ -40,6 +40,7 @@ func _run() -> void:
 		var site := int(OS.get_environment("ASTRO_SITE")) if OS.has_environment("ASTRO_SITE") else 0
 		main.colony.visible = false
 		main.dig.visible = true
+		main.dig.force_treasure = OS.has_environment("ASTRO_TREASURE")  # hide a chest in this dig
 		main.dig.start(site, false, 12345)
 		await get_tree().create_timer(0.4).timeout
 		# ASTRO_TALK=n: tap through the goal card and n of Mira's lines first (all if unset)

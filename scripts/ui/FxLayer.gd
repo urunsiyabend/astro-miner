@@ -29,6 +29,17 @@ func burst(at: Vector2, color: Color, n := 8, speed := 420.0) -> void:
 				"color": color, "t": 0.0, "dur": randf_range(0.3, 0.55), "size": randf_range(5, 11)})
 
 
+## Celebration: paper bits shot up from `at`, spinning and fluttering down.
+func confetti(at: Vector2, n := 60) -> void:
+	var cols := [Pal.COIN, Pal.GOOD, Pal.ACCENT, Color("ff6fb5"), Color("c88bff"), Color.WHITE]
+	for i in n:
+		var a := randf_range(-PI * 0.92, -PI * 0.08)
+		_parts.append({"kind": "conf", "p": at - global_position, "v": Vector2(cos(a), sin(a)) * randf_range(500, 1250),
+				"color": cols[i % cols.size()], "t": 0.0, "dur": randf_range(1.3, 1.9),
+				"size": Vector2(randf_range(22, 34), randf_range(12, 18)), "rot": randf() * TAU,
+				"spin": randf_range(-9, 9), "ph": randf() * TAU})
+
+
 func text(at: Vector2, s: String, color: Color, size := 48) -> void:
 	_texts.append({"p": at - global_position, "s": s, "color": color, "t": 0.0, "dur": 1.05, "size": size,
 			"tilt": randf_range(-0.12, 0.12)})
@@ -41,6 +52,12 @@ func _process(delta: float) -> void:
 			p.p += p.v * delta
 			p.v *= 0.9
 			p.v.y += 900.0 * delta
+		elif p.kind == "conf":
+			p.p += p.v * delta
+			p.v *= 0.965
+			p.v.y += 1100.0 * delta * 0.6
+			p.v.x += sin(p.t * 6.0 + p.ph) * 40.0
+			p.rot += p.spin * delta
 	var keep := []
 	for p in _parts:
 		if p.kind == "fly" and p.t >= p.dur:
@@ -78,6 +95,14 @@ func _draw() -> void:
 				continue
 			draw_circle(pos, 18.0 * (1.0 - 0.4 * k), p.color)
 			draw_circle(pos, 9.0 * (1.0 - 0.4 * k), p.color.lightened(0.5))
+		elif p.kind == "conf":
+			var col: Color = p.color
+			col.a = 1.0 - smoothstep(0.7, 1.0, k)
+			# the flip: the strip narrows as it turns over
+			var sz: Vector2 = p.size * Vector2(1.0, absf(cos(p.t * 7.0 + p.ph)) * 0.8 + 0.2)
+			draw_set_transform(p.p, p.rot)
+			draw_rect(Rect2(-sz * 0.5, sz), col)
+			draw_set_transform(Vector2.ZERO)
 		else:
 			var col: Color = p.color
 			col.a = 1.0 - k

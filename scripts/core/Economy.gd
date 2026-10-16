@@ -84,7 +84,18 @@ const COIN_PER_MOVE := 1
 
 
 static func clear_coin(site_index: int) -> int:
-	return CLEAR_COIN[clampi(site_index / 10, 0, CLEAR_COIN.size() - 1)]
+	var n := maxi(1, Sites.dig_number(site_index))
+	return CLEAR_COIN[clampi((n - 1) / 10, 0, CLEAR_COIN.size() - 1)]
+
+
+## Chance that a dig hides a treasure chest, after `dry` digs without one.
+const TREASURE_BASE := 0.12
+const TREASURE_STEP := 0.06
+const TREASURE_MAX := 0.5
+
+
+static func treasure_chance(dry: int) -> float:
+	return minf(TREASURE_MAX, TREASURE_BASE + TREASURE_STEP * maxi(0, dry))
 
 
 ## Coin for the moves left when a dig is cleared.
