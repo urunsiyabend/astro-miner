@@ -55,7 +55,7 @@ func _run() -> void:
 		for ch in OS.get_environment("ASTRO_MOVES"):
 			if map.has(ch):
 				main.dig._on_move(map[ch])
-				await get_tree().create_timer(0.7).timeout
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
 		if OS.has_environment("ASTRO_HAUL"):
 			main.dig._toggle_haul()
 		if OS.has_environment("ASTRO_HINT"):

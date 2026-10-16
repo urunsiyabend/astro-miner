@@ -13,7 +13,7 @@ var _font: Font
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_font = ThemeDB.fallback_font
+	_font = Widgets.game_font(700)
 
 
 func fly(from: Vector2, res, color: Color, delay := 0.0) -> void:
@@ -30,7 +30,8 @@ func burst(at: Vector2, color: Color, n := 8, speed := 420.0) -> void:
 
 
 func text(at: Vector2, s: String, color: Color, size := 48) -> void:
-	_texts.append({"p": at - global_position, "s": s, "color": color, "t": 0.0, "dur": 0.9, "size": size})
+	_texts.append({"p": at - global_position, "s": s, "color": color, "t": 0.0, "dur": 1.05, "size": size,
+			"tilt": randf_range(-0.12, 0.12)})
 
 
 func _process(delta: float) -> void:
@@ -79,10 +80,44 @@ func _draw() -> void:
 			col.a = 1.0 - k
 			draw_circle(p.p, p.size * (1.0 - k * 0.5), col)
 	for t in _texts:
-		var k: float = t.t / t.dur
-		var col: Color = t.color
-		col.a = 1.0 - k * k
-		var pos: Vector2 = t.p + Vector2(0, -90.0 * k)
-		var w := _font.get_string_size(t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, t.size).x
-		draw_string_outline(_font, pos - Vector2(w * 0.5, 0), t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, t.size, 10, Color(0, 0, 0, col.a * 0.8))
-		draw_string(_font, pos - Vector2(w * 0.5, 0), t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, t.size, col)
+		_draw_pop_text(t)
+
+
+## Juicy floating text: pops in with an overshoot and a squash, settles its tilt, drifts up
+## easing out, then shrinks and fades. Light fill, ore-dark outline, crisp drop shadow.
+func _draw_pop_text(t: Dictionary) -> void:
+	var tt: float = t.t
+	var k: float = tt / t.dur
+	# scale: back-out from 0 with a ~25% overshoot over the first 0.28 s, shrink in the last 25%
+	var sp := clampf(tt / 0.28, 0.0, 1.0) - 1.0
+	var c1 := 3.2
+	var sc := 1.0 + (c1 + 1.0) * sp * sp * sp + c1 * sp * sp
+	sc *= 1.0 - 0.35 * smoothstep(0.75, 1.0, k)
+	# squash and stretch on the pop: wide then tall
+	var sq := sin(clampf(tt / 0.32, 0.0, 1.0) * TAU) * 0.14 * (1.0 - clampf(tt / 0.32, 0.0, 1.0))
+	var scl := Vector2(sc * (1.0 + sq), sc * (1.0 - sq))
+	var rot: float = t.tilt * (1.0 - clampf(tt / 0.35, 0.0, 1.0))
+	var rise := 1.0 - pow(1.0 - clampf((tt - 0.12) / (t.dur - 0.12), 0.0, 1.0), 3.0)
+	var pos: Vector2 = t.p + Vector2(0, -26.0 - 84.0 * rise)
+	var a := 1.0 - smoothstep(0.7, 1.0, k)
+	if sc <= 0.01 or a <= 0.0:
+		return
+	var fs: int = t.size
+	var w := _font.get_string_size(t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var at := Vector2(-w * 0.5, fs * 0.36)
+	var base: Color = t.color
+	var fill := base.lightened(0.12)
+	var edge := base.darkened(0.62)
+	var ink := Color("12041f")
+	var ol := int(fs * 0.2)
+	var drop := Vector2(0, maxf(2.0, fs * 0.07))
+	draw_set_transform(pos, rot, scl)
+	draw_string_outline(_font, at + drop, t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol + 2, Color(ink, a * 0.85))
+	draw_string_outline(_font, at, t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol + 2, Color(ink, a))
+	draw_string_outline(_font, at, t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol - 2, Color(edge, a))
+	draw_string(_font, at, t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(fill, a))
+	# white flash right on the pop
+	var flash := 1.0 - clampf(tt / 0.16, 0.0, 1.0)
+	if flash > 0.0:
+		draw_string(_font, at, t.s, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, a * flash * 0.85))
+	draw_set_transform(Vector2.ZERO)
