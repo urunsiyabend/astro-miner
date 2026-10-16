@@ -42,6 +42,7 @@ var rng := RandomNumberGenerator.new()
 # --- rules (set from colony upgrades) ---------------------------------------
 var cfg := {
 	"capacity": 20,
+	"budget_bonus": 0,     # Power Station adds this to the dig's budget
 	"ore_types": 3,
 	# Energy is the dig's move budget (casual match-3 "moves"): every step costs 1 and a
 	# match gives nothing back, so a dig ends when the budget runs out. Only energy cells
@@ -84,9 +85,14 @@ static func inside(c: Vector2i) -> bool:
 ## token ("ore" rows) and set its move budget ("energy"; the battery grows to hold it).
 func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> void:
 	setup(site.rows, int(site.get("seed", seed_value)), rules, site.goals, site.get("ore", []))
-	if site.has("energy"):
-		energy = int(site.energy)
-		cfg.capacity = maxi(cfg.capacity, energy)
+	# Dig budget = the site's own budget (or a 20 base) plus the Power Station bonus. A dig
+	# starts with a full budget unless it pins a lower "start" (e.g. the battery lesson, which
+	# opens nearly flat so the energy cell matters).
+	var base := int(site.get("energy", 20))
+	cfg.capacity = base + int(cfg.get("budget_bonus", 0))
+	energy = cfg.capacity
+	if site.has("start"):
+		energy = clampi(int(site.start), 0, cfg.capacity)
 
 
 ## Out of energy but not done: carry on with `n` more energy (the "+5 energy?" offer).

@@ -44,34 +44,32 @@ Kullanıcı onayladı: enerji casual match-3'teki "moves" sayacı gibi çalışa
   - strata: rock 6
 
 **Yapılmadı (sıradaki adımlar):**
-1. **Dig bütçelerini `Sites.gd`'ye yaz.** Şu an `energy` anahtarı olmayan dig'ler
-   bataryayla (20 ya da 26) başlıyor, yani kampanya dengesiz. Önerilen bütçeler aşağıda.
-   Kural şuydu: bütçe = min(botun kazandığı oyunların hedef yüzdesi, 2 × medyan), en az 15,
-   en fazla 45.
+1. ~~**Dig bütçelerini `Sites.gd`'ye yaz.**~~ **YAPILDI (2026-10-15).** Tablodaki bütçeler
+   `Sites.gd`'de yazılı (merge PR #9 ile geldi, hepsi eşleşiyor). 45 hamleden uzun 4 dig'in
+   düzeni sadeleştirildi (çok katmanlı kaya/kristal → daha az katman + açık zemin + yedek
+   kristal/enerji hücresi):
 
-   | dig | bütçe | dig | bütçe | dig | bütçe |
-   |---|---|---|---|---|---|
-   | drag | 20 | nearby | 16 | stone | 45 |
-   | vein | 15 | checker | 32 | seam | 16 |
-   | landing | 22 | route | 39 | rubble | 28 |
-   | rocks | 32 | deep | 29 | strata | 39 |
-   | glint | 16 | shallows | 30 | pockets | 45 |
-   | ring | 26 | well | 30 | maze | 45 |
-   | rooms | 27 | garden | 40 | shale | 34 |
-   | zigzag | 35 | | | core | 45 |
-   | lode | 15 | | | openseam | 22 |
+   | dig | önce (medyan / planner) | sonra | değişiklik |
+   |---|---|---|---|
+   | stone | 54 / 43% | 12 / 100% | 2-katman stone'lar tek sıra yerine açık zemine dağıldı |
+   | pockets | 50 / 26% | 25 / 88% | 3-kat basalt → 4× 1-kat kristal (hedef 3) + 2 enerji hücresi |
+   | maze | 55 / 30% | 13 / 100% | 3-kat basalt inceltildi, kristaller 1-kat, 1 yedek + 1 hücre |
+   | core | 45 / 46% | 17 / 84% | 3-kat basalt kabuk → 2-kat stone + gömülü hücre |
 
-   Ardından `tools/levels.gd -- 30` ile ölç. Şu dig'ler bot için 45 hamleden uzun:
-   stone (medyan 54), pockets (50), maze (55), core (45).
-   Bunlar kaya/kristal dig'leri; hedefi küçültmek yetmez, düzeninin (kaya sayısı ya da katmanı)
-   sadeleşmesi gerekir. Casual hedef: dig başına 20–35 hamle, 2–3 dakika.
+   `level-plan.md` güncellendi, testler 144/144. **Not:** `well` (56%) ve `rocks` (60%) hâlâ
+   düşük (önceden de düşüktü, bu 4'lünün dışında); ileride ele alınabilir.
 2. **Near-miss ekranı.** Enerji bitip hedef tamamlanmadığında:
    "Enerji bitti, şu kadar kaldı" mesajı + "+5 enerji" butonu (şimdilik ücretsiz, dig başına
    1 kez) + "Vazgeç" butonu. Buton `board.continue_with(5)` çağırır. İleride burası reklamlı ya
    da ücretli olacak. Yeri: `DigScreen._show_result`, `reason == "energy"` olduğunda.
-3. **Hikâye metinleri.** `Story.gd` ve `Economy.gd` metinlerinde "match refunds energy" geçiyor.
-   Lab Lv3 efekti (+1 enerji/eşleşme) ve Power Station'ın anlamı (batarya artık bütçeyi
-   belirlemiyor) yeniden tasarlanmalı (bkz. bölüm 3).
+3. **Hikâye metinleri.** ~~"match refunds energy" geçiyor.~~ **KISMEN YAPILDI (2026-10-15).**
+   Yanlış iki tutorial satırı düzeltildi (`Sites.gd` longhaul + vaults, "Matches refill the
+   battery" → bataryaya/enerji hücresine dayanan metin). Lab Lv3 "+1 enerji/eşleşme" metinleri
+   (`Story.gd` 32/44, `Economy.gd` 26) mekanik olarak HÂLÂ doğru (`refund_bonus=1`), dokunulmadı.
+   **KALAN (GDD v3 / bölüm 3):** Power Station metinleri (`Story.gd` 19-21) bataryanın dig
+   uzunluğunu belirlediğini ima ediyor — artık `energy` anahtarlı dig'lerde bu yanlış (batarya
+   kapasitesi bütçeye göre zaten büyüyor); batarya yalnız longhaul ve supply run için anlamlı.
+   Power Station'ın yeni anlamı GDD v3'te tasarlanmalı.
 4. Bütçeler yazılınca `tools/econ_probe.gd` ve `tools/levels.gd` ile tekrar ölç.
    `docs/design/level-plan.md`'yi güncelle, testleri çalıştır.
 
@@ -90,15 +88,52 @@ Kullanıcı onayladı: enerji casual match-3'teki "moves" sayacı gibi çalışa
 - **Güçlendirmeler:** mevcut güçlendirmeler çok güçlü, oyuncuya çok hızlı verilmemeli.
 - **Rota planlama:** tahtaların şekli rota planlamayı anlamlı yapmalı; şu an seviyeler hep
   aynı şekilde.
-- **AÇIK KONU:** 3 cevher + kristal yerine 2 para birimi (cevher parası + yıldız).
-  Kullanıcı "emin değilim" dedi. Araştırma 2 birimi destekliyor (Homescapes da yıldız + altın
-  kullanıyor), ama karar verilmedi.
+- **KARAR (2026-10-15):** 2 para birimi — **Coin** (3 cevher türü tek Coin'e birleşir; renkler
+  tahtada kalır, puzzle için) + **Star** (kristal + görev/performans). Homescapes/Royal Match
+  modeli. 3 ayrı cevher bankası kaldırılacak.
+- **KARAR (2026-10-15):** Power Station artık **her dig bütçesine +N enerji** ekliyor
+  (önerilen +0/+3/+6/+10). Batarya kapasitesi zaten bütçeye göre büyüdüğünden eski "kapasite"
+  upgrade'i yalnız longhaul/supply'da işe yarıyordu.
 
 Benim önerdiğim sıra:
-1. Kazı: enerji = hamle + near-miss (yarım; bölüm 2).
-2. GDD v3'ü `docs/design/` altına yaz ve kullanıcıya onaylat.
+1. Kazı: enerji = hamle (YAPILDI, bölüm 2) + near-miss (ertelendi, kullanıcı isteği).
+2. ~~GDD v3'ü yaz ve onaylat.~~ **ONAYLANDI (2026-10-15):** `docs/design/gdd-v3.md`
+   (açık sorular doküman §9'da, inşaattan önce karara bağlanmalı).
 3. Koloniyi Sliding Seas gibi görsel büyüyen bir yapıya çevir.
+   - **FAZ 1+2 YAPILDI (2026-10-15): para birimi + Star-eşik unlock.**
+     - `Game.gd`: `bank[4]` → `coin`/`star`. Save v2→v3 + eski kaydı taşıma (coin=ore toplamı,
+       star=eski kristal + temizlenen dig sayısı).
+     - `Economy.gd`: upgrade maliyetleri tek Coin int; `completion_bonus`→Coin int;
+       `can_afford(coin,c)`; `cost()` -1 at max. Yeni: `STAR_MILESTONES=[4,8,14,20,26,30]`,
+       `STAR_UNLOCK=[8,20,30]` (power/workshop/lab), `POWER_BUDGET_BONUS=[0,3,6,10]`.
+     - `Board.gd`: `rules.capacity`→`rules.budget_bonus`; dig bütçesi = `site.energy`(veya 20)
+       + power bonus; opsiyonel `start` anahtarı (battery lesson düşük başlar).
+     - `Sites.gd`: longhaul `energy:23`, battery `energy:20,start:9`.
+     - `finish_dig`: coin += ore + enerji-fazlası; star += kristal + (ilk-temizleme? +1).
+     - Unlock: `building_unlocked = star≥STAR_UNLOCK[b]`. L1 hâlâ ücretsiz "build" tıklaması
+       (spotlight/pending_build UX korundu), L2/L3 Coin. Kampanya lineerliği eşiği needs-dig'den
+       önce GARANTİ dolduruyor (econ_probe ile doğrulandı).
+     - UI: ColonyScreen bank 2 `CurrencyChip` (Coin/Star), `CostRow` Coin, teaser "N★";
+       DigScreen sonuç paneli Coin+Star; `Widgets.draw_currency_icon` + `CurrencyChip`;
+       `Pal.COIN/STAR`. Story Power Station metinleri "+N enerji/dig".
+     - `econ_probe.gd`/`simulate.gd` coin/star'a taşındı. Testler 144/144. Ekran görüntüsüyle
+       koloni+dig doğrulandı.
+   - **KOLONİ ÇEKİRDEĞİ YAZILDI (2026-10-16), art bekliyor.** Upgrade listesi kalktı.
+     `scripts/core/Colony.gd`: harita plot'ları (normalize konum) + 6 milestone içeriği (3 bina,
+     3 süs: pad/greenhouse/antenna). `Game`: `milestones_seen` (kayıtlı), `new_milestones()`,
+     `ack_milestones()`, `next_milestone()`, `milestone_progress()`. `ColonyView`: üstten harita,
+     kubbe + yollar + plot'lar, her plot bir buton (`plot_tapped`); bina/süs çizimleri GEÇİCİ.
+     `ColonyScreen`: tek ekran (Coin/Star + `Widgets.MilestoneBar`, harita, Mira, DIG, debug satırı
+     Log/Sound/Reset). Binaya dokun → kart (Build/Upgrade). Spotlight artık plot'u gösteriyor.
+     Yeni milestone → harita kutlaması + süs için `Story.DECO` repliği. DevShot: `ASTRO_STAR`,
+     `ASTRO_LEVELS=p,w,l`, `ASTRO_FRESH`, `ASTRO_CARD=b`. Testler 168/168.
+     Mockup'lar (Layer, gemini): K1 059dd064…, K2 b58f1ad0…, K3 bfb96633… — kullanıcı henüz seçmedi.
+   - **FAZ 3 ESKİ NOT:** kozmetik milestone görselleri. Şu an ColonyView yalnız bina seviyelerine
+     bağlı ("Colony level N/9"). 3 kozmetik milestone (eşik 4/14/26) henüz görsel vermiyor;
+     `Game.milestones_reached()` hazır. ColonyView'i milestone'lara bağla, Mira kutlama replikleri
+     ekle, dig numarasını ("Dig N", "DIG · #N") UI'dan kaldır (debug-only).
 4. Gezegen yapısı: 2. gezegenin tileset'i, cevherleri ve mekaniği; ilerleme yüzdesiyle geçiş.
+   (Açık: Verdis mekaniği §9.3, gezegen % eşiği §9.4 — GDD v3'te hâlâ karar bekliyor.)
 5. Seviye üretim aracı: bot çözücüyle yarı otomatik seviye üretip zorluğunu ölçmek.
 
 ## 4. Araştırma özetleri
@@ -134,6 +169,23 @@ büyüyor, oyuncu bölümlerden ne getiriyor, ada başına kaç seviye var, sonr
 geçiliyor, ekonomi nasıl.
 
 ## 5. Görsel üretim (Layer AI)
+
+**ART v2 DURUMU (2026-10-16) — önce bunu oku.** Ayrıntı: `docs/art/art-direction-v2.md`.
+- Master referans: `docs/art/ref-v2/env-hero.png` ("B1"). Gem ailesi `ref-v2/gems-family.png`,
+  kaya `ref-v2/rock/base|crack|crumble.png`.
+- Oyuna kurulu: gem'ler (`assets/ore/`), kaya state'leri (`assets/rocks/`), 3 tonlu yastık hücre
+  (`assets/tiles/soil_a|soil_b|dent1|dent2|bare.png`; açık = kazılmamış, orta = 1, koyu = 2 kat).
+  Kaynak hücre sheet'i Layer file `b66f5ead-6abb-4262-9a88-43906e998b1c` (muse, hero hücre
+  kırpımları referans). Hücreler hero tonlarına color-match edildi, gölge alfadan üretildi.
+- Board çerçevesi kodla: `BoardView._draw_board_frame()` tahtanın gerçek şeklini (bedrock hariç)
+  izler; rim/parlama/koyu çizgi/dudak/gradyanlı zemin. Renkler `Pal.BOARD_*` (hero'dan pick).
+- Öğrenilenler: yeşil zemin SERT eşikle keylenince kenar tırtıklanır → yumuşak alfa + despill +
+  premultiplied küçültme kullan. Tile/ore/rock import'larında mipmap AÇIK; BoardView
+  `TEXTURE_FILTER_LINEAR_WITH_MIPMAPS`. Kullanıcı her adımı motor ekran görüntüsüyle görmek
+  istiyor (DevShot), Layer görsellerine değil motora güveniyor.
+- Kalan art işleri: robot (hâlâ kod), HUD/butonlar (9-slice çerçeve + font metin), arka plan
+  (B1 gibi gezegen), koloni (üstten bakışlı uzay kolonisi — yeni yön).
+- Bu oturumda ~38 CU harcandı, bakiye ~228.
 
 - Workspace `e8720ad0-ad91-44c4-aced-56252dafc5dc`, oturum `e4abc6ca-2bd0-4346-aa12-0527ac473244`.
   Ucuz model `muse-image`: 0,2 CU/görsel. 20 CU üstü işler kullanıcı onayı ister.

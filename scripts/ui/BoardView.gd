@@ -16,9 +16,9 @@ const PIT_STEP := 0.09      # wall width per dug layer, as a fraction of a cell
 const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 ## Painted blocks (Art): a square top face and a layered earth band below it. Rows sit
 ## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
-const GAP := 3.0            # px between neighbouring blocks
-const ROCK_SIZE := 1.25     # rock sprite canvas / tile width (the canvas has room for chips)
-const ORE_SIZE := 1.0       # ore sprite canvas / cell (the gem itself is ~70% of the cell)
+const GAP := 0.0            # px between neighbouring blocks (the cell art carries its own margin)
+const ROCK_SIZE := 1.0      # rock sprite canvas / cell (the rock body is ~80% of its canvas)
+const ORE_SIZE := 0.80      # ore sprite canvas / cell
 
 var snap: Dictionary = {}
 var scanner := false
@@ -49,6 +49,8 @@ var _touching := false
 var _swiped := false
 var _font: Font
 var _sb := StyleBoxFlat.new()
+var _ob := StyleBoxFlat.new()  # outlines (tile highlights)
+var _frame: Control  # the jelly board frame, drawn behind the board
 var _art := false  # painted blocks available (Art.has_tiles)
 var _band := 0.0   # full earth band height / tile width
 
@@ -56,11 +58,30 @@ var _band := 0.0   # full earth band height / tile width
 func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_sb.anti_aliasing = true
+	# painted cells/gems are drawn ~3x smaller than their source: sample the mipmaps so their
+	# edges don't shimmer (the textures import with mipmaps on)
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	_art = Art.has_tiles()
 	if _art:
 		var t := Art.tile("soil_a")
 		_band = float(t.get_height()) / t.get_width() - 1.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	if _art:
+		_frame = Control.new()
+		_frame.show_behind_parent = true
+		_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var m := ShaderMaterial.new()
+		m.shader = preload("res://scripts/ui/jelly_board.gdshader")
+		m.set_shader_parameter("rim_color", Pal.BOARD_RIM)
+		m.set_shader_parameter("outline_color", Pal.BOARD_LINE)
+		m.set_shader_parameter("earth_hi", Pal.BOARD_EARTH_HI)
+		m.set_shader_parameter("earth", Pal.BOARD_EARTH)
+		m.set_shader_parameter("gloss", 0.45)
+		m.set_shader_parameter("inner_shadow", 0.4)
+		m.set_shader_parameter("drop", 0.3)
+		_frame.material = m
+		_frame.draw.connect(func(): _frame.draw_rect(Rect2(Vector2.ZERO, _frame.size), Color.WHITE))
+		add_child(_frame)
 	resized.connect(_layout)
 	_layout()
 
@@ -70,6 +91,7 @@ func show_snap(s: Dictionary) -> void:
 	_queue.clear()
 	_cur = {}
 	snap_changed.emit(snap)
+	_update_frame()
 	queue_redraw()
 
 
@@ -94,10 +116,13 @@ func bump(dir: Vector2i) -> void:
 func _layout() -> void:
 	# with painted blocks the board is H rows of `pitch` plus the last row's full earth band
 	var rows_h := Board.H * (1.0 + Art.BAND_VISIBLE) + _band if _art else float(Board.H)
-	cell = floorf(minf(size.x / Board.W, size.y / rows_h))
+	# leave room around the board for its frame (rim + shadow, ~0.3 cell in all)
+	var frame := 0.3 if _art else 0.0
+	cell = floorf(minf(size.x / (Board.W + frame), size.y / (rows_h + frame)))
 	pitch = roundf(cell * (1.0 + Art.BAND_VISIBLE)) if _art else cell
 	var used := Vector2(cell * Board.W, pitch * Board.H + (cell * _band if _art else 0.0))
 	origin = ((size - used) * 0.5).floor()
+	_update_frame()
 	queue_redraw()
 
 
@@ -314,13 +339,7 @@ func _draw() -> void:
 		return
 	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
 	draw_set_transform(off)
-	if _art:
-		# soft shadow under the island, block by block
-		for i in Board.W * Board.H:
-			if snap.terrain[i] != T.BEDROCK:
-				var r := _rect(i, 0)
-				_round_rect(Rect2(r.position + Vector2(6, 14), Vector2(r.size.x, r.size.y * (1.0 + _band))), Color(0, 0, 0, 0.28), 18)
-	else:
+	if not _art:
 		draw_rect(Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20)), Pal.BEDROCK)
 	var moving_to := -1
 	var moving_from := -1
@@ -371,8 +390,7 @@ func _draw() -> void:
 		var fc: Vector2i = f
 		if not Board.inside(fc):
 			continue
-		var fr := _rect(Board.idx(fc), -2.0 - 4.0 * (0.5 + 0.5 * sin(_time * 6.0)))
-		draw_rect(fr, Color(Pal.WARN, 0.85), false, 7.0)
+		_tile_outline(Board.idx(fc), Color(Pal.WARN, 0.9), cell * 0.012 + cell * 0.018 * (0.5 + 0.5 * sin(_time * 6.0)))
 	for r in _rings:
 		var k: float = r.t / r.dur
 		var col: Color = r.color
@@ -495,7 +513,7 @@ func _draw_rock(i: int) -> void:
 		var tex := Art.rock(snap.hp0[i] if snap.has("hp0") else hpv, hpv)
 		if tex != null:
 			var s := (cell - GAP) * ROCK_SIZE
-			draw_texture_rect(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)), false)
+			_draw_lifted(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)))
 		_draw_layer_pill(c0 + Vector2(0, -cell * 0.02), cell * 0.42, hpv)
 		if scanner:
 			_draw_buried(c0, snap.buried[i])
@@ -563,11 +581,14 @@ func _draw_tile(i: int, r: Rect2) -> void:
 	draw_texture_rect(tex, Rect2(top.position, Vector2(w, w * (1.0 + _band))), false)
 	if t == T.GROUND and res > 0:
 		var n := mini(res, 5)
-		# vein pips sit on the block's front edge, clear of the ore on top
-		var pill := Rect2(Vector2(top.get_center().x - (n * 16 + 10) * 0.5, top.end.y - 9), Vector2(n * 16 + 10, 18))
-		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
+		# vein pips: a small row inside the cell's lower edge, under the ore
+		var step := cell * 0.085
+		var dot := cell * 0.028
+		var pill := Rect2(Vector2(top.get_center().x - (n * step + dot * 2.2) * 0.5, top.end.y - cell * 0.13),
+				Vector2(n * step + dot * 2.2, dot * 3.0))
+		_round_rect(pill, Color(0, 0, 0, 0.42), dot * 1.5)
 		for k in n:
-			draw_circle(Vector2(pill.position.x + 13 + k * 16, pill.get_center().y), 5.5, Pal.VEIN)
+			draw_circle(Vector2(pill.position.x + dot * 1.1 + step * 0.5 + k * step, pill.get_center().y), dot, Pal.VEIN, true, -1.0, true)
 
 
 func _draw_layer_pill(c: Vector2, rad: float, hpv: int) -> void:
@@ -617,7 +638,7 @@ func _draw_move_hints(moving_to: int) -> void:
 			var col := Color(1, 1, 1, 0.16)
 			if hinted:
 				col = Color(Pal.WARN, 0.55 + 0.4 * sin(_time * 8.0))
-				draw_rect(_rect(ni, 4), col, false, 6.0)
+				_tile_outline(ni, col, 0.0)
 			_chevron(cell_center(snap.robot) + Vector2(d) * Vector2(cell, pitch) * 0.5, Vector2(d), col)
 		elif tt == T.ROCK and drill:
 			var c := cell_center(ni) - Vector2(d) * cell * 0.36
@@ -638,7 +659,7 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> voi
 	var art := Art.ore(kind) if tk == K.ORE and _art else null
 	if art != null:
 		var size := cell * ORE_SIZE * sc
-		draw_texture_rect(art, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)), false)
+		_draw_lifted(art, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
 		if flash > 0.0:
 			draw_circle(c, s * 1.3, Color(1, 1, 1, 0.55 * flash))
 		return
@@ -723,6 +744,191 @@ func _draw_robot(c: Vector2, scale := 1.0) -> void:
 	var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1, fs).x
 	draw_string(_font, c + Vector2(-w * 0.5, s * 0.72), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs,
 			Pal.BAD if low else Color("1b2638"))
+
+
+## A highlight that wraps a cell's tile exactly: a rounded frame on the tile's own outline
+## (the cell art is ~97.5% of the cell, corner radius ~20%), with a soft glow outside it.
+## `grow` pushes the frame outward (used for the pulsing focus frame).
+func _tile_outline(i: int, col: Color, grow: float) -> void:
+	# StyleBoxFlat draws its border inside the rect: grow by the width so the frame's inner
+	# edge sits on the tile's edge and the frame wraps the tile from outside
+	var w := maxf(3.0, cell * 0.045)
+	var r := _rect(i, 0).grow(-cell * 0.0125 + grow + w)
+	var rad := cell * 0.2 + grow + w
+	_ob.draw_center = false
+	_ob.anti_aliasing = true
+	_ob.set_corner_radius_all(int(rad + w))
+	_ob.border_color = Color(col, col.a * 0.35)
+	_ob.set_border_width_all(int(w * 2.0))
+	draw_style_box(_ob, r.grow(w))
+	_ob.set_corner_radius_all(int(rad))
+	_ob.border_color = col
+	_ob.set_border_width_all(int(w))
+	draw_style_box(_ob, r)
+
+
+## A sprite lifted off the board: its own silhouette as a soft dark shadow just below it.
+func _draw_lifted(tex: Texture2D, r: Rect2) -> void:
+	var lift := r.size.y * 0.035
+	for k in 3:
+		var spread := r.size.x * 0.005 * k
+		draw_texture_rect(tex, Rect2(r.position + Vector2(-spread, lift - spread * 0.5), r.size + Vector2(spread, spread) * 2.0), false, Color(0.12, 0.04, 0.02, 0.16))
+	draw_texture_rect(tex, r, false)
+
+
+## The board frame hugs the playfield's real shape (every cell but bedrock), like the hero,
+## with the same jelly look as the HUD (jelly_board.gdshader): a child node drawn behind the
+## board. The shape is computed as ONE outline: the boundary of the union of the cells is traced
+## into closed loops, pushed outward by the frame width, and every corner is replaced by an arc
+## (convex corners rounded outward, concave corners with an inner "C" fillet). The loops go to
+## the shader as line segments, which takes the exact signed distance to them.
+## Proportions (one cell = 1): rim 0.08, dark line ~0.022, lip 0.03, corner radius 0.22.
+func _update_frame() -> void:
+	if _frame == null or snap.is_empty() or cell < 16.0:
+		return
+	# the frame node overhangs the view a little so the rim and shadow are never clipped
+	var over := cell * 0.5
+	_frame.position = -Vector2(over, over)
+	_frame.size = size + Vector2(over, over) * 2.0
+	var lip := cell * 0.03
+	var line := maxf(2.5, cell * 0.022)
+	var rim := cell * 0.08
+	var g := lip + line + rim
+	var convex_r := cell * 0.22 + g
+	var concave_r := cell * 0.22
+	var to_px := func(v: Vector2) -> Vector2:
+		return origin + Vector2(v.x * cell, v.y * pitch) + Vector2(over, over)
+	var segs := PackedVector4Array()
+	for loop in _outline_loops():
+		var pts := _rounded_offset(loop, to_px, g, convex_r, concave_r)
+		for k in pts.size():
+			var a2: Vector2 = pts[k]
+			var b2: Vector2 = pts[(k + 1) % pts.size()]
+			segs.append(Vector4(a2.x, a2.y, b2.x, b2.y))
+	if segs.size() > 256:
+		push_warning("board outline has %d segments, the shader takes 256" % segs.size())
+		segs.resize(256)
+	var area := Rect2(origin, Vector2(cell * Board.W, pitch * Board.H))
+	var m := _frame.material as ShaderMaterial
+	m.set_shader_parameter("size", _frame.size)
+	m.set_shader_parameter("seg_count", segs.size())
+	m.set_shader_parameter("segs", segs)
+	m.set_shader_parameter("rim", rim)
+	m.set_shader_parameter("outline", line)
+	m.set_shader_parameter("drop_offset", Vector2(0, rim * 0.6))
+	m.set_shader_parameter("light_center", area.get_center() + Vector2(0, -area.size.y * 0.18) + Vector2(over, over))
+	m.set_shader_parameter("light_reach", area.size.length() * 0.55)
+	_frame.queue_redraw()
+
+
+## Closed boundary loops of the union of the playfield cells, in grid units, as corner vertices
+## (collinear points dropped). Edges run clockwise on screen (y down), so the board is always on
+## their right. Where two cells touch only at a corner, the walk turns right, keeping them apart.
+func _outline_loops() -> Array:
+	var out_edges := {}   # start vertex -> Array of end vertices
+	for i in Board.W * Board.H:
+		if snap.terrain[i] == T.BEDROCK:
+			continue
+		var p := Board.pos(i)
+		var tl := Vector2i(p.x, p.y)
+		var tr := Vector2i(p.x + 1, p.y)
+		var br := Vector2i(p.x + 1, p.y + 1)
+		var bl := Vector2i(p.x, p.y + 1)
+		var sides := [[Vector2i(0, -1), tl, tr], [Vector2i(1, 0), tr, br], [Vector2i(0, 1), br, bl], [Vector2i(-1, 0), bl, tl]]
+		for sd in sides:
+			if not _in_board(p + sd[0]):
+				if not out_edges.has(sd[1]):
+					out_edges[sd[1]] = []
+				out_edges[sd[1]].append(sd[2])
+	var loops := []
+	while not out_edges.is_empty():
+		var start: Vector2i = out_edges.keys()[0]
+		var verts: Array[Vector2i] = [start]
+		var prev_dir := Vector2i.ZERO
+		var cur := start
+		while true:
+			var ends: Array = out_edges[cur]
+			var pick := 0
+			if ends.size() > 1 and prev_dir != Vector2i.ZERO:
+				# prefer turning right (clockwise), then straight, then left
+				var best := -9
+				for k in ends.size():
+					var dd: Vector2i = ends[k] - cur
+					var turn := prev_dir.x * dd.y - prev_dir.y * dd.x
+					var score := 2 if turn > 0 else (1 if turn == 0 else 0)
+					if score > best:
+						best = score
+						pick = k
+			var nxt: Vector2i = ends[pick]
+			ends.remove_at(pick)
+			if ends.is_empty():
+				out_edges.erase(cur)
+			prev_dir = nxt - cur
+			cur = nxt
+			if cur == start:
+				break
+			verts.append(cur)
+		# drop collinear vertices
+		var corners := []
+		var n := verts.size()
+		for k in n:
+			var a: Vector2i = verts[(k - 1 + n) % n]
+			var b: Vector2i = verts[k]
+			var c: Vector2i = verts[(k + 1) % n]
+			var d1 := b - a
+			var d2 := c - b
+			if d1.x * d2.y - d1.y * d2.x != 0:
+				corners.append(Vector2(b))
+		if corners.size() >= 3:
+			loops.append(corners)
+	return loops
+
+
+## One loop pushed outward by `g` pixels with every corner replaced by an arc, as a polyline in
+## pixels. Convex corners (right turns on a clockwise loop) get radius `rc`, concave ones `rf`.
+func _rounded_offset(loop: Array, to_px: Callable, g: float, rc: float, rf: float) -> PackedVector2Array:
+	var n := loop.size()
+	var pv := []   # corner points in pixels, already offset
+	var dirs := []  # unit direction of the edge leaving each corner
+	for k in n:
+		var a: Vector2 = to_px.call(loop[(k - 1 + n) % n])
+		var b: Vector2 = to_px.call(loop[k])
+		var c: Vector2 = to_px.call(loop[(k + 1) % n])
+		var d1 := (b - a).normalized()
+		var d2 := (c - b).normalized()
+		var o1 := Vector2(d1.y, -d1.x)   # outward normal (board is on the right)
+		var o2 := Vector2(d2.y, -d2.x)
+		pv.append(b + (o1 + o2) * g)
+		dirs.append(d2)
+	var out := PackedVector2Array()
+	for k in n:
+		var v: Vector2 = pv[k]
+		var vp: Vector2 = pv[(k - 1 + n) % n]
+		var vn: Vector2 = pv[(k + 1) % n]
+		var d1: Vector2 = dirs[(k - 1 + n) % n]
+		var d2: Vector2 = dirs[k]
+		var convex := d1.x * d2.y - d1.y * d2.x > 0.0
+		var r := rc if convex else rf
+		r = minf(r, minf(v.distance_to(vp), v.distance_to(vn)) * 0.5)
+		var t1 := v - d1 * r
+		var t2 := v + d2 * r
+		# arc centre: inward of the first edge for a convex corner, outward for a concave one
+		var nrm := Vector2(-d1.y, d1.x) if convex else Vector2(d1.y, -d1.x)
+		var ctr := t1 + nrm * r
+		var a1 := (t1 - ctr).angle()
+		var a2 := (t2 - ctr).angle()
+		var da := wrapf(a2 - a1, -PI, PI)
+		var steps := 8
+		for s2 in steps + 1:
+			var a := a1 + da * float(s2) / steps
+			out.append(ctr + Vector2(cos(a), sin(a)) * r)
+	return out
+
+
+func _in_board(p: Vector2i) -> bool:
+	if p.x < 0 or p.y < 0 or p.x >= Board.W or p.y >= Board.H:
+		return false
+	return snap.terrain[Board.idx(p)] != T.BEDROCK
 
 
 func _round_rect(r: Rect2, col: Color, radius: float) -> void:

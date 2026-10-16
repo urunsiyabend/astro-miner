@@ -38,6 +38,7 @@ func _initialize() -> void:
 	_test_economy_rules()
 	_test_save_roundtrip()
 	_test_campaign_flow()
+	_test_colony_map()
 	_test_scripts_compile()
 	_test_bot_smoke()
 	print("== %d passed, %d failed ==" % [_pass, _fail])
@@ -189,9 +190,10 @@ func _test_energy() -> void:
 	b = Board.new()
 	b.setup_site(site, 1)
 	_ok(b.energy == 30 and b.cfg.capacity == 30, "a dig's energy is its move budget; the battery grows to hold it")
-	var rules := Economy.rules([2, 0, 0])
-	b = _board(OPEN, EMPTY, rules)
-	_ok(b.cfg.capacity == 32 and b.energy == 32, "Power Station Lv2 starts the dig with 32 energy")
+	var site2 := {"rows": OPEN, "goals": [{"type": "chunks", "n": 99}], "energy": 26}
+	b = Board.new()
+	b.setup_site(site2, 1, Economy.rules([2, 0, 0]))
+	_ok(b.cfg.capacity == 32 and b.energy == 32, "Power Station Lv2 adds +6 to the dig budget (26+6)")
 
 
 func _test_rock_crack_reveal_pickup() -> void:
@@ -266,7 +268,7 @@ func _test_goals_end_dig() -> void:
 	b.goals = [{"type": "crystal", "n": 1}]
 	b.try_move(Vector2i(0, 1))
 	_ok(not b.complete and not b.over, "unmet goals keep the dig running")
-	_ok(Economy.completion_bonus(9) == [2, 1, 1, 0], "leftover energy converts to bonus ore (1 per 2)")
+	_ok(Economy.completion_bonus(9) == 4, "leftover energy converts to bonus Coin (1 per 2)")
 
 
 func _test_determinism() -> void:
@@ -336,13 +338,13 @@ func _ore_count(b: Board) -> int:
 
 func _test_economy_rules() -> void:
 	var r0 := Economy.rules([0, 0, 0])
-	_ok(r0.capacity == 20 and not r0.drill and not r0.scanner and r0.reveal_reserve == 2, "base rules")
+	_ok(r0.budget_bonus == 0 and not r0.drill and not r0.scanner and r0.reveal_reserve == 2, "base rules")
 	var r3 := Economy.rules([3, 3, 3])
-	_ok(r3.capacity == 40 and r3.drill and r3.drill_cost == 1 and r3.drill_power == 2 and r3.scanner
+	_ok(r3.budget_bonus == 10 and r3.drill and r3.drill_cost == 1 and r3.drill_power == 2 and r3.scanner
 			and r3.reveal_reserve == 3 and r3.refund_bonus == 1 and r3.crack_power == 2, "max rules")
-	_ok(Economy.cost(0, 3).is_empty(), "no cost past max level")
-	_ok(Economy.can_afford([0, 0, 0, 0], Economy.cost(0, 0)), "the first level of a building is free")
-	_ok(not Economy.can_afford([0, 0, 0, 0], Economy.cost(0, 1)), "upgrades cannot be afforded with an empty bank")
+	_ok(Economy.cost(0, 3) == -1, "no cost past max level")
+	_ok(Economy.can_afford(0, Economy.cost(0, 0)), "the first level of a building is free")
+	_ok(not Economy.can_afford(0, Economy.cost(0, 1)), "upgrades cannot be afforded with no Coin")
 	for b in Economy.BUILDINGS.size():
 		_ok(Economy.BUILDINGS[b].effects.size() == Economy.MAX_LEVEL + 1, "effects text per level")
 
@@ -351,27 +353,27 @@ func _test_save_roundtrip() -> void:
 	var game = load("res://autoload/Game.gd").new()
 	game.save_path = "user://test_save.json"
 	game.reset()
-	game.cleared[Sites.index_of("lode")] = true  # the chapter 1 finale unlocks the Power Station
-	game.bank = [50, 40, 30, 1]
-	_ok(game.buy(0), "Power Station Lv1 is free once unlocked")
-	_ok(game.levels[0] == 1 and game.bank == [50, 40, 30, 1], "the free level costs nothing")
-	_ok(not game.buy(0), "Lv2 needs crystals the bank lacks")
-	game.bank = [50, 40, 30, 3]
-	_ok(game.buy(0) and game.bank[0] == 5 and game.bank[3] == 1, "Lv2 deducts its cost")
+	game.star = 16  # reaching 16 stars unlocks the Power Station (Economy.STAR_UNLOCK[0])
+	game.coin = 100
+	_ok(game.buy(0), "Power Station Lv1 is free once star-unlocked")
+	_ok(game.levels[0] == 1 and game.coin == 100, "the free level costs no Coin")
+	_ok(game.buy(0) and game.coin == 25, "Lv2 deducts its 75 Coin")
+	_ok(not game.buy(0), "Lv3 (135 Coin) cannot be afforded with 25")
 	var site := Sites.get_site(0)
 	var b := Board.new()
 	b.record = false
 	b.setup(site.rows, 9, game.rules(), site.goals)
-	b.haul = PackedInt32Array([5, 6, 7, 1])
+	b.haul = PackedInt32Array([5, 6, 7, 1])  # 18 ore -> Coin, 1 crystal -> Star
+	b.energy = 0
 	var res: Dictionary = game.finish_dig(0, b, "energy")
-	_ok(game.bank[0] == 10 and game.bank[3] == 2 and not res.first_clear, "failed dig still banks the haul")
+	_ok(game.coin == 43 and game.star == 17 and not res.first_clear, "failed dig still banks Coin + Star")
 	b.complete = true
 	res = game.finish_dig(0, b, "complete")
-	_ok(res.first_clear and game.unlocked == 2 and game.cleared[0], "first clear unlocks the next site")
+	_ok(res.first_clear and res.star == 2 and game.unlocked == 2 and game.cleared[0], "first clear banks crystal + first-clear Star and opens the next site")
 	var other = load("res://autoload/Game.gd").new()
 	other.save_path = "user://test_save.json"
 	other.load_save()
-	_ok(other.bank == game.bank and other.levels == game.levels and other.cleared == game.cleared, "save/load round trip")
+	_ok(other.coin == game.coin and other.star == game.star and other.levels == game.levels and other.cleared == game.cleared, "save/load round trip")
 	_ok(other.totals.digs == 2, "totals persisted")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_save.json"))
 	game.free()
@@ -473,8 +475,10 @@ func _test_campaign_flow() -> void:
 	_ok(not game.can_start(core), "the basalt-shell dig waits for the Mining Workshop")
 	for b in 3:
 		_ok(not game.building_unlocked(b) and not game.buy(b), "building %d starts locked" % b)
-	game.cleared[Sites.index_of("garden")] = true
-	_ok(game.building_unlocked(1) and game.pending_build() == 1, "clearing the chapter 2 finale unlocks the Workshop, which is now due")
+	game.star = Economy.STAR_UNLOCK[1]  # reaching the Workshop's star milestone unlocks it (and the Power Station)
+	game.buy(0)  # the Power Station unlocked earlier; build it so the Workshop is the one now due
+	game.reminders.clear()  # drop the Power Station reminder; the Workshop's is tested below
+	_ok(game.building_unlocked(1) and game.pending_build() == 1, "reaching its star milestone unlocks the Workshop, which is now due")
 	var drill := Sites.index_of("vaults")
 	_ok(drill == Sites.index_of("garden") + 1 and not game.can_start(drill), "the drill level comes next and waits for the build")
 	_ok(game.buy(1), "build the Mining Workshop")
@@ -498,6 +502,44 @@ func _test_campaign_flow() -> void:
 	_ok(talking * 3 <= Sites.count(), "Mira talks in at most a third of the digs (%d of %d)" % [talking, Sites.count()])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_campaign.json"))
 	game.free()
+
+
+func _test_colony_map() -> void:
+	_ok(Colony.MILESTONES.size() == Economy.STAR_MILESTONES.size(), "one colony entry per star milestone")
+	for b in Economy.BUILDINGS.size():
+		var i := Colony.building_plot(b)
+		_ok(i >= 0, "building %d has a plot on the map" % b)
+		_ok(Colony.plot_stars(i) == Economy.STAR_UNLOCK[b], "building %d's plot opens at its unlock star" % b)
+	var seen := {}
+	# Story refers to the Game autoload, so load it at run time (not as a parse-time dependency)
+	var story = load("res://scripts/core/Story.gd")
+	for i in Colony.PLOTS.size():
+		var m := Colony.plot_milestone(i)
+		_ok(m >= 0 and not seen.has(m), "plot %s belongs to exactly one milestone" % Colony.PLOTS[i].id)
+		seen[m] = true
+		var c: Dictionary = Colony.MILESTONES[m]
+		if c.has("deco"):
+			_ok(story.DECO.has(c.deco), "Mira has a line for the %s" % c.deco)
+	var game = load("res://autoload/Game.gd").new()
+	game.save_path = "user://test_colony.json"
+	game.reset()
+	_ok(game.new_milestones().is_empty() and game.next_milestone() == [0, Economy.STAR_MILESTONES[0]], "a new colony has nothing to celebrate yet")
+	game.star = Economy.STAR_MILESTONES[1]
+	_ok(game.new_milestones() == [0, 1], "reaching two milestones reports both, oldest first")
+	_ok(is_equal_approx(game.milestone_progress(), 0.0), "progress restarts after a milestone")
+	game.ack_milestones()
+	_ok(game.new_milestones().is_empty(), "a milestone is celebrated once")
+	game.star = Economy.STAR_MILESTONES[2]
+	_ok(game.new_milestones() == [2], "the next milestone comes on its own")
+	var other = load("res://autoload/Game.gd").new()
+	other.save_path = "user://test_colony.json"
+	other.load_save()
+	_ok(other.milestones_seen == 2, "the celebrated count survives a save")
+	game.star = 999
+	_ok(game.next_milestone().is_empty() and is_equal_approx(game.milestone_progress(), 1.0), "a finished colony has no next milestone")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_colony.json"))
+	game.free()
+	other.free()
 
 
 ## The UI is not exercised headless, so at least make sure every script compiles.

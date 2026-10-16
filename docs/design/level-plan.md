@@ -90,14 +90,14 @@ check, not a target. "Hand" = fixed layout with a recorded solution.
 | # | id | Idea | Goal | Bot |
 |---|---|---|---|---|
 | 21 | vaults | **Workshop level.** Crystals sealed in basalt vaults: drill in through the doorways. | 2 crystals | hand |
-| 22 | stone | Stone has 2 layers: crack twice, drill or blast. | break 4 | 90% |
+| 22 | stone | Four 2-layer stones scattered across open ground: crack twice, drill or blast. | break 4 | 100% |
 | 23 | seam | Bands of deep, plain and shallow ground. | 32 ore | 100% |
 | 24 | rubble | Soft rubble field full of energy cells. | break 17 | 96% |
 | 25 | strata | Stone ring pattern around deep veins. Energy 17. | break 11 | 83% |
-| 26 | pockets | Basalt pockets with crystals: drill or charge. Energy 20. | 3 crystals | 86% |
-| 27 | maze | Rock maze, two crystals in stone. | 2 crystals | 76% |
+| 26 | pockets | Scattered crystal pockets with energy cells; one spare crystal. | 3 crystals | 88% |
+| 27 | maze | Thinned rock maze, crystals in open corners, a cell and a spare. | 2 crystals | 100% |
 | 28 | shale | Shallow ground, stone bands, cells under rock. | 12 Cryo + 1 crystal | 76% |
-| 29 | core | Crystals inside a basalt shell. Needs the drill. Was 3 crystals at 10 %. | 2 crystals | 76% |
+| 29 | core | Crystals in a 2-layer stone shell with a buried cell; power-station battery. Was 3 crystals in basalt at 10 %. | 2 crystals | 84% |
 | 30 | openseam | Open seam ringed by rock. **Unlocks the Research Lab.** | 30 ore | 100% |
 | 31 | readings | **Lab level.** Ten rocks, two crystals, small battery: use the scanner. Energy 14. | 2 crystals | hand |
 

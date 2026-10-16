@@ -2,11 +2,12 @@ extends Node
 
 ## Persistent colony state + local play metrics. Saved as JSON after every dig/purchase.
 
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 const LOG_MAX := 60
 
 var save_path := "user://save.json"
-var bank := [0, 0, 0, 0]
+var coin := 0            # soft currency: every ore chunk merges into Coin; the only spent one
+var star := 0            # scarce progress counter, NEVER spent: +1 per crystal, +1 per first-clear
 var levels := [0, 0, 0]
 var unlocked := 1
 var cleared := []
@@ -15,6 +16,7 @@ var tips_seen := {}
 var totals := {}
 var dig_log := []  # most recent digs, local instrumentation only
 var reminders := []  # [building, level] pairs Mira still has to mention at the next dig
+var milestones_seen := 0  # star milestones the colony has already celebrated
 
 
 func _ready() -> void:
@@ -22,7 +24,8 @@ func _ready() -> void:
 
 
 func reset() -> void:
-	bank = [0, 0, 0, 0]
+	coin = 0
+	star = 0
 	levels = [0, 0, 0]
 	unlocked = 1
 	cleared = []
@@ -31,6 +34,7 @@ func reset() -> void:
 	tips_seen = {}
 	dig_log = []
 	reminders = []
+	milestones_seen = 0
 	totals = {
 		"digs": 0, "clears": 0, "exhausted": 0, "recalled": 0, "moves": 0, "drills": 0,
 		"groups": 0, "cascades": 0, "chunks": 0, "pulses": 0, "upgrades": 0,
@@ -42,20 +46,52 @@ func rules() -> Dictionary:
 	return Economy.rules(levels)
 
 
-## A building is unlocked once the dig that brings it (Sites "unlock") is cleared.
+## A building is unlocked once the colony reaches its star milestone (GDD v3 §4).
 func building_unlocked(b: int) -> bool:
-	for i in Sites.count():
-		if cleared[i] and Sites.get_site(i).get("unlock", -1) == b:
-			return true
-	return false
+	return star >= Economy.STAR_UNLOCK[b]
 
 
-## The next building the campaign will unlock and the dig that does it: [building, dig], or [].
+## How many colony milestones the current star count has reached (drives colony growth).
+func milestones_reached() -> int:
+	var n := 0
+	for m in Economy.STAR_MILESTONES:
+		if star >= m:
+			n += 1
+	return n
+
+
+## Milestones reached since the colony last celebrated, oldest first (indices into
+## Economy.STAR_MILESTONES / Colony.MILESTONES).
+func new_milestones() -> Array:
+	return range(milestones_seen, milestones_reached())
+
+
+func ack_milestones() -> void:
+	milestones_seen = maxi(milestones_seen, milestones_reached())
+	save()
+
+
+## The next star milestone: [index, stars needed], or [] when all are reached.
+func next_milestone() -> Array:
+	var n := milestones_reached()
+	return [n, Economy.STAR_MILESTONES[n]] if n < Economy.STAR_MILESTONES.size() else []
+
+
+## Progress from the last milestone reached to the next one, 0..1 (1 when all are reached).
+func milestone_progress() -> float:
+	var n := milestones_reached()
+	if n >= Economy.STAR_MILESTONES.size():
+		return 1.0
+	var lo: int = Economy.STAR_MILESTONES[n - 1] if n > 0 else 0
+	var hi: int = Economy.STAR_MILESTONES[n]
+	return clampf(float(star - lo) / float(hi - lo), 0.0, 1.0)
+
+
+## The next building the colony will unlock and the star it needs: [building, star], or [].
 func next_unlock() -> Array:
-	for i in Sites.count():
-		var u: int = Sites.get_site(i).get("unlock", -1)
-		if u >= 0 and not cleared[i]:
-			return [u, i]
+	for b in Economy.BUILDINGS.size():
+		if not building_unlocked(b):
+			return [b, Economy.STAR_UNLOCK[b]]
 	return []
 
 
@@ -71,11 +107,10 @@ func buy(building: int) -> bool:
 	if not building_unlocked(building):
 		return false
 	var lv: int = levels[building]
-	var c := Economy.cost(building, lv)
-	if not Economy.can_afford(bank, c):
+	var c := Economy.cost(building, lv)  # Coin; level 0 -> 1 is free (0)
+	if not Economy.can_afford(coin, c):
 		return false
-	for i in 4:
-		bank[i] -= c[i]
+	coin -= c
 	levels[building] = lv + 1
 	reminders.append([building, lv + 1])
 	totals.upgrades += 1
@@ -121,22 +156,25 @@ func take_reminders() -> Array:
 ## Bank a finished dig. reason: "complete" | "energy" | "recall".
 func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) -> Dictionary:
 	var haul := [board.haul[0], board.haul[1], board.haul[2], board.haul[3]]
-	var bonus := [0, 0, 0, 0]
+	var coin_gain: int = haul[0] + haul[1] + haul[2]   # every ore type merges into Coin
+	var star_gain: int = haul[3]                        # +1 Star per crystal recovered
+	var bonus_coin := 0
 	var first_clear := false
 	if reason == "complete":
-		bonus = Economy.completion_bonus(board.energy)
+		bonus_coin = Economy.completion_bonus(board.energy)  # energy left -> Coin
+		coin_gain += bonus_coin
 		if not cleared[site_index]:
 			first_clear = true
 			cleared[site_index] = true
-			bonus[3] += Economy.FIRST_CLEAR_CRYSTALS
+			star_gain += Economy.FIRST_CLEAR_STARS           # +1 Star per dig first-clear
 			unlocked = maxi(unlocked, mini(Sites.count(), site_index + 2))
 		totals.clears += 1
 	elif reason == "energy":
 		totals.exhausted += 1
 	else:
 		totals.recalled += 1
-	for i in 4:
-		bank[i] += haul[i] + bonus[i]
+	coin += coin_gain
+	star += star_gain
 	totals.digs += 1
 	totals.moves += board.stats.moves
 	totals.drills += board.stats.drills
@@ -155,15 +193,16 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 	while dig_log.size() > LOG_MAX:
 		dig_log.pop_front()
 	save()
-	return {"haul": haul, "bonus": bonus, "first_clear": first_clear, "reason": reason,
+	return {"haul": haul, "coin": coin_gain, "star": star_gain, "bonus_coin": bonus_coin,
+			"first_clear": first_clear, "reason": reason,
 			"next_unlocked": first_clear and site_index + 1 < Sites.count()}
 
 
 func save() -> void:
 	var data := {
-		"version": SAVE_VERSION, "bank": bank, "levels": levels, "unlocked": unlocked,
+		"version": SAVE_VERSION, "coin": coin, "star": star, "levels": levels, "unlocked": unlocked,
 		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
-		"dig_log": dig_log,
+		"dig_log": dig_log, "milestones_seen": milestones_seen,
 	}
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
@@ -183,7 +222,6 @@ func load_save() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		push_warning("save corrupt, starting fresh")
 		return
-	bank = _ints(data.get("bank", bank), 4)
 	levels = _ints(data.get("levels", levels), 3)
 	for i in 3:
 		levels[i] = clampi(levels[i], 0, Economy.MAX_LEVEL)
@@ -192,6 +230,14 @@ func load_save() -> void:
 		var k := Sites.index_of(String(id))
 		if k >= 0:
 			cleared[k] = true
+	# Currency: v3 stores coin/star; a v2 save held a 4-bank [ferrite,cryo,lumen,crystal].
+	if data.has("bank") and data.bank is Array and data.bank.size() == 4:
+		var ob: Array = data.bank
+		coin = int(ob[0]) + int(ob[1]) + int(ob[2])
+		star = int(ob[3]) + cleared.count(true)  # crystals held + one star per already-cleared dig
+	else:
+		coin = int(data.get("coin", 0))
+		star = int(data.get("star", 0))
 	unlocked = 1
 	for i in cleared.size():
 		if cleared[i]:
@@ -202,6 +248,8 @@ func load_save() -> void:
 	for k in t:
 		totals[k] = int(t[k])
 	dig_log = data.get("dig_log", [])
+	# a save from before the colony map has no counter: treat what it already has as celebrated
+	milestones_seen = clampi(int(data.get("milestones_seen", milestones_reached())), 0, milestones_reached())
 	reminders = []
 	for r in data.get("reminders", []):
 		if r is Array and r.size() == 2 and int(r[0]) in [0, 1, 2] and int(r[1]) >= 1 and int(r[1]) <= Economy.MAX_LEVEL:

@@ -11,11 +11,15 @@ const ORE := ["ferrite", "cryo", "lumen", "crystal"]
 const ROCK := ["boulder", "stone", "basalt"]  # starting layers 1, 2, 3
 ## Visible share of the earth band under each row: rows sit this much further apart than
 ## columns, so every block shows a strip of its thickness (the floating-island look).
-const BAND_VISIBLE := 0.14
+const BAND_VISIBLE := 0.0
 ## Extra room around a UI face for text and icons, in screen pixels: [x, y].
 const PAD := Vector2(18, 2)
 
 static var _tex := {}
+
+
+static func clear_cache() -> void:
+	_tex.clear()
 
 
 static func tex(path: String) -> Texture2D:
