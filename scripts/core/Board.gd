@@ -9,7 +9,7 @@ const H := 8
 
 enum Terrain { GROUND, ROCK, BEDROCK }
 enum Token { NONE, ORE, CRYSTAL, CELL, CHARGE }
-enum Buried { ORE, CELL, CRYSTAL, EMPTY }
+enum Buried { ORE, CELL, CRYSTAL, EMPTY, TREASURE }
 
 const ORE_TYPES := 3
 const RES_CRYSTAL := 3  # index into haul[] after the three ore types
@@ -29,9 +29,10 @@ var robot := 0
 var energy := 0
 var haul := PackedInt32Array([0, 0, 0, 0])
 var extracted := PackedInt32Array([0, 0, 0])  # chunks per ore type (objective counting)
+var treasure_coin := 0   # Coin from chests opened this dig (paid even if the dig fails)
 var stats := {
 	"moves": 0, "drills": 0, "groups": 0, "cascade_groups": 0, "chunks": 0,
-	"rocks_broken": 0, "crystals": 0, "cells": 0, "charges_made": 0, "blasts": 0,
+	"rocks_broken": 0, "crystals": 0, "cells": 0, "charges_made": 0, "blasts": 0, "treasures": 0,
 	"energy_refunded": 0, "rejected": 0, "pulses": 0, "continues": 0,
 }
 var goals: Array = []  # [{type:"ore", ore:int, n:int} | {type:"rock", n} | {type:"crystal", n}]
@@ -56,6 +57,7 @@ var cfg := {
 	"crack_power": 1,
 	"blast_radius": 1,
 	"cell_energy": 6,
+	"treasure_coin": 5,    # Coin in one treasure chest
 	"yield_bonus": 0,
 	"reveal_reserve": 2,
 	"blast_rock": 2,
@@ -163,6 +165,7 @@ func _parse_cell(i: int, code: String) -> void:
 			if code.length() > 1:
 				match code[1]:
 					"c": buried[i] = Buried.CRYSTAL
+					"t": buried[i] = Buried.TREASURE
 					"e": buried[i] = Buried.CELL
 					"x": buried[i] = Buried.EMPTY
 		_:
@@ -462,6 +465,12 @@ func _damage_rock(r: int, amount: int, revealed: Array) -> void:
 		Buried.EMPTY:
 			reserve[r] = 0
 			token[r] = Token.NONE
+		Buried.TREASURE:
+			# the chest bursts open: its Coin is banked, the cell is left bare
+			reserve[r] = 0
+			token[r] = Token.NONE
+			stats.treasures += 1
+			treasure_coin += cfg.treasure_coin
 
 
 func _blast(center: int, steps: Array) -> void:
@@ -735,12 +744,38 @@ func match_gems(path: Array) -> Array:
 	return out
 
 
+## Hide one treasure chest in this dig (a rare bonus): a single-layer rock that hid plain ore
+## becomes a chest; with none, an ore cell away from the robot turns into one. Uses its own
+## rng so the dig's own random stream (what surfaces) is unchanged.
+func place_treasure(r: RandomNumberGenerator) -> int:
+	var rocks := []
+	var ground := []
+	for i in W * H:
+		if terrain[i] == Terrain.ROCK and hp[i] == 1 and buried[i] == Buried.ORE:
+			rocks.append(i)
+		elif terrain[i] == Terrain.GROUND and token[i] == Token.ORE and i != robot \
+				and absi(pos(i).x - pos(robot).x) + absi(pos(i).y - pos(robot).y) >= 2:
+			ground.append(i)
+	var at := -1
+	if not rocks.is_empty():
+		at = rocks[r.randi_range(0, rocks.size() - 1)]
+	elif not ground.is_empty():
+		at = ground[r.randi_range(0, ground.size() - 1)]
+		terrain[at] = Terrain.ROCK
+		token[at] = Token.NONE
+		hp[at] = 1
+		hp0[at] = 1
+	if at >= 0:
+		buried[at] = Buried.TREASURE
+	return at
+
+
 func clone() -> Board:
 	var b := Board.new()
 	b.terrain = terrain.duplicate(); b.hp = hp.duplicate(); b.hp0 = hp0.duplicate(); b.buried = buried.duplicate()
 	b.reserve = reserve.duplicate(); b.dug = dug.duplicate(); b.token = token.duplicate(); b.ore = ore.duplicate()
 	b.robot = robot; b.energy = energy; b.haul = haul.duplicate()
-	b.extracted = extracted.duplicate(); b.stats = stats.duplicate()
+	b.extracted = extracted.duplicate(); b.stats = stats.duplicate(); b.treasure_coin = treasure_coin
 	b.goals = goals.duplicate(true); b.over = over; b.complete = complete
 	b.cfg = cfg.duplicate(); b.record = false
 	b.rng.seed = rng.seed
@@ -754,6 +789,7 @@ func goal_progress(g: Dictionary) -> int:
 	match g.type:
 		"ore": return extracted[g.ore]
 		"rock": return stats.rocks_broken
+		"treasure": return stats.treasures
 		"chunks": return stats.chunks
 		"crystal": return stats.crystals
 		"blast": return stats.blasts
@@ -775,5 +811,6 @@ func snapshot() -> Dictionary:
 		"reserve": reserve.duplicate(), "depth": dug.duplicate(), "token": token.duplicate(), "ore": ore.duplicate(),
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,
-		"crystals": stats.crystals, "blasts": stats.blasts,
+		"crystals": stats.crystals, "blasts": stats.blasts, "treasures": stats.treasures,
+		"treasure_coin": treasure_coin,
 	}
