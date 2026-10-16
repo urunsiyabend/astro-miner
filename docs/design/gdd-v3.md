@@ -135,19 +135,24 @@ separately.
 ## 9. Open questions (need a decision before building)
 
 1. ~~Star earning weights.~~ **DECIDED (2026-10-15):** **+1 Star per crystal**, **+1 Star per
-   dig first-clear** (one-time); **energy-left stays a Coin bonus** (`completion_bonus`), not a
-   Star source, so Star means achievement and does not inflate. Star is a **cumulative
-   progress counter — never spent.** Coin is the only spent (sink) currency. Grounded in
-   `tools/econ_probe.gd`: star accrues ~1/dig (first-clears dominate; buried crystals are
-   sparse early), so ≈ **46 Star across Planet 1's 31 digs** (≈ cleared-dig count + crystals).
-2. ~~Colony growth granularity.~~ **DECIDED (2026-10-15):** milestone-based, **~6 milestones
-   per planet**; first 2–3 cheap and fast (colony changes in the first 2 minutes), later ones
-   ×1.6–2 cost; functional upgrades interleaved with cosmetic/capacity beats.
-3. **Verdis mechanic.** What is Planet 2's one new mechanic? (e.g. moving tiles, ice that
-   must be matched twice, a gas that drains energy, …)
-4. **Planet completion threshold %** and how many digs per planet.
-5. **Powerup pacing.** New unlock cadence and cost curve for drill/scanner now that they are
-   "released slowly".
+   dig first-clear** (one-time). Star is a **cumulative progress counter, never spent.**
+   Coin is the only spent (sink) currency. **Coin (revised 2026-10-16):** only a clear pays:
+   a fixed reward by chapter (8/10/12) **+ 1 Coin per move left**; a failed or recalled dig
+   pays none. Treasure chests (rare, bad-luck protected) and gold rush digs add Coin.
+2. ~~Colony growth granularity.~~ **DECIDED (2026-10-15, revised 2026-10-16):** milestone-
+   based, **5 milestones on Planet 1 (4, 8, 14, 20, 30 Star)**, the antenna beat removed;
+   functional buildings at 8/20/30, cosmetic beats between.
+3. ~~Verdis mechanic.~~ **DECIDED (2026-10-16): spreading vines.** Vines grow into a
+   neighbouring empty or ore cell every 3 moves and seal it; a match next to a vine cuts it
+   (same adjacency rule as cracking rock). Green-planet theme, light pressure, easy to learn,
+   built on the existing rock/crack system.
+4. ~~Planet completion threshold %.~~ **DECIDED (2026-10-16):** **~30 digs (+2 gold rush)
+   per planet.** A planet is complete when its colony reaches its last star milestone
+   (30 Star on Planet 1); that opens the next planet. No separate % meter: the star bar is
+   the progress.
+5. ~~Powerup pacing.~~ **DECIDED (2026-10-16):** keep **one building per ~10 digs**
+   (Star unlocks 8/20/30 → Power ~dig 10, Workshop ~dig 20, Lab ~dig 30); levels 2–3 are
+   bought with Coin. Each chapter ends with a new tool.
 6. ~~Do the three buildings survive as-is?~~ **DECIDED (2026-10-15):** buildings survive, but
    **Star unlocks each building** (a growth milestone) and **Coin pays for its upgrades**
    (L2/L3). See §4 "Unlock/upgrade split".

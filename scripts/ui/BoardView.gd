@@ -54,7 +54,12 @@ var _swiped := false
 var _font: Font
 var _sb := StyleBoxFlat.new()
 var _ob := StyleBoxFlat.new()  # outlines (tile highlights)
-var _frame: Control  # the jelly board frame, drawn behind the board
+var _frame: Control  # the jelly board frame's shader quad, rendered into _frame_vp
+## The frame shader is expensive (an exact distance to the whole outline, per pixel), so it is
+## rendered ONCE into this viewport whenever the board's shape or size changes, and the board
+## draws the resulting texture (_frame_img) every frame instead of the shader.
+var _frame_vp: SubViewport
+var _frame_img: TextureRect
 var _art := false  # painted blocks available (Art.has_tiles)
 var _band := 0.0   # full earth band height / tile width
 
@@ -72,7 +77,6 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	if _art:
 		_frame = Control.new()
-		_frame.show_behind_parent = true
 		_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var m := ShaderMaterial.new()
 		m.shader = preload("res://scripts/ui/jelly_board.gdshader")
@@ -85,7 +89,18 @@ func _ready() -> void:
 		m.set_shader_parameter("drop", 0.3)
 		_frame.material = m
 		_frame.draw.connect(func(): _frame.draw_rect(Rect2(Vector2.ZERO, _frame.size), Color.WHITE))
-		add_child(_frame)
+		_frame_vp = SubViewport.new()
+		_frame_vp.transparent_bg = true
+		_frame_vp.disable_3d = true
+		_frame_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		_frame_vp.add_child(_frame)
+		add_child(_frame_vp)
+		_frame_img = TextureRect.new()
+		_frame_img.show_behind_parent = true
+		_frame_img.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_frame_img.texture = _frame_vp.get_texture()
+		_frame_img.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		add_child(_frame_img)
 	resized.connect(_layout)
 	_layout()
 
@@ -887,8 +902,11 @@ func _update_frame() -> void:
 		return
 	# the frame node overhangs the view a little so the rim and shadow are never clipped
 	var over := cell * 0.5
-	_frame.position = -Vector2(over, over)
+	_frame.position = Vector2.ZERO
 	_frame.size = size + Vector2(over, over) * 2.0
+	_frame_vp.size = Vector2i(ceili(_frame.size.x), ceili(_frame.size.y))
+	_frame_img.position = -Vector2(over, over)
+	_frame_img.size = Vector2(_frame_vp.size)
 	var lip := cell * 0.03
 	var line := maxf(2.5, cell * 0.022)
 	var rim := cell * 0.08
@@ -918,6 +936,8 @@ func _update_frame() -> void:
 	m.set_shader_parameter("light_center", area.get_center() + Vector2(0, -area.size.y * 0.18) + Vector2(over, over))
 	m.set_shader_parameter("light_reach", area.size.length() * 0.55)
 	_frame.queue_redraw()
+	# render it once (the next frame), then keep showing that texture
+	_frame_vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Closed boundary loops of the union of the playfield cells, in grid units, as corner vertices
