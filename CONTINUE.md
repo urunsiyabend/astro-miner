@@ -104,7 +104,7 @@ Benim önerdiğim sıra:
      - `Game.gd`: `bank[4]` → `coin`/`star`. Save v2→v3 + eski kaydı taşıma (coin=ore toplamı,
        star=eski kristal + temizlenen dig sayısı).
      - `Economy.gd`: upgrade maliyetleri tek Coin int; `completion_bonus`→Coin int;
-       `can_afford(coin,c)`; `cost()` -1 at max. Yeni: `STAR_MILESTONES=[4,8,14,20,26,30]`,
+       `can_afford(coin,c)`; `cost()` -1 at max. Yeni: `STAR_MILESTONES=[4,8,14,20,30] (26 antenna site removed 2026-10-16)`,
        `STAR_UNLOCK=[8,20,30]` (power/workshop/lab), `POWER_BUDGET_BONUS=[0,3,6,10]`.
      - `Board.gd`: `rules.capacity`→`rules.budget_bonus`; dig bütçesi = `site.energy`(veya 20)
        + power bonus; opsiyonel `start` anahtarı (battery lesson düşük başlar).

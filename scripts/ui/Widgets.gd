@@ -942,6 +942,14 @@ class JellyButton extends Button:
 		pivot_offset = size * 0.5
 		_plate.setup(Rect2(Vector2.ZERO, size), 14.0, size.y * 0.42, size.y * 0.13)
 
+	## Recolour the plate (e.g. the colony's DIG button turning into SUPPLY RUN).
+	func paint(rim: Color, face: Color) -> void:
+		_plate.set_param("rim_color", rim)
+		_plate.set_param("face_color", face.lightened(0.08))
+		_plate.set_param("face_color_bottom", face.darkened(0.12))
+		_plate.set_param("outline_color", face.darkened(0.7))
+		add_theme_color_override("font_outline_color", face.darkened(0.6))
+
 	func _squash(to: Vector2) -> void:
 		create_tween().tween_property(self, "scale", to, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
@@ -1199,3 +1207,257 @@ class Picture extends Control:
 		draw_set_transform(c, wob, Vector2(k, k) * (1.0 + 0.03 * sin(_t * 3.0)))
 		draw_texture_rect(tex, Rect2(-size * 0.5, size), false)
 		draw_set_transform(Vector2.ZERO)
+
+
+## The colony's top bar, no plate (the art behind has the contrast): the Coin amount on the
+## left, then a short chunky bar toward the next star milestone with the star sitting on its
+## end. The right side stays free for a future lives/energy counter.
+class ColonyTop extends Control:
+	var coin := 0
+	var frac := 0.0
+	var text := ""
+	var _font: Font
+	var _coin_pop := 0.0
+	const BAR_W := 330.0
+	const BAR_H := 62.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(0, 110)
+		_font = Widgets.game_font()
+
+	func set_values(c: int, f: float, t: String) -> void:
+		if c != coin:
+			_coin_pop = 1.0
+		coin = c
+		frac = clampf(f, 0.0, 1.0)
+		text = t
+		queue_redraw()
+
+	func _coin_center() -> Vector2:
+		return Vector2(46, size.y * 0.5)
+
+	func coin_global() -> Vector2:
+		return get_global_transform_with_canvas() * _coin_center()
+
+	func _process(delta: float) -> void:
+		if _coin_pop > 0.0:
+			_coin_pop = maxf(0.0, _coin_pop - delta * 3.0)
+			queue_redraw()
+
+	func _draw() -> void:
+		var cy := size.y * 0.5
+		var k := 1.0 + 0.3 * sin(PI * (1.0 - _coin_pop)) * _coin_pop
+		Widgets.draw_currency_icon(self, _coin_center(), 36.0 * k, false)
+		var amount := Widgets.short_number(coin)
+		var aw := _font.get_string_size(amount, HORIZONTAL_ALIGNMENT_LEFT, -1, 58).x
+		Widgets.shadow_text(self, _font, Vector2(98 + aw * 0.5, cy), amount, 58, Color.WHITE)
+		# milestone bar: dark rim, deep track, orange fill with a gloss streak, count on it
+		var x0 := 98.0 + maxf(aw, 110.0) + 44.0
+		var bar := Rect2(Vector2(x0, cy - BAR_H * 0.5), Vector2(BAR_W, BAR_H))
+		var sb := StyleBoxFlat.new()
+		sb.anti_aliasing = true
+		sb.set_corner_radius_all(int(BAR_H * 0.5))
+		sb.bg_color = Color("150830")
+		draw_style_box(sb, bar.grow(5))
+		sb.bg_color = Color("3d2470")
+		draw_style_box(sb, bar)
+		if frac > 0.0:
+			sb.bg_color = Color("ffae2b")
+			var fill := Rect2(bar.position, Vector2(maxf(bar.size.y, bar.size.x * frac), bar.size.y))
+			draw_style_box(sb, fill)
+			sb.set_corner_radius_all(int(BAR_H * 0.2))
+			sb.bg_color = Color(1, 1, 1, 0.3)
+			draw_style_box(sb, Rect2(fill.position + Vector2(14, 7), Vector2(maxf(0.0, fill.size.x - 28), fill.size.y * 0.26)))
+		Widgets.shadow_text(self, _font, bar.get_center() - Vector2(18, 0), text, 40, Color.WHITE)
+		# the star sits on the bar's end, overlapping it
+		Widgets.draw_currency_icon(self, Vector2(bar.end.x - 4, cy), 44.0, true)
+
+
+## Short Coin amounts for tight spots: 950, 1.2K, 25K, 1.5M.
+static func short_number(n: int) -> String:
+	if n < 1000:
+		return str(n)
+	if n < 10000:
+		return "%.1fK" % (n / 1000.0)
+	if n < 1000000:
+		return "%dK" % (n / 1000)
+	return "%.1fM" % (n / 1000000.0)
+
+
+## The bottom tab bar: a jelly plate across the screen with five tabs (icon over a label).
+## The selected tab sits on a raised, lighter tile and its icon is bigger.
+class NavBar extends Control:
+	signal tab_pressed(i: int)
+	const TABS := [["market", "Market"], ["ranks", "Ranks"], ["colony", "Colony"],
+			["soon", "Soon"], ["settings", "Settings"]]
+	var selected := 2
+	var _plate: Jelly
+	var _tile: Jelly
+	var _font: Font
+	var _press := -1
+	var _t := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		custom_minimum_size = Vector2(0, 200)
+		_font = Widgets.game_font()
+		_plate = Jelly.new()
+		_plate.show_behind_parent = true
+		add_child(_plate)
+		_tile = Jelly.new(Color("d9c6ff"), Color("8a63d2"), Color("6a44b4"))
+		_tile.show_behind_parent = true
+		add_child(_tile)
+		resized.connect(_layout)
+
+	func _bar_rect() -> Rect2:
+		return Rect2(Vector2(0, 46), Vector2(size.x, size.y - 46))
+
+	func _cell(i: int) -> Rect2:
+		var r := _bar_rect()
+		var w := r.size.x / TABS.size()
+		return Rect2(Vector2(r.position.x + w * i, r.position.y), Vector2(w, r.size.y))
+
+	func _layout() -> void:
+		var r := _bar_rect()
+		_plate.setup(Rect2(r.position + Vector2(-20, 0), r.size + Vector2(40, 40)), 14.0, 48.0, 14.0)
+		_plate.set_param("rim_color", Color("8a62cf"))
+		_plate.set_param("gloss", 0.35)
+		_plate.set_param("face_color", Color("2b1258"))
+		_plate.set_param("face_color_bottom", Color("3a1a74"))
+		var c := _cell(selected)
+		_tile.setup(Rect2(c.position + Vector2(10, -40), Vector2(c.size.x - 20, c.size.y + 30)), 12.0, 40.0, 12.0)
+		_tile.set_param("gloss", 0.6)
+		queue_redraw()
+
+	func select(i: int) -> void:
+		selected = i
+		_layout()
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+
+	func _gui_input(e: InputEvent) -> void:
+		if (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT) or e is InputEventScreenTouch:
+			var i := clampi(int(e.position.x / (size.x / TABS.size())), 0, TABS.size() - 1)
+			if e.pressed:
+				_press = i
+			elif _press == i:
+				_press = -1
+				tab_pressed.emit(i)
+			else:
+				_press = -1
+			accept_event()
+
+	func _draw() -> void:
+		for i in TABS.size():
+			var c := _cell(i)
+			var sel := i == selected
+			var tex := Art.tex("res://assets/ui/tabs/%s.png" % TABS[i][0])
+			var isz := c.size.x * (0.72 if sel else 0.56)
+			var ic := Vector2(c.get_center().x, c.position.y + (c.size.y * 0.30 if not sel else c.size.y * 0.16))
+			if sel:
+				ic.y += sin(_t * 2.4) * 3.0
+			if _press == i:
+				isz *= 0.9
+			if tex != null:
+				var col := Color.WHITE if sel else Color(0.86, 0.82, 0.95)
+				draw_texture_rect(tex, Rect2(ic - Vector2(isz, isz) * 0.5, Vector2(isz, isz)), false, col)
+			var ly := c.position.y + c.size.y * 0.78
+			Widgets.shadow_text(self, _font, Vector2(c.get_center().x, ly), TABS[i][1], 36 if sel else 32,
+					Color.WHITE if sel else Color("d9ccf2"))
+
+
+## A building's level as three stars, filled up to `level` (the upgrade card).
+class LevelStars extends Control:
+	var level := 0
+	var max_level := 3
+
+	func _init(lv: int, mx := 3) -> void:
+		level = lv
+		max_level = mx
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(mx * 78, 74)
+
+	func _draw() -> void:
+		for k in max_level:
+			var c := Vector2(39 + k * 78, size.y * 0.5)
+			if k < level:
+				Widgets.draw_currency_icon(self, c, 30.0, true)
+			else:
+				Widgets.draw_currency_icon(self, c, 30.0, true)
+				draw_circle(c, 34.0, Color(0.1, 0.04, 0.2, 0.0))
+		# dim the stars not reached yet
+		for k in range(level, max_level):
+			var c := Vector2(39 + k * 78, size.y * 0.5)
+			draw_circle(c, 31.0, Color("2b1258", 0.72), true, -1.0, true)
+
+
+## One effect line on the upgrade card: a small rounded plate with a tag ("Now", "Next") and
+## the effect text, wrapping onto a second line if needed.
+class EffectPlate extends PanelContainer:
+	func _init(tag: String, text: String, accent: Color) -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color("1d0b40")
+		sb.border_color = Color(accent, 0.55)
+		sb.set_border_width_all(3)
+		sb.set_corner_radius_all(26)
+		sb.content_margin_left = 26
+		sb.content_margin_right = 26
+		sb.content_margin_top = 14
+		sb.content_margin_bottom = 14
+		add_theme_stylebox_override("panel", sb)
+		var h := HBoxContainer.new()
+		h.add_theme_constant_override("separation", 18)
+		add_child(h)
+		var t := Label.new()
+		t.text = tag
+		t.add_theme_font_override("font", Widgets.game_font())
+		t.add_theme_font_size_override("font_size", 34)
+		t.add_theme_color_override("font_color", accent)
+		t.custom_minimum_size.x = 96
+		t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		h.add_child(t)
+		var l := Label.new()
+		l.text = text
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.add_theme_font_override("font", Widgets.game_font())
+		l.add_theme_font_size_override("font_size", 38)
+		l.add_theme_color_override("font_color", Color.WHITE)
+		l.add_theme_constant_override("outline_size", 8)
+		l.add_theme_color_override("font_outline_color", Color("12041f"))
+		h.add_child(l)
+
+
+## The upgrade button: a green jelly button with "Upgrade" and the Coin cost on it; greyed out
+## with the cost in red when the colony can't afford it.
+class CostButton extends JellyButton:
+	var cost := 0
+	var label := ""
+	var short := false
+	var _font: Font
+
+	func _init(t: String, c: int, can_pay: bool) -> void:
+		super._init("", Color("8ff0a4") if can_pay else Color("b9b0cc"), Color("37b65a") if can_pay else Color("6e6488"), 140.0, 54)
+		label = t
+		cost = c
+		short = not can_pay
+		disabled = not can_pay
+		_font = Widgets.game_font()
+		var over := Control.new()
+		over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		over.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		over.draw.connect(func():
+			var cy := over.size.y * 0.5
+			if cost <= 0:
+				Widgets.shadow_text(over, _font, Vector2(over.size.x * 0.5, cy), label, 56, Color.WHITE)
+				return
+			Widgets.shadow_text(over, _font, Vector2(over.size.x * 0.36, cy), label, 54, Color.WHITE)
+			Widgets.draw_currency_icon(over, Vector2(over.size.x * 0.68, cy), 26.0, false)
+			Widgets.shadow_text(over, _font, Vector2(over.size.x * 0.81, cy), str(cost), 52,
+					Color("ff8f8f") if short else Color("fff2b0")))
+		add_child(over)

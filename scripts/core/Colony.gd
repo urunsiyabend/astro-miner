@@ -14,19 +14,21 @@ const MILESTONES := [
 	{"building": 0},
 	{"deco": "greenhouse"},
 	{"building": 1},
-	{"deco": "antenna"},
 	{"building": 2},
 ]
 
-const DOME := Vector2(0.5, 0.42)
+## Layout (after the col3 mockup): a 2:1 isometric grid of build sites joined by paths, painted
+## as one ground layer (assets/colony/ground.png). The habitat dome stands on the big hub site
+## at cell (0, 0); every plot is a site at its "cell" (i, j), one grid step along each axis:
+## the four buildings on the hub's neighbours, the pad above them.
+const HUB := Vector2(0, 0)
 
 const PLOTS := [
-	{"id": "power", "building": 0, "pos": Vector2(0.22, 0.21)},
-	{"id": "workshop", "building": 1, "pos": Vector2(0.78, 0.21)},
-	{"id": "lab", "building": 2, "pos": Vector2(0.80, 0.58)},
-	{"id": "pad", "pos": Vector2(0.20, 0.58)},
-	{"id": "greenhouse", "pos": Vector2(0.32, 0.84)},
-	{"id": "antenna", "pos": Vector2(0.68, 0.84)},
+	{"id": "power", "building": 0, "cell": Vector2(-1, 0)},
+	{"id": "workshop", "building": 1, "cell": Vector2(0, -1)},
+	{"id": "lab", "building": 2, "cell": Vector2(1, 0)},
+	{"id": "pad", "cell": Vector2(-1, -1)},
+	{"id": "greenhouse", "cell": Vector2(0, 1)},
 ]
 
 

@@ -42,7 +42,7 @@ const FIRST_CLEAR_STARS := 1
 ## Tuned against tools/econ_probe.gd: star accrues ~1/dig (mostly first-clears), so arriving at
 ## a building's needs-dig (digs 11/21/31) means 10/20/30 digs were cleared, GUARANTEEING the
 ## building unlocks in time regardless of how many crystals the player found.
-const STAR_MILESTONES := [4, 8, 14, 20, 26, 30]
+const STAR_MILESTONES := [4, 8, 14, 20, 30]
 ## Star needed to unlock each building [power, workshop, lab] — milestones 2/4/6.
 const STAR_UNLOCK := [8, 20, 30]
 ## Extra energy the Power Station adds to EVERY dig's budget, by level.

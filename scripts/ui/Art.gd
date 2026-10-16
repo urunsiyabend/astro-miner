@@ -63,6 +63,7 @@ static func background() -> Texture2D:
 	return tex("res://assets/bg/space.jpg")
 
 
+
 ## A 9-slice box from a UI piece. The control's rect is the whole art; its content area is the
 ## visible face (outline, top highlight and bottom lip excluded) plus PAD, so a label or icon in
 ## a Button/PanelContainer centres on what the eye sees.

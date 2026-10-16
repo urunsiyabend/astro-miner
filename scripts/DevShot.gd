@@ -83,6 +83,7 @@ func _run() -> void:
 		var mid := float(OS.get_environment("ASTRO_MID")) if OS.has_environment("ASTRO_MID") else 0.0
 		await get_tree().create_timer(0.6 if mid <= 0.0 else mid).timeout
 	else:
+		main.colony._view.debug_sites = OS.has_environment("ASTRO_SITES")
 		main.colony.refresh()
 		await get_tree().create_timer(0.5).timeout
 		# ASTRO_TALK=n taps through n of Mira's colony lines; ASTRO_BUY=b then buys building b
@@ -94,10 +95,37 @@ func _run() -> void:
 		if OS.has_environment("ASTRO_BUY"):
 			main.colony._spot.close()
 			main.colony._buy(int(OS.get_environment("ASTRO_BUY")))
+			# ASTRO_BUYWAIT=<s>: shoot that far into the build animation
+			if OS.has_environment("ASTRO_BUYWAIT"):
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_BUYWAIT"))).timeout
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(OS.get_environment("ASTRO_SHOT"))
+				get_tree().quit()
+				return
 			await get_tree().create_timer(0.3).timeout
 			for k in 8:
 				if main.colony._dialog.visible:
 					main.colony._dialog._advance()
+		if OS.has_environment("ASTRO_SPOT"):  # ASTRO_SPOT=b: the "build it" spotlight on building b
+			main.colony._dialog.visible = false
+			main.colony._spot_build(int(OS.get_environment("ASTRO_SPOT")))
+			await get_tree().create_timer(0.3).timeout
+			if OS.has_environment("ASTRO_SPOT_TAP"):  # tap the lit plot like a finger would: press, release
+				var at: Vector2 = main.colony._view.plot_global(Colony.building_plot(int(OS.get_environment("ASTRO_SPOT"))))
+				for down in [true, false]:
+					var e := InputEventMouseButton.new()
+					e.button_index = MOUSE_BUTTON_LEFT
+					e.pressed = down
+					e.position = at
+					e.global_position = at
+					get_viewport().push_input(e, true)
+					await get_tree().process_frame
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_SPOT_TAP"))).timeout
+		if OS.has_environment("ASTRO_SPOT_DIG"):
+			main.colony._spot_dig()
+			await get_tree().create_timer(0.3).timeout
+		if OS.has_environment("ASTRO_TAB"):  # ASTRO_TAB=0..4: open that tab-bar page
+			main.colony._on_tab(int(OS.get_environment("ASTRO_TAB")))
 		if OS.has_environment("ASTRO_CARD"):  # ASTRO_CARD=b: tap building b's plot
 			main.colony._on_plot(Colony.building_plot(int(OS.get_environment("ASTRO_CARD"))))
 		await get_tree().create_timer(0.6).timeout
