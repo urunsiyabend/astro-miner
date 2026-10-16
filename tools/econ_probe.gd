@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Income per dig over the campaign (PLANNER bot, first clears in order, nothing spent).
-## Reports the two v3 currencies: Coin (all ore + leftover energy) and Star (crystal +
+## Reports the two v3 currencies: Coin (clear reward + moves left) and Star (crystal +
 ## first-clear).  godot --headless --path . -s res://tools/econ_probe.gd
 func _initialize() -> void:
 	var n := 20
@@ -13,10 +13,10 @@ func _initialize() -> void:
 		for si in Sites.count():
 			var site: Dictionary = Sites.get_site(si)
 			var m := Bots.play(site, Economy.rules(levels), 777 + c * 31 + si, Bots.Kind.PLANNER)
-			var coin: int = m.haul[0] + m.haul[1] + m.haul[2]
+			var coin := 0
 			var star: int = m.haul[3]
 			if m.complete:
-				coin += Economy.completion_bonus(m.energy_left)
+				coin += Economy.clear_coin(si) + Economy.move_coin(m.energy_left)
 				star += Economy.FIRST_CLEAR_STARS
 			per[si][0] += coin / float(n)
 			per[si][1] += star / float(n)

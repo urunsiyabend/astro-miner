@@ -16,10 +16,10 @@ func _ready() -> void:
 	_font = Widgets.game_font(700)
 
 
-func fly(from: Vector2, res, color: Color, delay := 0.0) -> void:
+func fly(from: Vector2, res, color: Color, delay := 0.0, dur := -1.0, arc := Vector2.INF) -> void:
 	_parts.append({"kind": "fly", "p": from - global_position, "from": from - global_position,
-			"res": res, "color": color, "t": -delay, "dur": 0.5 + randf() * 0.12,
-			"arc": Vector2(randf_range(-160, 160), randf_range(-220, -80))})
+			"res": res, "color": color, "t": -delay, "dur": dur if dur > 0.0 else 0.5 + randf() * 0.12,
+			"arc": arc if arc != Vector2.INF else Vector2(randf_range(-160, 160), randf_range(-220, -80))})
 
 
 func burst(at: Vector2, color: Color, n := 8, speed := 420.0) -> void:
@@ -73,6 +73,9 @@ func _draw() -> void:
 			var a: Vector2 = p.from.lerp(mid, e)
 			var b: Vector2 = mid.lerp(to, e)
 			var pos := a.lerp(b, e)
+			if p.res is String and p.res == "coin":
+				Widgets.draw_currency_icon(self, pos, 30.0 * (1.0 + 0.25 * sin(PI * k)), false)
+				continue
 			draw_circle(pos, 18.0 * (1.0 - 0.4 * k), p.color)
 			draw_circle(pos, 9.0 * (1.0 - 0.4 * k), p.color.lightened(0.5))
 		else:

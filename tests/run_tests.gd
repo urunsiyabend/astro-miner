@@ -268,7 +268,8 @@ func _test_goals_end_dig() -> void:
 	b.goals = [{"type": "crystal", "n": 1}]
 	b.try_move(Vector2i(0, 1))
 	_ok(not b.complete and not b.over, "unmet goals keep the dig running")
-	_ok(Economy.completion_bonus(9) == 4, "leftover energy converts to bonus Coin (1 per 2)")
+	_ok(Economy.move_coin(9) == 9 and Economy.move_coin(-2) == 0, "every move left pays 1 Coin")
+	_ok(Economy.clear_coin(0) == 8 and Economy.clear_coin(25) == 12, "the clear reward grows by chapter")
 
 
 func _test_determinism() -> void:
@@ -366,9 +367,11 @@ func _test_save_roundtrip() -> void:
 	b.haul = PackedInt32Array([5, 6, 7, 1])  # 18 ore -> Coin, 1 crystal -> Star
 	b.energy = 0
 	var res: Dictionary = game.finish_dig(0, b, "energy")
-	_ok(game.coin == 43 and game.star == 17 and not res.first_clear, "failed dig still banks Coin + Star")
+	_ok(game.coin == 25 and game.star == 17 and not res.first_clear, "a failed dig earns no Coin but keeps its crystal Star")
 	b.complete = true
+	b.energy = 6
 	res = game.finish_dig(0, b, "complete")
+	_ok(res.coin == 8 + 6 and game.coin == 25 + 14, "a clear pays the fixed reward plus 1 per move left")
 	_ok(res.first_clear and res.star == 2 and game.unlocked == 2 and game.cleared[0], "first clear banks crystal + first-clear Star and opens the next site")
 	var other = load("res://autoload/Game.gd").new()
 	other.save_path = "user://test_save.json"
