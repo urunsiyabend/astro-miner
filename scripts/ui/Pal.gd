@@ -26,6 +26,21 @@ const CELL := Color("6dff8a")
 const CHARGE := Color("ff4f6d")
 const RES := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d"), Color("c88bff")]
 
+# Board (art-v2): the hero B1 board earth, colour-picked. Cells sit on this; dug depth is a
+# darker tint of it; the panel has a lavender rim like the hero.
+const BOARD_EARTH := Color("5c2b22")     # earth between the cells: toward the board edges
+const BOARD_EARTH_HI := Color("8a4535")  # earth: the softly lit middle of the board
+const BOARD_LIP := Color("622e23")       # inner lip between the rim and the cells
+const BOARD_LINE := Color("391534")      # thin dark line just inside the rim
+const BOARD_RIM := Color("b080d3")       # rim: light lavender body (outer part)
+const BOARD_RIM_DARK := Color("8357a7")  # rim: darker inner edge, next to the dark line
+const BOARD_RIM_HI := Color("d696f6")    # rim: glossy highlight along the top
+
+# Currencies (GDD v3): Coin is the soft spent currency, Star the scarce progress counter.
+const COIN := Color("ffd24d")
+const COIN_DARK := Color("b5861a")
+const STAR := Color("c88bff")
+
 # Ground by elevation: surface first, then each layer dug below it (a pit reads darker
 # *and* is drawn with stepped walls, so depth never relies on tone alone).
 const GROUND_LEVELS := [Color("74546d"), Color("5a4058"), Color("443047"), Color("322337"), Color("241a29")]

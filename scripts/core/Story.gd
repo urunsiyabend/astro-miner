@@ -8,17 +8,24 @@ const MASCOT := "MIRA"
 
 ## Lines when a dig unlocks a building (Sites "unlock"); the colony then highlights its button.
 const UNLOCK := [
-	["Good news: the colony can build a Power Station now! It gives the robot a bigger battery."],
+	["Good news: the colony can build a Power Station now! It tops up every dig with extra energy."],
 	["The Mining Workshop is ready to build! It comes with a drill that cuts through rock."],
 	["We can build a Research Lab now! Its scanner lets you see what's inside rock."],
 ]
 
+## Lines when a cosmetic star milestone adds something to the colony map (Colony plot id).
+const DECO := {
+	"pad": ["The robot has a proper landing pad now. The colony is starting to look like a colony!"],
+	"greenhouse": ["We put up a greenhouse. Fresh air and fresh food: the crew is very happy."],
+	"antenna": ["A long-range antenna is up. Corvo IV can talk to the rest of the system now."],
+}
+
 ## Lines when a building reaches a level: BUILT[building][level - 1].
 const BUILT := [
 	[  # Power Station
-		["Power Station online! The robot's battery holds 26 energy now. Longer digs, more ore."],
-		["Battery upgraded to 32. That's a lot of steps."],
-		["Battery at 40. The robot can stay out all day."],
+		["Power Station online! Every dig now starts with +3 energy. Longer digs, more ore."],
+		["Power Station upgraded: +6 energy on every dig now."],
+		["Power Station maxed: +10 energy on every dig. The robot can really range out."],
 	],
 	[  # Mining Workshop
 		["Mining Workshop built, and it came with a drill!",
@@ -36,7 +43,7 @@ const BUILT := [
 ## Short reminder shown at the start of the first dig after a building level, so a new tool
 ## is never something you have to discover by poking at it. REMIND[building][level - 1].
 const REMIND := [
-	["Your battery is bigger now: 26 energy.", "Battery: 32 energy.", "Battery: 40 energy."],
+	["Power Station: every dig now gets +3 energy.", "Power Station: +6 energy every dig now.", "Power Station: +10 energy every dig."],
 	["New tool: swipe into rock to drill off a layer (2 energy). Look for the orange drill marks.",
 			"Your drill now knocks off 2 layers per bump.",
 			"Drilling costs 1 energy, and matches crack 2 rock layers."],
@@ -58,14 +65,14 @@ static func advice() -> String:
 		var need: Dictionary = Sites.get_site(next).get("needs", {})
 		if not need.is_empty() and Game.levels[need.building] < need.level:
 			var bname: String = Economy.BUILDINGS[need.building].name
-			if Economy.can_afford(Game.bank, Economy.cost(need.building, Game.levels[need.building])):
+			if Economy.can_afford(Game.coin, Economy.cost(need.building, Game.levels[need.building])):
 				return "The next site is behind a basalt shell. Build the %s: it comes with a drill." % bname
 			return "The next site is behind a basalt shell. We need the %s and its drill. Supply runs gather the ore." % bname
 	for b in Economy.BUILDINGS.size():
 		var lv: int = Game.levels[b]
 		var key := "afford_%d_%d" % [b, lv + 1]
 		if lv >= 1 and lv < Economy.MAX_LEVEL and not Game.tips_seen.has(key) \
-				and Economy.can_afford(Game.bank, Economy.cost(b, lv)):
+				and Economy.can_afford(Game.coin, Economy.cost(b, lv)):
 			Game.tips_seen[key] = true
 			return "We can afford the %s upgrade: %s." % [Economy.BUILDINGS[b].name, Economy.BUILDINGS[b].effects[lv + 1]]
 	if next < 0 and not Game.tips_seen.has("all_charted"):

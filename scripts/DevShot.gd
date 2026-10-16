@@ -10,9 +10,23 @@ func _ready() -> void:
 		for i in int(OS.get_environment("ASTRO_CLEARED")):
 			Game.cleared[i] = true
 	if OS.has_environment("ASTRO_BANK"):
-		Game.bank = [999, 999, 999, 99]
+		Game.coin = 9999
+		Game.star = 999
 		Game.levels = [1, 1, 1]
 		Game.unlocked = Sites.count()
+	# colony states: ASTRO_STAR=<stars>, ASTRO_LEVELS=<p,w,l>; milestones count as celebrated
+	# unless ASTRO_FRESH is set (then the colony plays its milestone/unlock walkthrough)
+	if OS.has_environment("ASTRO_STAR"):
+		Game.star = int(OS.get_environment("ASTRO_STAR"))
+		Game.coin = maxi(Game.coin, 200)
+		if not OS.has_environment("ASTRO_FRESH"):
+			Game.milestones_seen = Game.milestones_reached()
+			for b in 3:
+				Game.tips_seen["unlock_%d" % b] = true
+	if OS.has_environment("ASTRO_LEVELS"):
+		var lv := OS.get_environment("ASTRO_LEVELS").split(",")
+		for b in mini(3, lv.size()):
+			Game.levels[b] = int(lv[b])
 	_run.call_deferred()
 
 
@@ -46,6 +60,14 @@ func _run() -> void:
 			main.dig._toggle_haul()
 		if OS.has_environment("ASTRO_HINT"):
 			main.dig._on_hint()
+		if OS.has_environment("ASTRO_FOCUS"):  # ASTRO_FOCUS="x,y;x,y": frame those cells
+			var cells := []
+			for p in OS.get_environment("ASTRO_FOCUS").split(";"):
+				var xy := p.split(",")
+				cells.append(Vector2i(int(xy[0]), int(xy[1])))
+			main.dig.view.focus = cells
+		if OS.has_environment("ASTRO_HINTDIR"):  # ASTRO_HINTDIR=0..3: frame the hinted step
+			main.dig.view.hint_dir = int(OS.get_environment("ASTRO_HINTDIR"))
 		var mid := float(OS.get_environment("ASTRO_MID")) if OS.has_environment("ASTRO_MID") else 0.0
 		await get_tree().create_timer(0.6 if mid <= 0.0 else mid).timeout
 	else:
@@ -64,6 +86,8 @@ func _run() -> void:
 			for k in 8:
 				if main.colony._dialog.visible:
 					main.colony._dialog._advance()
+		if OS.has_environment("ASTRO_CARD"):  # ASTRO_CARD=b: tap building b's plot
+			main.colony._on_plot(Colony.building_plot(int(OS.get_environment("ASTRO_CARD"))))
 		await get_tree().create_timer(0.6).timeout
 	print("main size ", main.size, " colony ", main.colony.size, " vis ", main.colony.visible)
 	await RenderingServer.frame_post_draw

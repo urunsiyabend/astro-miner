@@ -41,6 +41,311 @@ class Chip extends Control:
 		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(Pal.RES[res], _pop))
 
 
+## Currency icon + count (Coin or Star). Pops when the value changes. Colony bank / results.
+class CurrencyChip extends Control:
+	var star := false
+	var value := 0
+	var _pop := 0.0
+	var _font: Font
+
+	func _init(is_star := false) -> void:
+		star = is_star
+		custom_minimum_size = Vector2(180, 76)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = ThemeDB.fallback_font
+
+	func set_value(v: int) -> void:
+		if v != value:
+			_pop = 1.0
+		value = v
+		queue_redraw()
+
+	func icon_global() -> Vector2:
+		return get_global_transform_with_canvas() * Vector2(38, size.y * 0.5)
+
+	func _process(delta: float) -> void:
+		if _pop > 0.0:
+			_pop = maxf(0.0, _pop - delta * 4.0)
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := Vector2(38, size.y * 0.5)
+		var s := 26.0 * (1.0 + 0.35 * _pop)
+		Widgets.draw_currency_icon(self, c, s, star)
+		var fs := Pal.FS
+		var p := Vector2(82, size.y * 0.5 + fs * 0.36)
+		var col: Color = Pal.STAR if star else Pal.COIN
+		draw_string_outline(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Pal.OUTLINE)
+		draw_string(_font, p, str(value), HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT.lerp(col, _pop))
+
+
+## A glossy "jelly" rounded frame drawn by scripts/ui/jelly.gdshader (rim, gloss, dark inset
+## face, drop shadow). Colours and sizes are shader parameters; lengths in pixels.
+class Jelly extends Control:
+	const SHADER := preload("res://scripts/ui/jelly.gdshader")
+	var mat := ShaderMaterial.new()
+
+	func _init(rim_color := Color("a27be0"), face := Color("2f1660"), face_bottom := Color("3d1d78")) -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		mat.shader = SHADER
+		material = mat
+		set_param("rim_color", rim_color)
+		set_param("face_color", face)
+		set_param("face_color_bottom", face_bottom)
+		resized.connect(func(): set_param("size", size); queue_redraw())
+
+	func set_param(k: String, v: Variant) -> void:
+		mat.set_shader_parameter(k, v)
+
+	## The visible shape inside the node (the node keeps `pad` px around it for the shadow).
+	func setup(r: Rect2, pad: float, radius: float, rim: float) -> void:
+		position = r.position - Vector2(pad, pad)
+		size = r.size + Vector2(pad, pad) * 2.0
+		set_param("pad", pad)
+		set_param("radius", radius)
+		set_param("rim", rim)
+		set_param("outline", maxf(2.0, rim * 0.18))
+		set_param("drop_offset", Vector2(0, pad * 0.45))
+		set_param("size", size)
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color.WHITE)
+
+
+## The game's display font: Fredoka Bold (SIL OFL), a FontVariation resource so the engine owns
+## and frees it (one made with FontVariation.new() keeps a text cache that points back at it and
+## is reported leaked at exit).
+static func game_font(_weight := 700) -> Font:
+	var path := "res://assets/fonts/fredoka_bold.tres"
+	return load(path) if ResourceLoader.exists(path) else ThemeDB.fallback_font
+
+
+## The dig's top HUD, after the hero: one compact jelly plate (~73% of the board's width) with
+## the moves left (energy) as a big number over "Moves", a thin divider, then one jelly slot
+## per goal (rim coloured after the goal's gem) with "have/need" under it, and this dig's haul
+## at the right end. Sizes follow `unit` (the board's cell size), so the HUD scales with it.
+class DigHud extends Control:
+	signal haul_tapped
+	const RIM := Color("a27be0")
+	var unit := 120.0
+	var coin := 0
+	var _coin_pop := 0.0
+	var energy := 0
+	var goals: Array = []
+	var have: Array = []
+	var _pop: Array = []
+	var _flash := 0.0
+	var _font: Font
+	var _plate: Jelly
+	var _top: Control
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_PASS
+		size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		custom_minimum_size = Vector2(600, 170)
+		_font = Widgets.game_font(700)
+		_plate = Jelly.new()
+		add_child(_plate)
+		_top = Control.new()
+		_top.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_top.draw.connect(_draw_top)
+		add_child(_top)
+		resized.connect(_layout)
+
+	## Size the HUD from the board's cell size and width.
+	func fit(cell: float, board_w: float) -> void:
+		unit = cell * 1.25
+		custom_minimum_size = Vector2(minf(board_w * 0.8, board_w), unit * 1.42)
+		_layout()
+
+	## Coin earned so far this dig (all ore merges into Coin); shown at the right end.
+	func set_coin(c: int) -> void:
+		if c > coin:
+			_coin_pop = 1.0
+		coin = c
+		_top.queue_redraw()
+
+	func haul_global() -> Vector2:
+		return get_global_transform_with_canvas() * _haul_center()
+
+	## Centre of the coin icon: the coin and its amount stack centred in the plate's height.
+	func _haul_center() -> Vector2:
+		var p := _shape()
+		return Vector2(p.end.x - _rim() - unit * 0.48, p.get_center().y - unit * 0.13)
+
+	func _gui_input(e: InputEvent) -> void:
+		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+			if e.position.distance_to(_haul_center()) < unit * 0.55:
+				haul_tapped.emit()
+				accept_event()
+
+	func set_energy(e: int, _cap: int) -> void:
+		if e > energy:
+			_flash = 1.0
+		energy = e
+		_top.queue_redraw()
+
+	func set_goals(g: Array) -> void:
+		goals = g
+		have = []
+		_pop = []
+		for i in g.size():
+			have.append(0)
+			_pop.append(0.0)
+		_layout()
+
+	func set_have(i: int, v: int) -> void:
+		v = mini(v, goals[i].n)
+		if v != have[i]:
+			_pop[i] = 1.0
+		have[i] = v
+		_top.queue_redraw()
+
+	func target_global() -> Vector2:
+		return get_global_transform_with_canvas() * _moves_center()
+
+	func icon_global(i: int) -> Vector2:
+		return get_global_transform_with_canvas() * _slot(i).get_center()
+
+	func _shape() -> Rect2:
+		return Rect2(Vector2.ZERO, size).grow(-unit * 0.06)
+
+	func _rim() -> float:
+		return unit * 0.1   # same weight as the board frame
+
+	func _moves_center() -> Vector2:
+		var p := _shape()
+		return Vector2(p.position.x + unit * 0.78, p.get_center().y)
+
+	func _divider_x() -> float:
+		return _shape().position.x + unit * 1.48
+
+	func _slot(i: int) -> Rect2:
+		var p := _shape()
+		var s := unit * 0.76
+		var x0 := _divider_x() + unit * 0.15
+		var x1 := p.end.x - _rim() - unit * 0.95
+		var step := (x1 - x0) / maxf(1.0, goals.size())
+		var cx := x0 + step * (i + 0.5)
+		return Rect2(Vector2(cx - s * 0.5, p.position.y - s * 0.16), Vector2(s, s))
+
+	func _layout() -> void:
+		var p := _shape()
+		_plate.setup(p, unit * 0.06, unit * 0.3, _rim())
+		_plate.set_param("rim_color", Color("7d52bf"))
+		_plate.set_param("gloss", 0.35)
+		_plate.set_param("face_color", Color("2b1258"))
+		_plate.set_param("face_color_bottom", Color("3a1a74"))
+		_top.position = Vector2.ZERO
+		_top.size = size
+		_top.queue_redraw()
+
+	func _process(delta: float) -> void:
+		var any := _flash > 0.0 or _coin_pop > 0.0
+		_flash = maxf(0.0, _flash - delta * 3.0)
+		_coin_pop = maxf(0.0, _coin_pop - delta * 3.0)
+		for i in _pop.size():
+			if _pop[i] > 0.0:
+				_pop[i] = maxf(0.0, _pop[i] - delta * 3.0)
+				any = true
+		if any:
+			_top.queue_redraw()
+
+	func _text(c: Vector2, t: String, fs: int, col: Color, ol := 8) -> void:
+		var tw := _font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var at := Vector2(c.x - tw * 0.5, c.y + fs * 0.36)
+		# crisp elevation: a hard dark copy just below the outlined text
+		var drop := Vector2(0, maxf(1.5, fs * 0.045))
+		_top.draw_string_outline(_font, at + drop, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("12041f"))
+		_top.draw_string(_font, at + drop, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("12041f"))
+		_top.draw_string_outline(_font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("1e0a3a"))
+		_top.draw_string(_font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+	func _frame(g: Dictionary) -> Texture2D:
+		var n := "pink"
+		match g.type:
+			"ore": n = ["orange", "cyan", "yellow"][g.ore]
+			"crystal": n = "violet"
+			"rock": n = "grey"
+		return Art.tex("res://assets/ui/slot_%s.png" % n)
+
+	func _goal_color(g: Dictionary) -> Color:
+		match g.type:
+			"ore": return [Color("ff8a2a"), Color("2fd6e0"), Color("ffc928")][g.ore]
+			"crystal": return Color("a66bff")
+			"rock": return Color("a9b2c4")
+			"blast": return Color("ff5aa0")
+		return Color("ff5aa0")
+
+	func _draw_top() -> void:
+		var p := _shape()
+		var mc := _moves_center()
+		var col := Color.WHITE.lerp(Pal.GOOD, _flash)
+		if energy <= 5:
+			col = Pal.BAD.lerp(Color.WHITE, 0.25)
+		_text(mc + Vector2(0, -unit * 0.14), str(energy), int(unit * 0.56), col, int(unit * 0.11))
+		_text(mc + Vector2(0, unit * 0.3), "Moves", int(unit * 0.25), Color("f3c9ff"), int(unit * 0.08))
+		var dx := _divider_x()
+		_top.draw_line(Vector2(dx, p.position.y + p.size.y * 0.24), Vector2(dx, p.end.y - p.size.y * 0.24), Color(RIM, 0.35), 3.0, true)
+		for i in goals.size():
+			var g: Dictionary = goals[i]
+			var r := _slot(i)
+			var k: float = 1.0 + 0.12 * _pop[i]
+			var fr := _frame(g)
+			if fr != null:
+				_top.draw_texture_rect(fr, r.grow(r.size.x * 0.06 * k), false)
+			Widgets.draw_goal_icon(_top, r.get_center() + Vector2(0, r.size.y * 0.02), r.size.x * 0.4 * k, g)
+			var done: bool = have[i] >= g.n
+			_text(Vector2(r.get_center().x, r.end.y + unit * 0.17), "%d/%d" % [have[i], g.n], int(unit * 0.22), Pal.GOOD if done else Color.WHITE, int(unit * 0.08))
+			if done:
+				var c := r.end - Vector2(r.size.x * 0.12, r.size.y * 0.12)
+				_top.draw_circle(c, r.size.x * 0.17, Pal.GOOD, true, -1.0, true)
+				_top.draw_polyline(PackedVector2Array([c + Vector2(-r.size.x * 0.08, 0), c + Vector2(-r.size.x * 0.02, r.size.x * 0.06), c + Vector2(r.size.x * 0.09, -r.size.x * 0.06)]), Pal.BG, 4.0, true)
+		# this dig's haul as Coin: a coin over the amount, lined up with the goal counts
+		var hc := _haul_center()
+		Widgets.draw_currency_icon(_top, hc, unit * 0.2 * (1.0 + 0.25 * _coin_pop), false)
+		var ny := hc.y + unit * 0.4
+		_text(Vector2(hc.x, ny), str(coin), int(unit * 0.22), Color.WHITE.lerp(Pal.COIN, _coin_pop), int(unit * 0.08))
+
+
+## Progress toward the colony's next star milestone: a star, a filling bar, "have / need".
+class MilestoneBar extends Control:
+	var frac := 0.0
+	var text := ""
+	var _font: Font
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(0, 64)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = ThemeDB.fallback_font
+
+	func set_progress(f: float, t: String) -> void:
+		frac = clampf(f, 0.0, 1.0)
+		text = t
+		queue_redraw()
+
+	func _draw() -> void:
+		var h := size.y
+		var star_c := Vector2(h * 0.5, h * 0.5)
+		var bar := Rect2(Vector2(h * 0.75, h * 0.25), Vector2(size.x - h * 0.85, h * 0.5))
+		var sb := StyleBoxFlat.new()
+		sb.anti_aliasing = true
+		sb.set_corner_radius_all(int(bar.size.y * 0.5))
+		sb.bg_color = Pal.OUTLINE
+		draw_style_box(sb, bar.grow(3))
+		sb.bg_color = Pal.PANEL_HI
+		draw_style_box(sb, bar)
+		if frac > 0.0:
+			sb.bg_color = Pal.COIN
+			draw_style_box(sb, Rect2(bar.position, Vector2(maxf(bar.size.y, bar.size.x * frac), bar.size.y)))
+		Widgets.draw_currency_icon(self, star_c, h * 0.42, true)
+		var fs := Pal.FS_SMALL
+		var tw := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		var p := Vector2(bar.get_center().x - tw * 0.5, bar.get_center().y + fs * 0.36)
+		draw_string_outline(_font, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, 8, Pal.OUTLINE)
+		draw_string(_font, p, text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Pal.TEXT)
+
+
 ## This dig's haul in one small slot: the four gems and the total. Ore that is not a goal flies
 ## here; the slot then shows the gem that came in for a moment. Tap it for the breakdown.
 ## (Mobile puzzle HUDs keep the top bar for goals and moves; extras get one compact slot.)
@@ -323,10 +628,10 @@ class GoalStrip extends Control:
 				draw_polyline(PackedVector2Array([k + Vector2(-s * 0.18, 0), k + Vector2(-s * 0.04, s * 0.14), k + Vector2(s * 0.2, -s * 0.14)]), Pal.BG, 5.0, true)
 
 
-## A cost as resource icons with numbers; red when the bank is short.
+## A Coin cost as a coin icon + number; red when you cannot afford it.
 class CostRow extends Control:
-	var cost: Array = []
-	var bank: Array = [0, 0, 0, 0]
+	var coin_cost := 0
+	var coin_have := 0
 	var _font: Font
 
 	func _init() -> void:
@@ -334,21 +639,18 @@ class CostRow extends Control:
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_font = ThemeDB.fallback_font
 
-	func setup(c: Array, b: Array) -> void:
-		cost = c
-		bank = b
+	func setup(cost: int, have: int) -> void:
+		coin_cost = cost
+		coin_have = have
 		queue_redraw()
 
 	func _draw() -> void:
+		if coin_cost <= 0:
+			return
 		var x := 18.0
-		for i in 4:
-			if cost.is_empty() or cost[i] <= 0:
-				continue
-			Widgets.draw_res_icon(self, Vector2(x, size.y * 0.5), 15, i)
-			var enough: bool = bank[i] >= cost[i]
-			var t := str(cost[i])
-			draw_string(_font, Vector2(x + 26, size.y * 0.5 + Pal.FS_SMALL * 0.36), t, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS_SMALL, Pal.TEXT if enough else Pal.BAD)
-			x += 50 + _font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS_SMALL).x
+		Widgets.draw_currency_icon(self, Vector2(x, size.y * 0.5), 15, false)
+		var enough: bool = coin_have >= coin_cost
+		draw_string(_font, Vector2(x + 26, size.y * 0.5 + Pal.FS_SMALL * 0.36), str(coin_cost), HORIZONTAL_ALIGNMENT_LEFT, -1, Pal.FS_SMALL, Pal.TEXT if enough else Pal.BAD)
 
 
 ## Building badge: the tool it gives the robot.
@@ -415,6 +717,26 @@ static func draw_building_icon(ci: CanvasItem, c: Vector2, s: float, b: int, col
 			ci.draw_arc(c + Vector2(0, -s * 0.1), s * 0.45, PI * 0.2, PI * 0.8, 12, col, 6.0, true)
 			ci.draw_circle(c + Vector2(0, -s * 0.1), s * 0.16, col)
 			ci.draw_line(c + Vector2(0, s * 0.3), c + Vector2(0, s * 0.95), col, 6.0)
+
+
+## Currency icon: a gold coin, or a violet star (GDD v3 two-currency economy).
+static func draw_currency_icon(ci: CanvasItem, c: Vector2, s: float, star: bool) -> void:
+	var t := Art.tex("res://assets/ui/%s.png" % ("star" if star else "coin"))
+	if t != null:
+		ci.draw_texture_rect(t, Rect2(c - Vector2(s, s) * 1.15, Vector2(s, s) * 2.3), false)
+		return
+	if star:
+		var pts := PackedVector2Array()
+		for k in 10:
+			var a := -PI * 0.5 + TAU * k / 10.0
+			var r := s if k % 2 == 0 else s * 0.44
+			pts.append(c + Vector2(cos(a), sin(a)) * r)
+		ci.draw_colored_polygon(pts, Pal.STAR)
+		ci.draw_polyline(pts + PackedVector2Array([pts[0]]), Pal.CRYSTAL_DARK, maxf(2.0, s * 0.1), true)
+	else:
+		ci.draw_circle(c, s, Pal.COIN)
+		ci.draw_arc(c, s * 0.96, 0, TAU, 28, Pal.COIN_DARK, maxf(2.0, s * 0.14), true)
+		ci.draw_circle(c, s * 0.45, Pal.COIN_DARK)
 
 
 static func draw_res_icon(ci: CanvasItem, c: Vector2, s: float, res: int) -> void:

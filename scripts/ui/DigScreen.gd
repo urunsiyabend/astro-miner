@@ -14,8 +14,7 @@ var view: BoardView
 var fxl: FxLayer
 
 var _title: Label
-var _goals: Widgets.GoalStrip
-var _energy: Widgets.EnergyBar
+var _hud: Widgets.DigHud
 var _haul: Widgets.HaulChip
 var _haul_pop: Control  # breakdown of the haul, shown for a moment when the haul is tapped
 var _chips: Array = []
@@ -66,7 +65,7 @@ func _ready() -> void:
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + side, 32)
+		margin.add_theme_constant_override("margin_" + side, 44)
 	margin.add_theme_constant_override("margin_top", 48)
 	margin.add_theme_constant_override("margin_bottom", 40)
 	add_child(margin)
@@ -74,36 +73,23 @@ func _ready() -> void:
 	col.add_theme_constant_override("separation", 12)
 	margin.add_child(col)
 
-	# top HUD, one plate: dig number, battery, and this dig's haul as one compact slot
-	# (tap it for the breakdown). Extra room at the plate's sides.
-	var top_plate := Ui.panel(Pal.PANEL, 28, "plate")
-	_top_plate = top_plate
-	col.add_child(top_plate)
-	var inner := MarginContainer.new()
-	for side in ["left", "right"]:
-		inner.add_theme_constant_override("margin_" + side, 24)
-	top_plate.add_child(inner)
-	var top := HBoxContainer.new()
-	top.alignment = BoxContainer.ALIGNMENT_CENTER
-	top.add_theme_constant_override("separation", 18)
-	inner.add_child(top)
-	_title = Ui.label("", Pal.FS_BIG, Pal.TEXT)
-	_title.custom_minimum_size.x = 230
-	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
-	_title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	Ui.outline(_title)
-	top.add_child(_title)
-	_energy = Widgets.EnergyBar.new()
-	_energy.custom_minimum_size.y = 88
-	_energy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(_energy)
+	# top HUD after the hero: moves left, the goals as framed slots, and this dig's haul as a
+	# compact slot at the right end (tap it for the breakdown)
+	_hud = Widgets.DigHud.new()
+	_top_plate = _hud
+	col.add_child(_hud)
 	_haul = Widgets.HaulChip.new()
-	_haul.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_haul.tapped.connect(_toggle_haul)
-	top.add_child(_haul)
+	_hud.haul_tapped.connect(_toggle_haul)  # _haul only keeps the per-ore counts now
 
-	_goals = Widgets.GoalStrip.new()
-	col.add_child(_goals)
+	# dig name, small in the bottom-right corner (debug, for testing)
+	_title = Ui.label("", Pal.FS_TINY, Pal.MUTED)
+	_title.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	_title.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_title.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_title.offset_right = -12
+	_title.offset_bottom = -4
+	_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_title.autowrap_mode = TextServer.AUTOWRAP_OFF
 
 	view = BoardView.new()
 	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -111,6 +97,8 @@ func _ready() -> void:
 	view.snap_changed.connect(_on_snap)
 	view.settled.connect(_on_settled)
 	view.fx.connect(_on_fx)
+	# the HUD follows the board, sized off its cell (deferred: the board lays out on the same signal)
+	view.resized.connect(_refit_hud.call_deferred)
 	col.add_child(view)
 
 	_coach = Dialog.Coach.new()
@@ -128,18 +116,24 @@ func _ready() -> void:
 	bar.add_child(_recall_btn)
 	col.add_child(bar)
 
+	add_child(_title)
 	fxl = FxLayer.new()
 	fxl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fxl)
 	for r in 4:
-		fxl.targets[r] = _haul.icon_global
-	fxl.targets["energy"] = _energy.target_global
+		fxl.targets[r] = _hud.haul_global
+	fxl.targets["energy"] = _hud.target_global
 
 	_dialog = Dialog.Overlay.new()
 	add_child(_dialog)
 
 
 ## The haul per gem, on a plate under the top bar, for a few seconds.
+func _refit_hud() -> void:
+	if view.cell > 1.0 and absf(view.cell * 1.25 - _hud.unit) > 1.0:
+		_hud.fit(view.cell, view.cell * Board.W)
+
+
 func _toggle_haul() -> void:
 	if _haul_pop != null:
 		_hide_haul()
@@ -189,18 +183,18 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	else:
 		board.setup_site(site, s, rules)
 	_title.text = "Supply run" if supply else "Dig %d" % (index + 1)
-	_goals.set_goals(site.goals)
+	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon, the rest into the haul slot
 	_haul.values = [0, 0, 0, 0]
 	_hide_haul()
 	for r in 4:
-		fxl.targets[r] = _haul.icon_global
+		fxl.targets[r] = _hud.haul_global
 	for i in site.goals.size():
 		var g: Dictionary = site.goals[i]
 		if g.type == "ore":
-			fxl.targets[g.ore] = _goals.icon_global.bind(i)
+			fxl.targets[g.ore] = _hud.icon_global.bind(i)
 		elif g.type == "crystal":
-			fxl.targets[3] = _goals.icon_global.bind(i)
+			fxl.targets[3] = _hud.icon_global.bind(i)
 	view.scanner = rules.scanner
 	view.drill = rules.drill
 	view.hint_dir = -1
@@ -414,8 +408,9 @@ func _do_move(dir: Vector2i) -> void:
 
 
 func _on_snap(s: Dictionary) -> void:
-	_energy.set_energy(s.energy, board.cfg.capacity)
+	_hud.set_energy(s.energy, board.cfg.capacity)
 	_haul.set_values(s.haul)
+	_hud.set_coin(s.haul[0] + s.haul[1] + s.haul[2])
 	for r in _chips.size():
 		(_chips[r] as Widgets.Chip).set_value(s.haul[r])
 	var site := Sites.get_site(site_index)
@@ -428,7 +423,7 @@ func _on_snap(s: Dictionary) -> void:
 			"chunks": v = s.chunks
 			"crystal": v = s.crystals
 			"blast": v = s.blasts
-		_goals.set_have(i, v)
+		_hud.set_have(i, v)
 
 
 func _on_settled() -> void:
@@ -574,17 +569,20 @@ func _show_result() -> void:
 	var titles := {"complete": "DIG COMPLETE", "energy": "BATTERY EMPTY", "recall": "BACK AT BASE"}
 	var colors := {"complete": Pal.GOOD, "energy": Pal.WARN, "recall": Pal.ACCENT}
 	v.add_child(Ui.label(titles[reason], Pal.FS_HUGE - 8, colors[reason], HORIZONTAL_ALIGNMENT_CENTER))
-	var sub := "Everything you mined goes to the colony." if reason != "complete" else "Leftover energy was turned into bonus ore."
+	var sub := "Everything you mined goes to the colony." if reason != "complete" else "Leftover energy became bonus Coin."
 	v.add_child(Ui.label(sub, Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
-	var total := [0, 0, 0, 0]
-	for i in 4:
-		total[i] = res.haul[i] + res.bonus[i]
-	var haul := Widgets.CostRow.new()
-	haul.custom_minimum_size.y = 70
-	haul.setup(total, [9999, 9999, 9999, 9999])
+	var reward := HBoxContainer.new()
+	reward.alignment = BoxContainer.ALIGNMENT_CENTER
+	reward.add_theme_constant_override("separation", 40)
+	var coin_chip := Widgets.CurrencyChip.new(false)
+	coin_chip.set_value(res.coin)
+	reward.add_child(coin_chip)
+	if res.star > 0:
+		var star_chip := Widgets.CurrencyChip.new(true)
+		star_chip.set_value(res.star)
+		reward.add_child(star_chip)
 	var hc := CenterContainer.new()
-	haul.custom_minimum_size.x = 620
-	hc.add_child(haul)
+	hc.add_child(reward)
 	v.add_child(hc)
 	var b1 := Ui.button("Back to colony", Pal.GOOD)
 	b1.pressed.connect(func(): finished.emit())

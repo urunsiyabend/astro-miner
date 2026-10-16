@@ -49,6 +49,11 @@ func _transition(swap: Callable) -> void:
 	tw.tween_property(_fade, "modulate:a", 0.0, 0.18)
 
 
+## The texture cache is static and outlives the scene tree; drop it before the engine shuts down.
+func _exit_tree() -> void:
+	Art.clear_cache()
+
+
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_WM_CLOSE_REQUEST:

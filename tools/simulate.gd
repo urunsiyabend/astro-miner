@@ -115,45 +115,43 @@ func _campaign(n: int) -> void:
 	var first_up_digs := 0.0
 	var gave_up := 0
 	for c in n:
-		var bank := [0, 0, 0, 0]
+		var coin := 0
+		var star := 0
 		var levels := [0, 0, 0]
 		var digs := 0
 		var moves := 0
 		var first_up := -1
 		var site := 0
-		var cleared := 0
 		while site < Sites.count() and digs < 60:
 			var m := Bots.play(Sites.get_site(site), Economy.rules(levels), 9000 + c * 101 + digs, Bots.Kind.PLANNER)
 			digs += 1
 			moves += m.moves
-			for r in 4:
-				bank[r] += m.haul[r]
+			coin += m.haul[0] + m.haul[1] + m.haul[2]
+			star += m.haul[3]
 			if m.complete:
-				var bonus := Economy.completion_bonus(m.energy_left)
-				for r in 4:
-					bank[r] += bonus[r]
-				bank[3] += Economy.FIRST_CLEAR_CRYSTALS
+				coin += Economy.completion_bonus(m.energy_left)
+				star += Economy.FIRST_CLEAR_STARS
 				acc[site].digs += digs
 				acc[site].moves += moves
 				acc[site].ups += levels[0] + levels[1] + levels[2]
 				acc[site].done += 1
 				site += 1
+			# Build/upgrade: a building unlocks at its star milestone (level 1 free), then Coin
+			# buys level 2 and 3. Take the cheapest available each pass.
 			var bought := true
 			while bought:
 				bought = false
 				var best := -1
 				var best_cost := 1 << 30
 				for b in 3:
+					if star < Economy.STAR_UNLOCK[b] or levels[b] >= Economy.MAX_LEVEL:
+						continue
 					var cost := Economy.cost(b, levels[b])
-					if Economy.can_afford(bank, cost):
-						var total: int = cost[0] + cost[1] + cost[2] + cost[3] * 10
-						if total < best_cost:
-							best_cost = total
-							best = b
+					if Economy.can_afford(coin, cost) and cost < best_cost:
+						best_cost = cost
+						best = b
 				if best >= 0:
-					var cost := Economy.cost(best, levels[best])
-					for r in 4:
-						bank[r] -= cost[r]
+					coin -= Economy.cost(best, levels[best])
 					levels[best] += 1
 					bought = true
 					if first_up < 0:
