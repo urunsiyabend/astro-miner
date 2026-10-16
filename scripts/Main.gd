@@ -9,6 +9,9 @@ var _fade: ColorRect
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# painted icons and frames are drawn well below their source size: sample the mipmaps
+	# (inherited by every screen), or their edges shimmer and stair-step
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 	colony = ColonyScreen.new()
 	add_child(colony)
 	dig = DigScreen.new()

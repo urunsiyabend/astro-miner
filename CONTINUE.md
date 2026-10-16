@@ -230,7 +230,24 @@ geçiliyor, ekonomi nasıl.
   - `ASTRO_PLANET=verdis`: 2. gezegenin tileset'ini kullanır.
   - `ASTRO_CLEARED=n`: ilk n dig'i bitmiş sayar.
   - `ASTRO_MID=<saniye>`: ekran görüntüsünden önce bekler.
+  - `ASTRO_MOVEWAIT=<saniye>`: hamleler arası bekleme.
+  - `ASTRO_RESULT=complete|recall`: dig'i bitirip sonuç kartını açar.
+  - `ASTRO_ENERGY=n`: kalan hamleyi n yapar (az hamle pulse'u için).
+  - `ASTRO_DUMP=1`: görünen her Control'ün global rect'ini basar.
+- El yapımı dig araçları:
+  - `godot --headless --path . -s res://tools/replay.gd -- <id> <HAMLELER>`: hamleleri oynar,
+    her adımda tahtayı basar.
+  - `godot --headless --path . -s res://tools/handmade_probe.gd -- <id> [seed_from seed_to [runs]]`:
+    greedy, planner ve %12 rastgele hamle yapan "sloppy" botla bitirme oranı; seed aralığı
+    verilirse en iyi açılışı `ore` layout'u olarak basar.
 - Çalışma kuralları:
   - Kullanıcıyla Türkçe konuş.
   - Her PR'da sürümü artır.
   - PR merge edilince branch'i `origin/main` üzerine al, `--force-with-lease` ile push et.
+
+## 7. Bilinen açık sorunlar
+
+- Çıkışta sızıntı raporu (zararsız, sadece oyun kapanırken). Fredoka fontu gelince başladı:
+  ~16 satır `TextLine`, `ImageTexture`, glyph atlas ve GL texture "leaked" hatası. Font
+  `.tres` resource olarak yükleniyor, `Art.clear_cache()` `Main._exit_tree`'de çağrılıyor,
+  statik cache'ler temizleniyor; bunlar çözmedi. Sonra bakılacak.

@@ -28,6 +28,10 @@ var pitch := 130.0          # distance between rows (cell + visible band with th
 var origin := Vector2.ZERO
 var hint_dir := -1
 var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
+## Gems of a match within reach, shown after the player has been idle a while: they hop one
+## after another with a halo and sparkles (set with set_glow, cleared on the next move).
+var glow: Array = []
+var _glow_t := 0.0
 var input_enabled := true
 
 var _queue: Array = []
@@ -288,6 +292,7 @@ func _process(delta: float) -> void:
 		r.t += delta
 	_rings = _rings.filter(func(r): return r.t < r.dur)
 	_shake = maxf(0.0, _shake - delta * 4.0)
+	_glow_t += delta
 	if _bump.t > 0.0:
 		_bump.t = maxf(0.0, _bump.t - delta / 0.18)
 	queue_redraw()
@@ -355,6 +360,10 @@ func _draw() -> void:
 		if snap.terrain[i] == T.ROCK:
 			_draw_rock(i)
 	_draw_move_hints(moving_to)
+	var glowing := not glow.is_empty() and _cur.is_empty()
+	if glowing:
+		for k in glow.size():
+			_draw_glow_halo(glow[k], k)
 	for i in Board.W * Board.H:
 		if snap.terrain[i] != T.GROUND:
 			continue
@@ -372,7 +381,12 @@ func _draw() -> void:
 		var fl: float = _flash.get(i, 0.0)
 		if fl > 0.0 and not _cur.is_empty() and _cur.type == "match" and _phase == 0:
 			sc *= 1.0 + 0.18 * _t
-		_draw_token(cell_center(i), snap.token[i], snap.ore[i], sc, fl)
+		var at := cell_center(i)
+		if glowing and glow.has(i):
+			var hop := _glow_hop(glow.find(i))
+			at.y -= cell * 0.1 * hop
+			sc *= 1.0 + 0.12 * hop
+		_draw_token(at, snap.token[i], snap.ore[i], sc, fl)
 	# robot
 	var rp := cell_center(snap.robot)
 	var rsc := _depth_scale(snap.robot)
@@ -386,6 +400,9 @@ func _draw() -> void:
 	if _bump.t > 0.0:
 		rp += _bump.dir * cell * 0.12 * sin(PI * _bump.t)
 	_draw_robot(rp, rsc)
+	if glowing:
+		for k in glow.size():
+			_draw_glow_sparks(glow[k], k)
 	for f in focus:
 		var fc: Vector2i = f
 		if not Board.inside(fc):
@@ -397,6 +414,55 @@ func _draw() -> void:
 		col.a = 1.0 - k
 		draw_arc(r.c, lerpf(r.r0, r.r1, _ease(k)), 0, TAU, 48, col, 8.0 * (1.0 - k) + 2.0, true)
 	draw_set_transform(Vector2.ZERO)
+
+
+func set_glow(cells: Array) -> void:
+	glow = cells
+	_glow_t = 0.0
+
+
+## 0..1 hop of the k-th glowing gem: they bounce in turn, then all rest a moment.
+func _glow_hop(k: int) -> float:
+	var t := fmod(maxf(0.0, _glow_t - 0.2), 1.5) - k * 0.11
+	if t < 0.0 or t > 0.34:
+		return 0.0
+	var x := t / 0.34
+	return sin(x * PI) * (1.0 - 0.35 * x)
+
+
+func _glow_fade() -> float:
+	return clampf(_glow_t / 0.4, 0.0, 1.0)
+
+
+## Soft halo in the gem's own colour behind it, breathing, brighter while it hops.
+func _draw_glow_halo(i: int, k: int) -> void:
+	if snap.token[i] != K.ORE:
+		return
+	var c := cell_center(i)
+	var col: Color = Pal.ORE[snap.ore[i]].lightened(0.35)
+	var breathe := 0.5 + 0.5 * sin(_time * 4.0 + k)
+	var a := _glow_fade() * (0.4 + 0.18 * breathe + 0.35 * _glow_hop(k))
+	var r := cell * (0.42 + 0.04 * breathe)
+	for n in 5:
+		var f := 1.0 - n * 0.16
+		draw_circle(c, r * (0.55 + 0.45 * f + 0.25 * (1.0 - f)), Color(col, a * 0.32 * f), true, -1.0, true)
+
+
+## Two little four-point sparkles circling each glowing gem, twinkling.
+func _draw_glow_sparks(i: int, k: int) -> void:
+	var c := cell_center(i) - Vector2(0, cell * 0.1 * _glow_hop(k))
+	for n in 2:
+		var ang := _time * 1.6 + k * 2.1 + n * PI
+		var p := c + Vector2(cos(ang), sin(ang) * 0.8) * cell * 0.38
+		var tw := 0.5 + 0.5 * sin(_time * 7.0 + k * 1.7 + n * 2.0)
+		var s := cell * (0.05 + 0.05 * tw)
+		var col := Color(1, 1, 0.9, _glow_fade() * (0.45 + 0.55 * tw))
+		var pts := PackedVector2Array()
+		for m in 8:
+			var a := m * PI / 4.0
+			var rr := s if m % 2 == 0 else s * 0.28
+			pts.append(p + Vector2(cos(a), sin(a)) * rr)
+		draw_colored_polygon(pts, col)
 
 
 func _rect(i: int, inset := 3.0) -> Rect2:

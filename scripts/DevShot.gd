@@ -68,6 +68,14 @@ func _run() -> void:
 			main.dig.view.focus = cells
 		if OS.has_environment("ASTRO_HINTDIR"):  # ASTRO_HINTDIR=0..3: frame the hinted step
 			main.dig.view.hint_dir = int(OS.get_environment("ASTRO_HINTDIR"))
+		if OS.has_environment("ASTRO_ENERGY"):  # ASTRO_ENERGY=n: moves left (e.g. the low-moves beat)
+			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
+			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
+		if OS.has_environment("ASTRO_RESULT"):  # ASTRO_RESULT=complete|recall: end the dig now
+			if OS.get_environment("ASTRO_RESULT") == "complete":
+				main.dig.board.complete = true
+			main.dig.board.over = true
+			main.dig._show_result()
 		var mid := float(OS.get_environment("ASTRO_MID")) if OS.has_environment("ASTRO_MID") else 0.0
 		await get_tree().create_timer(0.6 if mid <= 0.0 else mid).timeout
 	else:
@@ -89,6 +97,13 @@ func _run() -> void:
 		if OS.has_environment("ASTRO_CARD"):  # ASTRO_CARD=b: tap building b's plot
 			main.colony._on_plot(Colony.building_plot(int(OS.get_environment("ASTRO_CARD"))))
 		await get_tree().create_timer(0.6).timeout
+	if OS.has_environment("ASTRO_DUMP"):  # print every visible control's global rect
+		var stack: Array = [main]
+		while not stack.is_empty():
+			var n: Node = stack.pop_back()
+			if n is Control and (n as Control).is_visible_in_tree():
+				print(n.get_path(), " ", n.get_class(), " ", (n as Control).get_global_rect())
+			stack.append_array(n.get_children())
 	print("main size ", main.size, " colony ", main.colony.size, " vis ", main.colony.visible)
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()

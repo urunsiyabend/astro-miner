@@ -86,8 +86,7 @@ static func inside(c: Vector2i) -> bool:
 func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> void:
 	setup(site.rows, int(site.get("seed", seed_value)), rules, site.goals, site.get("ore", []))
 	# Dig budget = the site's own budget (or a 20 base) plus the Power Station bonus. A dig
-	# starts with a full budget unless it pins a lower "start" (e.g. the battery lesson, which
-	# opens nearly flat so the energy cell matters).
+	# starts with a full budget unless it pins a lower "start".
 	var base := int(site.get("energy", 20))
 	cfg.capacity = base + int(cfg.get("budget_bonus", 0))
 	energy = cfg.capacity
@@ -298,7 +297,8 @@ func try_move(dir: Vector2i) -> Dictionary:
 			step.pickup = Token.CRYSTAL
 		Token.CELL:
 			token[ti] = Token.NONE
-			energy = mini(cfg.capacity, energy + cfg.cell_energy)
+			# a cell always gives its full moves (a move booster), even on a full budget
+			energy += cfg.cell_energy
 			stats.cells += 1
 			step.pickup = Token.CELL
 		Token.CHARGE:
@@ -506,7 +506,7 @@ func _blast(center: int, steps: Array) -> void:
 						step.cells.append(i)
 					Token.CELL:
 						token[i] = Token.NONE
-						energy = mini(cfg.capacity, energy + cfg.cell_energy)
+						energy += cfg.cell_energy
 						stats.cells += 1
 						step.cells.append(i)
 					Token.CHARGE:
@@ -690,6 +690,49 @@ func _line_through(tk: PackedInt32Array, orr: PackedInt32Array, c: int) -> bool:
 		if n >= 3:
 			return true
 	return false
+
+
+## The gems, where they lie now, that line up at the end of `path` (a path_to_match result):
+## the robot's swaps are followed so a gem it carries is found at its current cell.
+func match_gems(path: Array) -> Array:
+	var tk := token.duplicate()
+	var orr := ore.duplicate()
+	var src := PackedInt32Array()
+	src.resize(W * H)
+	for i in W * H:
+		src[i] = i
+	var r := robot
+	var fi := -1
+	for di in path:
+		var to: Vector2i = pos(r) + DIRS[di]
+		if not inside(to):
+			return []
+		var ti := idx(to)
+		fi = r
+		if tk[ti] == Token.ORE:
+			tk[fi] = Token.ORE
+			orr[fi] = orr[ti]
+			src[fi] = src[ti]
+			tk[ti] = Token.NONE
+		elif tk[ti] != Token.NONE:
+			tk[ti] = Token.NONE
+		r = ti
+	if fi < 0 or tk[fi] != Token.ORE:
+		return []
+	var kind := orr[fi]
+	var out := []
+	for axis in [Vector2i(1, 0), Vector2i(0, 1)]:
+		var run := [fi]
+		for sgn in [1, -1]:
+			var q: Vector2i = pos(fi) + axis * sgn
+			while inside(q) and terrain[idx(q)] == Terrain.GROUND and tk[idx(q)] == Token.ORE and orr[idx(q)] == kind:
+				run.append(idx(q))
+				q += axis * sgn
+		if run.size() >= 3:
+			for c in run:
+				if not out.has(src[c]):
+					out.append(src[c])
+	return out
 
 
 func clone() -> Board:

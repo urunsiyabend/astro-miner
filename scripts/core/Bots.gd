@@ -86,17 +86,50 @@ static func _value(b: Board, plan: bool) -> float:
 				wants_rock = true
 		var dmg := 0
 		var nearest := 99
-		var rp := Board.pos(b.robot)
+		var dist := _walk_dist(b)
 		for i in Board.W * Board.H:
 			if b.terrain[i] == Board.Terrain.ROCK:
 				dmg -= b.hp[i]
-			if b.token[i] == Board.Token.CRYSTAL or b.token[i] == Board.Token.CHARGE:
-				var p := Board.pos(i)
-				nearest = mini(nearest, absi(p.x - rp.x) + absi(p.y - rp.y))
+			# pickups in the open, and a crystal still buried (the crystal digs need the
+			# route to it): distance along the board, walls and rock included
+			var target := b.token[i] == Board.Token.CRYSTAL or b.token[i] == Board.Token.CHARGE \
+					or (b.terrain[i] == Board.Terrain.ROCK and b.buried[i] == Board.Buried.CRYSTAL)
+			if target and dist[i] >= 0:
+				nearest = mini(nearest, dist[i])
 		v += dmg * (1.5 if wants_rock else 0.3)
 		if nearest < 99:
 			v -= nearest * 1.2
 	return v
+
+
+## Steps from the robot to every cell (rock costs 3: it has to be cracked first; bedrock is a
+## wall); -1 where unreachable.
+static func _walk_dist(b: Board) -> PackedInt32Array:
+	var d := PackedInt32Array()
+	d.resize(Board.W * Board.H)
+	d.fill(-1)
+	d[b.robot] = 0
+	var open := [b.robot]
+	while not open.is_empty():
+		# tiny board: pick the closest open cell by scan (Dijkstra without a heap)
+		var bi := 0
+		for k in open.size():
+			if d[open[k]] < d[open[bi]]:
+				bi = k
+		var c: int = open[bi]
+		open.remove_at(bi)
+		for dir in Board.DIRS:
+			var p: Vector2i = Board.pos(c) + dir
+			if not b.inside(p):
+				continue
+			var n := Board.idx(p)
+			if b.terrain[n] == Board.Terrain.BEDROCK:
+				continue
+			var nd := d[c] + (3 if b.terrain[n] == Board.Terrain.ROCK else 1)
+			if d[n] == -1 or nd < d[n]:
+				d[n] = nd
+				open.append(n)
+	return d
 
 
 ## Play one full dig; returns a metrics dictionary.

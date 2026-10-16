@@ -38,6 +38,8 @@ var _auto_hint := false
 ## later it shows only when the Hint button is tapped.
 const AUTO_HINT_DIGS := 5
 const AUTO_HINT_IDLE := 8.0
+## In every dig, after this long without a move the gems of the nearest match glow.
+const IDLE_GLOW := 4.0
 var _lesson := false
 # Mira's script for this dig (see Sites): current step and the event a coach line waits for.
 var _script: Array = []
@@ -66,7 +68,7 @@ func _ready() -> void:
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 44)
-	margin.add_theme_constant_override("margin_top", 48)
+	margin.add_theme_constant_override("margin_top", 110)
 	margin.add_theme_constant_override("margin_bottom", 40)
 	add_child(margin)
 	var col := VBoxContainer.new()
@@ -252,37 +254,33 @@ func _show_mission(goals: Array) -> void:
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mission.add_child(center)
-	var panel := Ui.panel(Pal.PANEL, 36)
-	panel.custom_minimum_size = Vector2(900, 0)
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	center.add_child(panel)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 56)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(col)
+	# the goals alone on a jelly card: the gem in each frame and its amount say it all
+	var card := Widgets.JellyCard.new(64.0)
+	card.custom_minimum_size.x = 760
+	card.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(card)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 14)
-	panel.add_child(v)
+	v.add_theme_constant_override("separation", 10)
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(v)
 	if supply:
-		v.add_child(Ui.label("Supply run", Pal.FS, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
-	var strip := Widgets.GoalStrip.new(true)
-	strip.set_goals(goals)
-	v.add_child(strip)
-	var words := []
-	for g in goals:
-		words.append(Sites.goal_text(g))
-	v.add_child(Ui.label(" + ".join(words), Pal.FS, Pal.TEXT, HORIZONTAL_ALIGNMENT_CENTER))
-	# a real button (tapping anywhere works too); it shows once the goal had time to be read
-	var tap := Ui.button("Start", Pal.WARN, Pal.FS_BIG, 120)
-	tap.custom_minimum_size.x = 420
-	tap.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	tap.pressed.connect(_close_mission)
-	tap.modulate.a = 0.0
-	v.add_child(tap)
-	# the card stays up for a moment so the goal is actually read, then invites the tap
+		v.add_child(Widgets.JuicyText.new("Supply run", 56, Color("f3c9ff"), 0.05))
+	var gc := Widgets.GoalCard.new(goals)
+	gc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	v.add_child(gc)
+	card.scale = Vector2(0.7, 0.7)
+	card.modulate.a = 0.0
+	var tw := card.create_tween().set_parallel()
+	tw.tween_property(card, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(card, "modulate:a", 1.0, 0.15)
+	# no button (it pulled the thumb to it): once the goal had time to be read, a pulsing
+	# line invites a tap anywhere
 	_mission_at = Time.get_ticks_msec()
-	var tw := tap.create_tween()
-	tw.tween_interval(MISSION_HOLD_MS / 1000.0)
-	tw.tween_property(tap, "modulate:a", 1.0, 0.3)
-	strip.scale = Vector2(0.6, 0.6)
-	strip.pivot_offset = Vector2(420, 115)
-	strip.create_tween().tween_property(strip, "scale", Vector2.ONE, 0.45).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	col.add_child(Widgets.JuicyText.new("Tap to start", 64, Color.WHITE, MISSION_HOLD_MS / 1000.0, true))
 	_mission.gui_input.connect(func(e: InputEvent):
 		if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
 			_close_mission())
@@ -357,6 +355,13 @@ func _process(delta: float) -> void:
 		_idle += delta
 		if _auto_hint and _idle > AUTO_HINT_IDLE and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
+		if _idle > IDLE_GLOW and view.glow.is_empty():
+			var path := board.path_to_match(4)
+			var gems := board.match_gems(path) if not path.is_empty() else []
+			# nothing in reach: keep checking, but not every frame
+			if gems.is_empty():
+				_idle = IDLE_GLOW - 1.0
+			view.set_glow(gems)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -400,6 +405,7 @@ func _do_move(dir: Vector2i) -> void:
 	for k in _turn_events(before):
 		_events[k] = true
 	view.hint_dir = -1
+	view.set_glow([])
 	view.play_steps(r.steps)
 	if Engine.has_singleton("Android") or OS.has_feature("mobile"):
 		for s in r.steps:
@@ -561,40 +567,25 @@ func _show_result() -> void:
 	var center := CenterContainer.new()
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_result.add_child(center)
-	var panel := Ui.panel(Pal.PANEL, 36)
-	panel.custom_minimum_size = Vector2(900, 0)
-	center.add_child(panel)
+	var card := Widgets.JellyCard.new(60.0)
+	card.custom_minimum_size.x = 820
+	center.add_child(card)
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 18)
-	panel.add_child(v)
-	var titles := {"complete": "DIG COMPLETE", "energy": "BATTERY EMPTY", "recall": "BACK AT BASE"}
+	v.add_theme_constant_override("separation", 26)
+	card.add_child(v)
+	var titles := {"complete": "Dig Complete!", "energy": "Out of Moves", "recall": "Back at Base"}
 	var colors := {"complete": Pal.GOOD, "energy": Pal.WARN, "recall": Pal.ACCENT}
-	v.add_child(Ui.label(titles[reason], Pal.FS_HUGE - 8, colors[reason], HORIZONTAL_ALIGNMENT_CENTER))
-	var sub := "Everything you mined goes to the colony." if reason != "complete" else "Leftover energy became bonus Coin."
-	v.add_child(Ui.label(sub, Pal.FS_SMALL, Pal.DIM, HORIZONTAL_ALIGNMENT_CENTER))
-	var reward := HBoxContainer.new()
-	reward.alignment = BoxContainer.ALIGNMENT_CENTER
-	reward.add_theme_constant_override("separation", 40)
-	var coin_chip := Widgets.CurrencyChip.new(false)
-	coin_chip.set_value(res.coin)
-	reward.add_child(coin_chip)
-	if res.star > 0:
-		var star_chip := Widgets.CurrencyChip.new(true)
-		star_chip.set_value(res.star)
-		reward.add_child(star_chip)
-	var hc := CenterContainer.new()
-	hc.add_child(reward)
-	v.add_child(hc)
-	var b1 := Ui.button("Back to colony", Pal.GOOD)
+	v.add_child(Widgets.JuicyText.new(titles[reason], 88, colors[reason], 0.12))
+	v.add_child(Widgets.RewardRow.new(res.coin, res.star, 0.45))
+	var b1 := Widgets.JellyButton.new("Colony", Color("8ff0a4"), Color("37b65a"))
 	b1.pressed.connect(func(): finished.emit())
 	v.add_child(b1)
 	if reason != "complete" and not supply:
-		var b2 := Ui.button("Try again", Pal.PANEL_HI.lightened(0.3))
+		var b2 := Widgets.JellyButton.new("Try again", Color("c7a6f5"), Color("6b45b0"), 116.0, 46)
 		b2.pressed.connect(func(): start(site_index))
 		v.add_child(b2)
-	panel.modulate.a = 0.0
-	panel.scale = Vector2(0.92, 0.92)
-	panel.pivot_offset = Vector2(450, 300)
-	var tw := create_tween().set_parallel()
-	tw.tween_property(panel, "modulate:a", 1.0, 0.2)
-	tw.tween_property(panel, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	card.modulate.a = 0.0
+	card.scale = Vector2(0.75, 0.75)
+	var tw := card.create_tween().set_parallel()
+	tw.tween_property(card, "modulate:a", 1.0, 0.15)
+	tw.tween_property(card, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
