@@ -26,6 +26,7 @@ func _ready() -> void:
 	_streams.win = _tone([[523.0, 0.1], [659.0, 0.1], [784.0, 0.1], [1046.0, 0.3]], 0.38, "square", 0.5)
 	_streams.lose = _tone([[440.0, 0.12], [349.0, 0.12], [262.0, 0.3]], 0.3, "tri", 0.5)
 	_streams.pulse = _tone([[220.0, 0.25]], 0.35, "sine", 0.2)
+	_streams.coin = _tone([[1318.0, 0.03], [1760.0, 0.07]], 0.22, "sine", 0.35)
 
 
 func play(name: String, pitch := 1.0) -> void:

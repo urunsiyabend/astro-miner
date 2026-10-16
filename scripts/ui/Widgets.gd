@@ -126,7 +126,7 @@ static func game_font(_weight := 700) -> Font:
 ## at the right end. Sizes follow `unit` (the board's cell size), so the HUD scales with it.
 class DigHud extends Control:
 	signal haul_tapped
-	const LOW_MOVES := 5   # from here the count turns red and beats (last-moves tension)
+	const LOW_MOVES := 5   # from here the count is red and every move hits (last-moves tension)
 	const RIM := Color("a27be0")
 	var unit := 120.0
 	var coin := 0
@@ -139,7 +139,12 @@ class DigHud extends Control:
 	var have: Array = []
 	var _pop: Array = []
 	var _flash := 0.0
-	var _beat := 0.0          # heartbeat clock while few moves are left
+	var _hit := 0.0           # 1..0 after a move is spent on the last moves (squash-pop)
+	var _shake := 0.0         # 1..0 plate shake with it
+	var _shake_t := 0.0
+	var _plate_at := Vector2.ZERO
+	var calm := false         # the end-of-dig move conversion: hits pop but don't shake
+	var coin_preview := false # dims the coin amount (unused for now)
 	var _font: Font
 	var _plate: Jelly
 	var _top: Control
@@ -163,7 +168,22 @@ class DigHud extends Control:
 		custom_minimum_size = Vector2(minf(board_w * 0.8, board_w), unit * 1.42)
 		_layout()
 
-	## Coin earned so far this dig (all ore merges into Coin); shown at the right end.
+	## Before the clear: the Coin this dig pays for clearing it, shown dimmed.
+	func set_coin_preview(n: int) -> void:
+		coin = n
+		coin_shown = n
+		coin_preview = true
+		_top.queue_redraw()
+
+	## One Coin landed during the end-of-dig conversion (a move left turned into Coin).
+	func coin_tick() -> void:
+		coin_preview = false
+		coin_shown += 1
+		coin = coin_shown
+		_coin_pop = 1.0
+		_top.queue_redraw()
+
+	## Coin on the slot (no animation).
 	func set_coin(c: int) -> void:
 		coin = c
 		if c < coin_shown:
@@ -181,10 +201,6 @@ class DigHud extends Control:
 					_pop[i] = 1.0
 				_top.queue_redraw()
 				return
-		if res >= 0 and res < 3 and coin_shown != coin:
-			coin_shown = coin
-			_coin_pop = 1.0
-			_top.queue_redraw()
 
 	func _flies(g: Dictionary) -> bool:
 		return g.type == "ore" or g.type == "crystal"
@@ -206,6 +222,10 @@ class DigHud extends Control:
 	func set_energy(e: int, _cap: int) -> void:
 		if e > energy:
 			_flash = 1.0
+		elif e < energy and (e <= LOW_MOVES or calm):
+			_hit = 1.0
+			if not calm:
+				_shake = 1.0
 		energy = e
 		_top.queue_redraw()
 
@@ -265,6 +285,7 @@ class DigHud extends Control:
 	func _layout() -> void:
 		var p := _shape()
 		_plate.setup(p, unit * 0.06, unit * 0.3, _rim())
+		_plate_at = _plate.position
 		_plate.set_param("rim_color", Color("7d52bf"))
 		_plate.set_param("gloss", 0.35)
 		_plate.set_param("face_color", Color("2b1258"))
@@ -285,11 +306,14 @@ class DigHud extends Control:
 					coin_shown = coin
 					_coin_pop = 1.0
 		var any := _flash > 0.0 or _coin_pop > 0.0
-		if energy > 0 and energy <= LOW_MOVES:
-			_beat += delta
+		if _hit > 0.0 or _shake > 0.0:
+			_hit = maxf(0.0, _hit - delta / 0.32)
+			_shake = maxf(0.0, _shake - delta / 0.2)
+			_shake_t += delta
+			var off := Vector2(sin(_shake_t * 70.0), 0.0) * unit * 0.035 * _shake
+			_top.position = off
+			_plate.position = _plate_at + off
 			any = true
-		else:
-			_beat = 0.0
 		_flash = maxf(0.0, _flash - delta * 3.0)
 		_coin_pop = maxf(0.0, _coin_pop - delta * 3.0)
 		for i in _pop.size():
@@ -312,10 +336,7 @@ class DigHud extends Control:
 	func _frame(g: Dictionary) -> Texture2D:
 		return Widgets.goal_frame(g)
 
-	## 0..1..0 bump of width w starting at a (for the heartbeat).
-	func _bump(x: float, a: float, w: float) -> float:
-		var t := (x - a) / w
-		return sin(t * PI) if t > 0.0 and t < 1.0 else 0.0
+
 
 	func _goal_color(g: Dictionary) -> Color:
 		match g.type:
@@ -329,16 +350,13 @@ class DigHud extends Control:
 		var p := _shape()
 		var mc := _moves_center()
 		var col := Color.WHITE.lerp(Pal.GOOD, _flash)
-		var beat := 1.0
-		if energy <= LOW_MOVES:
-			# a heartbeat: two quick thumps, then a rest; faster on the very last moves
-			var period := 0.62 if energy <= 2 else 0.95
-			var ph := fmod(_beat, period) / period
-			var thump := maxf(_bump(ph, 0.0, 0.16), 0.7 * _bump(ph, 0.2, 0.16))
-			beat = 1.0 + 0.2 * thump
-			col = Pal.BAD.lerp(Color.WHITE, 0.25 - 0.25 * thump)
+		# a spent move pops the count once: wide and flat, then tall, then back
+		var h := sin(PI * (1.0 - _hit)) * _hit
+		var sq := Vector2(1.0 + 0.3 * h, 1.0 + 0.3 * h - 0.18 * sin(TAU * (1.0 - _hit)) * _hit)
+		if energy <= LOW_MOVES and not calm:
+			col = Pal.BAD.lerp(Color.WHITE, 0.2 + 0.5 * h)
 		var nc := mc + Vector2(0, -unit * 0.14)
-		_top.draw_set_transform(nc, 0.0, Vector2(beat, beat))
+		_top.draw_set_transform(nc, 0.0, sq)
 		_text(Vector2.ZERO, str(energy), int(unit * 0.56), col, int(unit * 0.11))
 		_top.draw_set_transform(Vector2.ZERO)
 		_text(mc + Vector2(0, unit * 0.3), "Moves", int(unit * 0.25), Color("f3c9ff"), int(unit * 0.08))
@@ -362,7 +380,10 @@ class DigHud extends Control:
 		var hc := _haul_center()
 		Widgets.draw_currency_icon(_top, hc, unit * 0.2 * (1.0 + 0.35 * sin(PI * (1.0 - _coin_pop)) * _coin_pop), false)
 		var ny := hc.y + unit * 0.4
-		_text(Vector2(hc.x, ny), str(coin_shown), int(unit * 0.22), Color.WHITE.lerp(Pal.COIN, _coin_pop), int(unit * 0.08))
+		var cc := Color.WHITE.lerp(Pal.COIN, _coin_pop)
+		if coin_preview:
+			cc = Color(1, 1, 1, 0.55)
+		_text(Vector2(hc.x, ny), str(coin_shown), int(unit * 0.22), cc, int(unit * 0.08))
 
 
 ## Progress toward the colony's next star milestone: a star, a filling bar, "have / need".
@@ -1010,16 +1031,18 @@ class RewardRow extends Control:
 	var coin := 0
 	var star := 0
 	var delay := 0.3
+	var note := ""   # where the Coin came from, small under the row
 	var _t := 0.0
 	var _font: Font
 
-	func _init(c: int, s: int, wait := 0.3) -> void:
+	func _init(c: int, s: int, wait := 0.3, why := "") -> void:
 		coin = c
 		star = s
 		delay = wait
+		note = why
 		mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_font = Widgets.game_font()
-		custom_minimum_size = Vector2(0, 150)
+		custom_minimum_size = Vector2(0, 150 if why == "" else 210)
 
 	func _process(delta: float) -> void:
 		_t += delta
@@ -1049,7 +1072,94 @@ class RewardRow extends Control:
 			var k := Widgets.back_out(t / 0.3)
 			if land > 0.0 and land < 0.35:
 				k *= 1.0 + 0.3 * sin(PI * land / 0.35)
-			var c := Vector2(x0 + w * (i + 0.5), size.y * 0.5)
+			var c := Vector2(x0 + w * (i + 0.5), 75.0)
 			Widgets.draw_currency_icon(self, c + Vector2(-70, 0), 46.0 * k, is_star)
 			var col: Color = Pal.STAR if is_star else Pal.COIN
 			Widgets.shadow_text(self, _font, c + Vector2(50, 0), str(shown), 80, Color.WHITE.lerp(col, 0.55))
+		if note != "":
+			var a := clampf((_t - delay) / 0.3, 0.0, 1.0)
+			Widgets.shadow_text(self, _font, Vector2(size.x * 0.5, 172), note, 38, Color(Color("f3c9ff"), a))
+
+
+## A jelly ribbon that slides in from the left, holds, and leaves to the right, then frees
+## itself (e.g. "5 moves left!"). Centred vertically on `y` of its parent.
+class Banner extends Control:
+	var text := ""
+	var _t := 0.0
+	var _plate: Jelly
+	var _font: Font
+	const IN := 0.38
+	const HOLD := 1.0
+	const OUT := 0.3
+
+	func _init(t: String, rim := Color("ffb36b"), face := Color("e2563f")) -> void:
+		text = t
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = Widgets.game_font()
+		_plate = Jelly.new(rim, face.lightened(0.06), face.darkened(0.15))
+		_plate.set_param("gloss", 0.7)
+		_plate.set_param("inner_shadow", 0.25)
+		_plate.set_param("outline_color", face.darkened(0.7))
+		_plate.show_behind_parent = true
+		add_child(_plate)
+
+	func show_at(y: float, w: float) -> void:
+		size = Vector2(w * 0.8, 150)
+		position = Vector2(-size.x, y - size.y * 0.5)
+		_plate.setup(Rect2(Vector2.ZERO, size), 16.0, 60.0, 18.0)
+		pivot_offset = size * 0.5
+		set_meta("w", w)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		var w: float = get_meta("w", 1080.0)
+		var mid := (w - size.x) * 0.5
+		if _t < IN:
+			var k := Widgets.back_out(_t / IN, 1.6)
+			position.x = lerpf(-size.x, mid, k)
+			rotation = -0.06 * (1.0 - k)
+		elif _t < IN + HOLD:
+			position.x = mid
+			rotation = 0.0
+			var h := _t - IN
+			scale = Vector2.ONE * (1.0 + 0.06 * sin(minf(h / 0.25, 1.0) * PI))
+		elif _t < IN + HOLD + OUT:
+			var k := (_t - IN - HOLD) / OUT
+			position.x = lerpf(mid, w + 20.0, k * k)
+			rotation = 0.05 * k
+		else:
+			queue_free()
+		queue_redraw()
+
+	func _draw() -> void:
+		Widgets.shadow_text(self, _font, size * 0.5, text, 72, Color.WHITE)
+
+
+## A coin and an amount, popping in after `delay` (the goal card's clear reward).
+class CoinTag extends Control:
+	var amount := 0
+	var delay := 0.0
+	var _t := 0.0
+	var _font: Font
+
+	func _init(n: int, wait := 0.0) -> void:
+		amount = n
+		delay = wait
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = Widgets.game_font()
+		custom_minimum_size = Vector2(240, 100)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if _t < delay + 1.0:
+			queue_redraw()
+
+	func _draw() -> void:
+		var k := Widgets.back_out((_t - delay) / 0.32)
+		if k <= 0.0:
+			return
+		var c := size * 0.5
+		draw_set_transform(c, 0.0, Vector2(k, k))
+		Widgets.draw_currency_icon(self, Vector2(-42, 0), 34.0, false)
+		Widgets.shadow_text(self, _font, Vector2(34, 0), str(amount), 64, Color.WHITE.lerp(Pal.COIN, 0.55))
+		draw_set_transform(Vector2.ZERO)

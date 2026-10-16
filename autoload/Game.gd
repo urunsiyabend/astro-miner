@@ -156,13 +156,15 @@ func take_reminders() -> Array:
 ## Bank a finished dig. reason: "complete" | "energy" | "recall".
 func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) -> Dictionary:
 	var haul := [board.haul[0], board.haul[1], board.haul[2], board.haul[3]]
-	var coin_gain: int = haul[0] + haul[1] + haul[2]   # every ore type merges into Coin
-	var star_gain: int = haul[3]                        # +1 Star per crystal recovered
-	var bonus_coin := 0
+	var coin_gain := 0                 # Coin only for a clear (Economy: fixed + moves left)
+	var star_gain: int = haul[3]       # +1 Star per crystal recovered
+	var clear_coin := 0
+	var move_coin := 0
 	var first_clear := false
 	if reason == "complete":
-		bonus_coin = Economy.completion_bonus(board.energy)  # energy left -> Coin
-		coin_gain += bonus_coin
+		clear_coin = Economy.clear_coin(site_index)
+		move_coin = Economy.move_coin(board.energy)
+		coin_gain = clear_coin + move_coin
 		if not cleared[site_index]:
 			first_clear = true
 			cleared[site_index] = true
@@ -193,7 +195,8 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 	while dig_log.size() > LOG_MAX:
 		dig_log.pop_front()
 	save()
-	return {"haul": haul, "coin": coin_gain, "star": star_gain, "bonus_coin": bonus_coin,
+	return {"haul": haul, "coin": coin_gain, "star": star_gain, "clear_coin": clear_coin,
+			"move_coin": move_coin,
 			"first_clear": first_clear, "reason": reason,
 			"next_unlocked": first_clear and site_index + 1 < Sites.count()}
 

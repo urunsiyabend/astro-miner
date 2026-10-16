@@ -3,8 +3,10 @@ extends RefCounted
 
 ## Colony buildings, their costs, and how levels translate into Board rules.
 ## Economy v3 (GDD v3): two currencies.
-##   Coin  — every ore chunk merges into one soft currency; the only SPENT currency,
-##           used to upgrade a building to level 2 and 3.
+##   Coin  — earned by CLEARING a dig: a fixed reward for the chapter plus 1 per move left
+##           (a failed or recalled dig earns none). The only SPENT currency, used to upgrade
+##           a building to level 2 and 3. Ore no longer pays: income does not depend on how
+##           lucky the board was or on farming matches, only on clearing and clearing well.
 ##   Star  — a scarce, NEVER-SPENT progress counter (+1 per crystal, +1 per dig first-clear).
 ##           Reaching a star milestone unlocks the next building (granted free at level 1) and
 ##           grows the colony. See STAR_MILESTONES / STAR_UNLOCK.
@@ -22,13 +24,13 @@ const BUILDINGS := [
 		"id": "workshop", "name": "Mining Workshop",
 		"effects": ["No drill", "Drill: bump rock, -1 layer (2 energy)",
 				"Drill removes 2 layers", "Drill costs 1, matches crack 2 layers"],
-		"costs": [0, 80, 140],
+		"costs": [0, 95, 165],
 	},
 	{
 		"id": "lab", "name": "Research Lab",
 		"effects": ["No scanner", "Deep Scanner: see what rock hides",
 				"Broken rock opens richer veins (3 layers)", "+1 energy per match"],
-		"costs": [0, 70, 140],
+		"costs": [0, 110, 190],
 	},
 ]
 
@@ -76,6 +78,15 @@ static func rules(levels: Array) -> Dictionary:
 	return r
 
 
-## Bonus Coin for finishing an objective with energy left: 1 Coin per 2 energy.
-static func completion_bonus(energy_left: int) -> int:
-	return energy_left / 2
+## Coin for clearing a dig, by chapter of 10 digs.
+const CLEAR_COIN := [8, 10, 12]
+const COIN_PER_MOVE := 1
+
+
+static func clear_coin(site_index: int) -> int:
+	return CLEAR_COIN[clampi(site_index / 10, 0, CLEAR_COIN.size() - 1)]
+
+
+## Coin for the moves left when a dig is cleared.
+static func move_coin(moves_left: int) -> int:
+	return maxi(0, moves_left) * COIN_PER_MOVE

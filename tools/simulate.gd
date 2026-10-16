@@ -126,10 +126,9 @@ func _campaign(n: int) -> void:
 			var m := Bots.play(Sites.get_site(site), Economy.rules(levels), 9000 + c * 101 + digs, Bots.Kind.PLANNER)
 			digs += 1
 			moves += m.moves
-			coin += m.haul[0] + m.haul[1] + m.haul[2]
 			star += m.haul[3]
 			if m.complete:
-				coin += Economy.completion_bonus(m.energy_left)
+				coin += Economy.clear_coin(site) + Economy.move_coin(m.energy_left)
 				star += Economy.FIRST_CLEAR_STARS
 				acc[site].digs += digs
 				acc[site].moves += moves

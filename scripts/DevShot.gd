@@ -51,6 +51,9 @@ func _run() -> void:
 				break
 			main.dig._dialog._advance()
 		await get_tree().create_timer(0.3).timeout
+		if OS.has_environment("ASTRO_ENERGY"):  # ASTRO_ENERGY=n: moves left (e.g. the low-moves banner, before the moves)
+			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
+			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
 		var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
 		for ch in OS.get_environment("ASTRO_MOVES"):
 			if map.has(ch):
@@ -68,14 +71,14 @@ func _run() -> void:
 			main.dig.view.focus = cells
 		if OS.has_environment("ASTRO_HINTDIR"):  # ASTRO_HINTDIR=0..3: frame the hinted step
 			main.dig.view.hint_dir = int(OS.get_environment("ASTRO_HINTDIR"))
-		if OS.has_environment("ASTRO_ENERGY"):  # ASTRO_ENERGY=n: moves left (e.g. the low-moves beat)
-			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
-			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
-		if OS.has_environment("ASTRO_RESULT"):  # ASTRO_RESULT=complete|recall: end the dig now
-			if OS.get_environment("ASTRO_RESULT") == "complete":
-				main.dig.board.complete = true
+		if OS.has_environment("ASTRO_RESULT"):  # ASTRO_RESULT=complete|recall|bonus: end the dig now
+			var how := OS.get_environment("ASTRO_RESULT")
+			main.dig.board.complete = how != "recall"
 			main.dig.board.over = true
-			main.dig._show_result()
+			if how == "bonus":  # play the moves-left -> Coin payout first
+				main.dig._on_settled()
+			else:
+				main.dig._show_result()
 		var mid := float(OS.get_environment("ASTRO_MID")) if OS.has_environment("ASTRO_MID") else 0.0
 		await get_tree().create_timer(0.6 if mid <= 0.0 else mid).timeout
 	else:

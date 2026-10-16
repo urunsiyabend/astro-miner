@@ -41,6 +41,8 @@ const AUTO_HINT_IDLE := 8.0
 ## In every dig, after this long without a move the gems of the nearest match glow.
 const IDLE_GLOW := 4.0
 var _lesson := false
+var _low_warned := false   # the "5 moves left!" banner shows once per dig
+var _bonus_skip := false   # tap during the end-of-dig move conversion: finish it at once
 # Mira's script for this dig (see Sites): current step and the event a coach line waits for.
 var _script: Array = []
 var _step := 0
@@ -122,10 +124,7 @@ func _ready() -> void:
 	fxl = FxLayer.new()
 	fxl.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(fxl)
-	for r in 4:
-		fxl.targets[r] = _hud.haul_global
-	fxl.targets["energy"] = _hud.target_global
-	fxl.arrived.connect(func(res): if res is int: _hud.landed(res))
+	fxl.arrived.connect(_on_arrived)
 
 	_dialog = Dialog.Overlay.new()
 	add_child(_dialog)
@@ -187,11 +186,17 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 		board.setup_site(site, s, rules)
 	_title.text = "Supply run" if supply else "Dig %d" % (index + 1)
 	_hud.set_goals(site.goals)
-	# ore that counts toward a goal flies into its goal icon, the rest into the haul slot
+	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
+	# from clearing the dig, not from ore: the goal card shows the reward, the coin slot fills
+	# at the clear)
 	_haul.values = [0, 0, 0, 0]
 	_hide_haul()
-	for r in 4:
-		fxl.targets[r] = _hud.haul_global
+	_hud.set_coin(0)
+	_hud.calm = false
+	_low_warned = false
+	fxl.targets.clear()
+	fxl.targets["energy"] = _hud.target_global
+	fxl.targets["coin"] = _hud.haul_global
 	for i in site.goals.size():
 		var g: Dictionary = site.goals[i]
 		if g.type == "ore":
@@ -272,6 +277,11 @@ func _show_mission(goals: Array) -> void:
 	var gc := Widgets.GoalCard.new(goals)
 	gc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(gc)
+	if not supply:
+		# what clearing it pays (plus a Coin per move left)
+		var tag := Widgets.CoinTag.new(Economy.clear_coin(site_index), 0.5 + goals.size() * 0.12)
+		tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(tag)
 	card.scale = Vector2(0.7, 0.7)
 	card.modulate.a = 0.0
 	var tw := card.create_tween().set_parallel()
@@ -417,7 +427,6 @@ func _do_move(dir: Vector2i) -> void:
 func _on_snap(s: Dictionary) -> void:
 	_hud.set_energy(s.energy, board.cfg.capacity)
 	_haul.set_values(s.haul)
-	_hud.set_coin(s.haul[0] + s.haul[1] + s.haul[2])
 	for r in _chips.size():
 		(_chips[r] as Widgets.Chip).set_value(s.haul[r])
 	var site := Sites.get_site(site_index)
@@ -437,9 +446,20 @@ func _on_settled() -> void:
 	if board.over:
 		view.input_enabled = false
 		view.focus = []
+		view.set_glow([])
 		_coach.clear()
-		get_tree().create_timer(0.45).timeout.connect(_show_result)
+		if board.complete:
+			_play_bonus()
+		else:
+			get_tree().create_timer(0.45).timeout.connect(_show_result)
 		return
+	# the last moves: once per dig, after the move has played out
+	if board.energy <= Widgets.DigHud.LOW_MOVES and not _low_warned:
+		_low_warned = true
+		var bn := Widgets.Banner.new("%d moves left!" % board.energy)
+		add_child(bn)
+		move_child(bn, fxl.get_index())
+		bn.show_at(view.get_global_rect().get_center().y - global_position.y, size.x)
 	_refresh_reach()
 	_first_encounters()
 	if _waiting != "" and _events.has(_waiting):
@@ -526,7 +546,8 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 		"extract":
 			var k := 0
 			for p in d.points:
-				fxl.fly(p, d.ore, Pal.ORE[d.ore], k * 0.03)
+				if fxl.targets.has(d.ore):
+					fxl.fly(p, d.ore, Pal.ORE[d.ore], k * 0.03)
 				fxl.burst(p, Pal.ORE[d.ore], 5, 300.0)
 				k += 1
 			var mid: Vector2 = d.points[d.points.size() / 2]
@@ -538,7 +559,8 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				fxl.text(d.pos, "+%d energy" % board.cfg.cell_energy, Pal.GOOD, 48)
 				fxl.burst(d.pos, Pal.CELL, 12)
 		"pickup":
-			fxl.fly(d.pos, 3, Pal.CRYSTAL)
+			if fxl.targets.has(3):
+				fxl.fly(d.pos, 3, Pal.CRYSTAL)
 			fxl.burst(d.pos, Pal.CRYSTAL, 14, 520.0)
 			fxl.text(d.pos, "Crystal!", Pal.CRYSTAL, 56)
 		"debris":
@@ -547,6 +569,57 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 			fxl.burst(d.pos, Pal.TEXT, 10, 460.0)
 		"blast":
 			fxl.burst(d.pos, Pal.CHARGE, 22, 700.0)
+
+
+func _on_arrived(res) -> void:
+	if res is int:
+		_hud.landed(res)
+	elif res == "coin":
+		_hud.coin_tick()
+		# each Coin rings a little higher, so a long run of moves climbs
+		Sfx.play("coin", 1.0 + 0.02 * mini(_hud.coin_shown, 30))
+
+
+## The clear's payout, shown before the result card: the clear reward bursts off the board
+## into the coin slot, then every move left leaves the Moves count and flies in as a Coin,
+## faster and faster. A tap finishes it at once.
+func _play_bonus() -> void:
+	var moves := board.energy
+	var base := Economy.clear_coin(site_index)
+	_hud.calm = true
+	_bonus_skip = false
+	var catcher := Control.new()
+	catcher.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	catcher.gui_input.connect(func(e: InputEvent):
+		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+			_bonus_skip = true)
+	add_child(catcher)
+	await get_tree().create_timer(0.4).timeout
+	var mid := view.get_global_rect().get_center()
+	for k in base:
+		var a := TAU * k / base
+		fxl.fly(mid + Vector2(cos(a), sin(a)) * view.cell * 0.9, "coin", Pal.COIN, k * 0.05, 0.6,
+				Vector2(randf_range(-120, 120), randf_range(-160, -60)))
+	await get_tree().create_timer(0.6 + base * 0.05 + 0.3).timeout
+	var from: Vector2 = _hud.target_global()
+	var gap := 0.16
+	var left := moves
+	while left > 0 and not _bonus_skip:
+		left -= 1
+		_hud.set_energy(left, board.cfg.capacity)
+		view.snap["energy"] = left  # the robot's own counter runs down with it
+		fxl.fly(from, "coin", Pal.COIN, 0.0, 0.42, Vector2(randf_range(-60, 60), randf_range(-140, -90)))
+		await get_tree().create_timer(gap).timeout
+		gap = maxf(0.05, gap * 0.9)
+	if _bonus_skip:
+		# land the rest at once
+		_hud.set_energy(0, board.cfg.capacity)
+		view.snap["energy"] = 0
+		_hud.set_coin(base + moves)
+	await get_tree().create_timer(0.75).timeout
+	catcher.queue_free()
+	_show_result()
 
 
 # --- results ---------------------------------------------------------------
