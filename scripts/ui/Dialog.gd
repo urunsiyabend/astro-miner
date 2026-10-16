@@ -201,6 +201,33 @@ class Spotlight extends Control:
 		var g := target.get_global_rect().grow(14)
 		return Rect2(g.position - global_position, g.size)
 
+	## The lit shape around the target, as a closed outline: a diamond for a colony plot (its
+	## meta "spot_shape" is "diamond"), otherwise a pill / rounded rect matching a jelly button.
+	func _shape(r: Rect2) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		var c := r.get_center()
+		if target != null and is_instance_valid(target) and target.get_meta("spot_shape", "") == "diamond":
+			var hw := r.size.x * 0.5
+			var hh := r.size.y * 0.5
+			# slightly rounded corners: a few points around each tip
+			var tips := [Vector2(0, -hh), Vector2(hw, 0), Vector2(0, hh), Vector2(-hw, 0)]
+			for k in 4:
+				var p: Vector2 = tips[k]
+				var prev: Vector2 = tips[(k + 3) % 4]
+				var nxt: Vector2 = tips[(k + 1) % 4]
+				pts.append(c + p.lerp(prev, 0.06))
+				pts.append(c + p * 0.985)
+				pts.append(c + p.lerp(nxt, 0.06))
+			return pts
+		var rad := minf(r.size.y * 0.5, 60.0)
+		var corners := [Vector2(r.end.x - rad, r.position.y + rad), Vector2(r.end.x - rad, r.end.y - rad),
+				Vector2(r.position.x + rad, r.end.y - rad), Vector2(r.position.x + rad, r.position.y + rad)]
+		for k in 4:
+			for n in 9:
+				var a := -PI * 0.5 + (k + n / 8.0) * PI * 0.5
+				pts.append(corners[k] + Vector2(cos(a), sin(a)) * rad)
+		return pts
+
 	func _process(delta: float) -> void:
 		if visible:
 			_t += delta
@@ -209,12 +236,23 @@ class Spotlight extends Control:
 	func _draw() -> void:
 		var r := _rect()
 		var dim := Color(0, 0, 0, 0.7)
-		draw_rect(Rect2(0, 0, size.x, r.position.y), dim)
-		draw_rect(Rect2(0, r.end.y, size.x, size.y - r.end.y), dim)
-		draw_rect(Rect2(0, r.position.y, r.position.x, r.size.y), dim)
-		draw_rect(Rect2(r.end.x, r.position.y, size.x - r.end.x, r.size.y), dim)
+		var hole := _shape(r)
+		# dim everything but the hole: the screen as a polygon with the shape cut out through a
+		# thin seam from the top edge (a "keyhole"), so it triangulates as one polygon
+		var top := Vector2(hole[0].x, 0)
+		var poly := PackedVector2Array([Vector2(0, 0), top, hole[0]])
+		for k in range(hole.size() - 1, 0, -1):
+			poly.append(hole[k])
+		poly.append(hole[0])
+		poly.append(top + Vector2(0.01, 0))
+		poly += PackedVector2Array([Vector2(size.x, 0), size, Vector2(0, size.y)])
+		draw_colored_polygon(poly, dim)
+		# a glowing pulsing rim along the shape
 		var pulse := 0.5 + 0.5 * sin(_t * 6.0)
-		draw_rect(r, Color(Pal.WARN, 0.6 + 0.4 * pulse), false, 6.0)
+		var ring := hole.duplicate()
+		ring.append(hole[0])
+		draw_polyline(ring, Color(Pal.WARN, 0.25 + 0.2 * pulse), 18.0, true)
+		draw_polyline(ring, Color(Pal.WARN, 0.7 + 0.3 * pulse), 6.0, true)
 		# arrow pointing at the button, bobbing toward it
 		var below := r.get_center().y < size.y * 0.5
 		var tip := Vector2(r.get_center().x, r.end.y + 16 if below else r.position.y - 16)
