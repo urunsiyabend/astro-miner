@@ -628,10 +628,11 @@ func _celebrate() -> void:
 	_show_banner(title, Color("a8f7b5"), Color("37b65a"), 0.9, 92)
 	var r := view.get_global_rect()
 	fxl.confetti(Vector2(r.get_center().x, r.position.y + r.size.y * 0.55), 110)
-	await get_tree().create_timer(1.35).timeout
+	# the Coin starts flying with the banner, not after it
 	if board.energy > 0 or board.complete:
 		_play_bonus()
 	else:
+		await get_tree().create_timer(1.1).timeout
 		_show_result()
 
 
@@ -650,15 +651,16 @@ func _play_bonus() -> void:
 		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
 			_bonus_skip = true)
 	add_child(catcher)
-	await get_tree().create_timer(0.15).timeout
+	await get_tree().create_timer(0.05).timeout
 	var mid := view.get_global_rect().get_center()
 	for k in base:
 		var a := TAU * k / base
-		fxl.fly(mid + Vector2(cos(a), sin(a)) * view.cell * 0.9, "coin", Pal.COIN, k * 0.05, 0.6,
+		fxl.fly(mid + Vector2(cos(a), sin(a)) * view.cell * 0.9, "coin", Pal.COIN, k * 0.07, 0.85,
 				Vector2(randf_range(-120, 120), randf_range(-160, -60)))
-	await get_tree().create_timer(0.6 + base * 0.05 + 0.3).timeout
+	# a short beat between the clear reward landing and the moves being counted
+	await get_tree().create_timer(0.85 + base * 0.07 + 0.45).timeout
 	var from: Vector2 = _hud.target_global()
-	var gap := 0.16
+	var gap := 0.1
 	var left := moves
 	while left > 0 and not _bonus_skip:
 		left -= 1
@@ -666,13 +668,13 @@ func _play_bonus() -> void:
 		view.snap["energy"] = left  # the robot's own counter runs down with it
 		fxl.fly(from, "coin", Pal.COIN, 0.0, 0.42, Vector2(randf_range(-60, 60), randf_range(-140, -90)))
 		await get_tree().create_timer(gap).timeout
-		gap = maxf(0.05, gap * 0.9)
+		gap = maxf(0.035, gap * 0.88)
 	if _bonus_skip:
 		# land the rest at once
 		_hud.set_energy(0, board.cfg.capacity)
 		view.snap["energy"] = 0
 		_hud.set_coin(board.treasure_coin + base + moves)
-	await get_tree().create_timer(0.75).timeout
+	await get_tree().create_timer(0.55).timeout
 	catcher.queue_free()
 	_show_result()
 
