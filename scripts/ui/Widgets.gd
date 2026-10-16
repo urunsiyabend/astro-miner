@@ -129,7 +129,10 @@ class DigHud extends Control:
 	const RIM := Color("a27be0")
 	var unit := 120.0
 	var coin := 0
+	var coin_shown := 0
 	var _coin_pop := 0.0
+	var shown: Array = []   # counts on screen: they catch up when the flying ore lands
+	var _wait := 0.0         # fallback: catch up anyway if nothing lands
 	var energy := 0
 	var goals: Array = []
 	var have: Array = []
@@ -160,10 +163,29 @@ class DigHud extends Control:
 
 	## Coin earned so far this dig (all ore merges into Coin); shown at the right end.
 	func set_coin(c: int) -> void:
-		if c > coin:
-			_coin_pop = 1.0
 		coin = c
+		if c < coin_shown:
+			coin_shown = c
+		_wait = 1.2
 		_top.queue_redraw()
+
+	## An ore/crystal particle landed on the HUD: its counter catches up and pops now.
+	func landed(res: int) -> void:
+		for i in goals.size():
+			var g: Dictionary = goals[i]
+			if (g.type == "ore" and g.ore == res) or (g.type == "crystal" and res == 3):
+				if shown[i] != have[i]:
+					shown[i] = have[i]
+					_pop[i] = 1.0
+				_top.queue_redraw()
+				return
+		if res >= 0 and res < 3 and coin_shown != coin:
+			coin_shown = coin
+			_coin_pop = 1.0
+			_top.queue_redraw()
+
+	func _flies(g: Dictionary) -> bool:
+		return g.type == "ore" or g.type == "crystal"
 
 	func haul_global() -> Vector2:
 		return get_global_transform_with_canvas() * _haul_center()
@@ -188,17 +210,26 @@ class DigHud extends Control:
 	func set_goals(g: Array) -> void:
 		goals = g
 		have = []
+		shown = []
 		_pop = []
 		for i in g.size():
 			have.append(0)
+			shown.append(0)
 			_pop.append(0.0)
+		coin = 0
+		coin_shown = 0
 		_layout()
 
 	func set_have(i: int, v: int) -> void:
 		v = mini(v, goals[i].n)
-		if v != have[i]:
-			_pop[i] = 1.0
 		have[i] = v
+		if not _flies(goals[i]) or v < shown[i]:
+			# nothing flies here (rock, chunks...): show it straight away
+			if v != shown[i]:
+				_pop[i] = 1.0
+			shown[i] = v
+		else:
+			_wait = 1.2
 		_top.queue_redraw()
 
 	func target_global() -> Vector2:
@@ -222,10 +253,10 @@ class DigHud extends Control:
 
 	func _slot(i: int) -> Rect2:
 		var p := _shape()
-		var s := unit * 0.76
 		var x0 := _divider_x() + unit * 0.15
 		var x1 := p.end.x - _rim() - unit * 0.95
 		var step := (x1 - x0) / maxf(1.0, goals.size())
+		var s := minf(unit * 0.76, step - unit * 0.16)   # a little air between frames
 		var cx := x0 + step * (i + 0.5)
 		return Rect2(Vector2(cx - s * 0.5, p.position.y - s * 0.16), Vector2(s, s))
 
@@ -241,6 +272,16 @@ class DigHud extends Control:
 		_top.queue_redraw()
 
 	func _process(delta: float) -> void:
+		if _wait > 0.0:
+			_wait -= delta
+			if _wait <= 0.0:
+				for i in shown.size():
+					if shown[i] != have[i]:
+						shown[i] = have[i]
+						_pop[i] = 1.0
+				if coin_shown != coin:
+					coin_shown = coin
+					_coin_pop = 1.0
 		var any := _flash > 0.0 or _coin_pop > 0.0
 		_flash = maxf(0.0, _flash - delta * 3.0)
 		_coin_pop = maxf(0.0, _coin_pop - delta * 3.0)
@@ -290,22 +331,22 @@ class DigHud extends Control:
 		for i in goals.size():
 			var g: Dictionary = goals[i]
 			var r := _slot(i)
-			var k: float = 1.0 + 0.12 * _pop[i]
+			var k: float = 1.0 + 0.22 * sin(PI * (1.0 - _pop[i])) * _pop[i]
 			var fr := _frame(g)
 			if fr != null:
 				_top.draw_texture_rect(fr, r.grow(r.size.x * 0.06 * k), false)
 			Widgets.draw_goal_icon(_top, r.get_center() + Vector2(0, r.size.y * 0.02), r.size.x * 0.4 * k, g)
-			var done: bool = have[i] >= g.n
-			_text(Vector2(r.get_center().x, r.end.y + unit * 0.17), "%d/%d" % [have[i], g.n], int(unit * 0.22), Pal.GOOD if done else Color.WHITE, int(unit * 0.08))
+			var done: bool = shown[i] >= g.n
+			_text(Vector2(r.get_center().x, r.end.y + unit * 0.17), "%d/%d" % [shown[i], g.n], int(unit * 0.22), Pal.GOOD if done else Color.WHITE, int(unit * 0.08))
 			if done:
 				var c := r.end - Vector2(r.size.x * 0.12, r.size.y * 0.12)
 				_top.draw_circle(c, r.size.x * 0.17, Pal.GOOD, true, -1.0, true)
 				_top.draw_polyline(PackedVector2Array([c + Vector2(-r.size.x * 0.08, 0), c + Vector2(-r.size.x * 0.02, r.size.x * 0.06), c + Vector2(r.size.x * 0.09, -r.size.x * 0.06)]), Pal.BG, 4.0, true)
 		# this dig's haul as Coin: a coin over the amount, lined up with the goal counts
 		var hc := _haul_center()
-		Widgets.draw_currency_icon(_top, hc, unit * 0.2 * (1.0 + 0.25 * _coin_pop), false)
+		Widgets.draw_currency_icon(_top, hc, unit * 0.2 * (1.0 + 0.35 * sin(PI * (1.0 - _coin_pop)) * _coin_pop), false)
 		var ny := hc.y + unit * 0.4
-		_text(Vector2(hc.x, ny), str(coin), int(unit * 0.22), Color.WHITE.lerp(Pal.COIN, _coin_pop), int(unit * 0.08))
+		_text(Vector2(hc.x, ny), str(coin_shown), int(unit * 0.22), Color.WHITE.lerp(Pal.COIN, _coin_pop), int(unit * 0.08))
 
 
 ## Progress toward the colony's next star milestone: a star, a filling bar, "have / need".

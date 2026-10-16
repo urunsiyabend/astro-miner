@@ -123,6 +123,7 @@ func _ready() -> void:
 	for r in 4:
 		fxl.targets[r] = _hud.haul_global
 	fxl.targets["energy"] = _hud.target_global
+	fxl.arrived.connect(func(res): if res is int: _hud.landed(res))
 
 	_dialog = Dialog.Overlay.new()
 	add_child(_dialog)
@@ -523,7 +524,7 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				fxl.burst(p, Pal.ORE[d.ore], 5, 300.0)
 				k += 1
 			var mid: Vector2 = d.points[d.points.size() / 2]
-			fxl.text(mid, "+%d" % (d.points.size() + board.cfg.yield_bonus), Pal.ORE[d.ore], 54)
+			fxl.text(mid, "+%d" % (d.points.size() + board.cfg.yield_bonus), Pal.ORE[d.ore], 76)
 		"energy":
 			if d.amount > 0:
 				fxl.text(d.pos + Vector2(0, -60), "+%d energy" % d.amount, Pal.GOOD, 40)
