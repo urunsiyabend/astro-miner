@@ -162,8 +162,12 @@ const LIST := [
 		],
 	},
 	{
-		"id": "zigzag", "energy": 35,
-		"goals": [{"type": "rock", "n": 12}],
+		# hand-made (seed 71, picked by tools/handmade_probe.gd): with a random fill it was a
+		# coin flip whether the last rocks could be reached in time. This opening and the 11 of
+		# 14 rocks leave room for wasted moves: greedy, planner and a sloppy planner (12% random
+		# moves) all clear it, with ~16 energy left
+		"id": "zigzag", "energy": 30, "seed": 71,
+		"goals": [{"type": "rock", "n": 11}],
 		"rows": [
 			"# # # # # # #",
 			": _ : 1 : _ :",
@@ -173,6 +177,16 @@ const LIST := [
 			"_ : 1 @ 1 : _",
 			"# : : _ : : #",
 			"# # # # # # #",
+		],
+		"ore": [
+			"- - - - - - -",
+			"F - L - L - F",
+			"- - F - F - -",
+			"L - F L F - L",
+			"L - - F - - L",
+			"- L - @ - L -",
+			"- C C - C F -",
+			"- - - - - - -",
 		],
 	},
 	{
@@ -190,34 +204,38 @@ const LIST := [
 		],
 	},
 	{
-		"id": "longhaul", "building_level": true, "seed": 31, "energy": 23,
+		# three rooms, each closed by a rock gate; every room is a small puzzle (a pair next to
+		# the gate, the third gem one row away: walk over and step onto it), the crystal is in
+		# the rock in the top-left corner. The intended route takes 23 moves: the old battery
+		# (22) falls one short, the Power Station's 25 leaves room for two wasted moves.
+		"id": "longhaul", "building_level": true, "seed": 31, "energy": 22,
 		"goals": [{"type": "crystal", "n": 1}],
 		"needs": {"building": 0, "level": 1},
 		"rows": [
-			"_ _ _ _ # # #",
-			"_ # # # # # #",
-			"_ _ _ _ _ _ _",
-			"# # # # # # _",
-			"_ _ _ _ _ _ _",
-			"1 # # # # # #",
-			". . @ . . . .",
+			"1c . . . . . .",
+			". . . . . . .",
+			"# # # # # 1 #",
+			". . . . . . .",
+			". . . . . . .",
+			"# 1 # # # # #",
+			". . . . . @ .",
 			". . . . . . .",
 		],
 		"ore": [
-			"- - - c - - -",
+			"- C L F C F C",
+			"L L F C F C F",
 			"- - - - - - -",
+			"L F L F L C C",
+			"C C F L C F L",
 			"- - - - - - -",
-			"- - - - - - -",
-			"- - - - - - -",
-			"- - - - - - -",
-			"F F - C L C L",
-			"C L F L C F C",
+			"F F C L C - L",
+			"C L F C L C F",
 		],
 		"script": [
-			{"say": "The Power Station is online: look at the battery bar, it holds 26 energy now."},
-			{"say": "The crystal is at the end of that long tunnel. Nothing to refill on the way in: the old battery would run dry halfway."},
-			{"say": "First open the tunnel: swipe down, so that Ferrite lines up right next to the rock.", "until": "reveal", "focus": [Vector2i(0, 5), Vector2i(2, 7), Vector2i(0, 6), Vector2i(1, 6)]},
-			{"say": "Tunnel's open. The new battery has the range now: drive through and bring that crystal home.", "until": "crystal", "focus": [Vector2i(0, 5)]},
+			{"say": "The Power Station is online: you have 25 moves now, three more than before."},
+			{"say": "The crystal is in the top room, behind two rock gates. Each room hides a match that cracks its gate."},
+			{"say": "Two Ferrite sit by the gate. Walk over and step down onto the third.", "until": "reveal", "focus": [Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 7)]},
+			{"say": "Gate's open. Same trick in every room: find the pair next to the gate.", "until": "crystal"},
 		],
 	},
 	{
@@ -235,7 +253,10 @@ const LIST := [
 		],
 	},
 	{
-		"id": "battery", "guide": true, "seed": 5, "energy": 20, "start": 9,
+		# the cell lesson: 12 moves for 12 Ferrite is not enough, the buried cell's 6 more
+		# moves are (the route takes 14, so 4 to spare). It starts on a full budget: opening
+		# on a half-empty one read as moves taken away.
+		"id": "battery", "guide": true, "seed": 5, "energy": 9,
 		"goals": [{"type": "ore", "ore": 0, "n": 12}],
 		"rows": [
 			"# # # # # # #",
@@ -258,9 +279,9 @@ const LIST := [
 			"- - - - - - -",
 		],
 		"script": [
-			{"say": "The battery is nearly flat! When it hits zero, the robot has to head home."},
+			{"say": "12 Ferrite in 12 moves is too tight. But there's an energy cell buried in that rock: it's worth 6 more moves."},
 			{"say": "Swipe left: three Ferrite line up right under that rock and crack it.", "until": "reveal", "focus": [Vector2i(2, 3), Vector2i(3, 2)]},
-			{"say": "An energy cell was buried in there. Drive onto it to recharge.", "until": "cell", "focus": [Vector2i(3, 2)]},
+			{"say": "There's the cell. Drive onto it for 6 more moves.", "until": "cell", "focus": [Vector2i(3, 2)]},
 		],
 	},
 	{

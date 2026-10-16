@@ -393,8 +393,8 @@ func _test_bot_smoke() -> void:
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"first": "ULURRDU", "battery": "LURRDDDLURDLUD", "charge": "UDLDDUDU",
-	"longhaul": "DULLUURRRRRRUULLLLLLUURRR",
+	"first": "ULURRDU", "zigzag": "UULUU", "battery": "LURRDDDLURDLUD", "charge": "UDLDDUDU",
+	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
 }
@@ -450,7 +450,7 @@ func _test_tutorial_sites() -> void:
 	bat.record = false
 	var bi := Sites.index_of("battery")
 	bat.setup_site(Sites.get_site(bi), 0, Economy.rules(_campaign_levels(bi)))
-	_ok(bat.energy * 2 < bat.cfg.capacity, "battery: the dig starts with a nearly flat battery")
+	_ok(bat.energy < String(TUTORIAL_SOLUTIONS.battery).length(), "battery: the route is longer than the budget without the cell")
 	for ch in String(TUTORIAL_SOLUTIONS.battery):
 		bat.try_move(map[ch])
 	_ok(bat.complete and bat.stats.cells >= 1, "battery: the solution recharges from the buried cell")

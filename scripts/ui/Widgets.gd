@@ -126,6 +126,7 @@ static func game_font(_weight := 700) -> Font:
 ## at the right end. Sizes follow `unit` (the board's cell size), so the HUD scales with it.
 class DigHud extends Control:
 	signal haul_tapped
+	const LOW_MOVES := 5   # from here the count turns red and beats (last-moves tension)
 	const RIM := Color("a27be0")
 	var unit := 120.0
 	var coin := 0
@@ -138,6 +139,7 @@ class DigHud extends Control:
 	var have: Array = []
 	var _pop: Array = []
 	var _flash := 0.0
+	var _beat := 0.0          # heartbeat clock while few moves are left
 	var _font: Font
 	var _plate: Jelly
 	var _top: Control
@@ -283,6 +285,11 @@ class DigHud extends Control:
 					coin_shown = coin
 					_coin_pop = 1.0
 		var any := _flash > 0.0 or _coin_pop > 0.0
+		if energy > 0 and energy <= LOW_MOVES:
+			_beat += delta
+			any = true
+		else:
+			_beat = 0.0
 		_flash = maxf(0.0, _flash - delta * 3.0)
 		_coin_pop = maxf(0.0, _coin_pop - delta * 3.0)
 		for i in _pop.size():
@@ -303,12 +310,12 @@ class DigHud extends Control:
 		_top.draw_string(_font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 	func _frame(g: Dictionary) -> Texture2D:
-		var n := "pink"
-		match g.type:
-			"ore": n = ["orange", "cyan", "yellow"][g.ore]
-			"crystal": n = "violet"
-			"rock": n = "grey"
-		return Art.tex("res://assets/ui/slot_%s.png" % n)
+		return Widgets.goal_frame(g)
+
+	## 0..1..0 bump of width w starting at a (for the heartbeat).
+	func _bump(x: float, a: float, w: float) -> float:
+		var t := (x - a) / w
+		return sin(t * PI) if t > 0.0 and t < 1.0 else 0.0
 
 	func _goal_color(g: Dictionary) -> Color:
 		match g.type:
@@ -322,9 +329,18 @@ class DigHud extends Control:
 		var p := _shape()
 		var mc := _moves_center()
 		var col := Color.WHITE.lerp(Pal.GOOD, _flash)
-		if energy <= 5:
-			col = Pal.BAD.lerp(Color.WHITE, 0.25)
-		_text(mc + Vector2(0, -unit * 0.14), str(energy), int(unit * 0.56), col, int(unit * 0.11))
+		var beat := 1.0
+		if energy <= LOW_MOVES:
+			# a heartbeat: two quick thumps, then a rest; faster on the very last moves
+			var period := 0.62 if energy <= 2 else 0.95
+			var ph := fmod(_beat, period) / period
+			var thump := maxf(_bump(ph, 0.0, 0.16), 0.7 * _bump(ph, 0.2, 0.16))
+			beat = 1.0 + 0.2 * thump
+			col = Pal.BAD.lerp(Color.WHITE, 0.25 - 0.25 * thump)
+		var nc := mc + Vector2(0, -unit * 0.14)
+		_top.draw_set_transform(nc, 0.0, Vector2(beat, beat))
+		_text(Vector2.ZERO, str(energy), int(unit * 0.56), col, int(unit * 0.11))
+		_top.draw_set_transform(Vector2.ZERO)
 		_text(mc + Vector2(0, unit * 0.3), "Moves", int(unit * 0.25), Color("f3c9ff"), int(unit * 0.08))
 		var dx := _divider_x()
 		_top.draw_line(Vector2(dx, p.position.y + p.size.y * 0.24), Vector2(dx, p.end.y - p.size.y * 0.24), Color(RIM, 0.35), 3.0, true)
@@ -803,3 +819,237 @@ static func draw_bolt(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:
 	ci.draw_colored_polygon(PackedVector2Array([
 		c + Vector2(s * 0.2, -s), c + Vector2(-s * 0.55, s * 0.1), c + Vector2(-s * 0.05, s * 0.1),
 		c + Vector2(-s * 0.2, s), c + Vector2(s * 0.55, -s * 0.1), c + Vector2(s * 0.05, -s * 0.1)]), col)
+
+
+## The painted slot frame for a goal, coloured after its gem.
+static func goal_frame(g: Dictionary) -> Texture2D:
+	var n := "pink"
+	match g.type:
+		"ore": n = ["orange", "cyan", "yellow"][g.ore]
+		"crystal": n = "violet"
+		"rock": n = "grey"
+	return Art.tex("res://assets/ui/slot_%s.png" % n)
+
+
+## Text in the HUD's style: centred on `c`, dark outline and a crisp dark copy just below it.
+static func shadow_text(ci: CanvasItem, font: Font, c: Vector2, t: String, fs: int, col: Color, ol := -1) -> void:
+	if ol < 0:
+		ol = int(fs * 0.16)
+	var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var at := Vector2(c.x - tw * 0.5, c.y + fs * 0.36)
+	var drop := Vector2(0, maxf(2.0, fs * 0.06))
+	var a := col.a
+	ci.draw_string_outline(font, at + drop, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("12041f", a))
+	ci.draw_string(font, at + drop, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("12041f", a))
+	ci.draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("1e0a3a", a))
+	ci.draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+
+## Back-out ease (0..1 -> 0..1 with an overshoot of about `over`), for pops.
+static func back_out(x: float, over := 3.0) -> float:
+	var s := clampf(x, 0.0, 1.0) - 1.0
+	return 1.0 + (over + 1.0) * s * s * s + over * s * s
+
+
+## A jelly plate (the HUD's look) behind one content child, `margin` px inside the rim.
+class JellyCard extends Container:
+	var margin := 56.0
+	var _plate: Jelly
+
+	func _init(m := 56.0) -> void:
+		margin = m
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_plate = Jelly.new()
+		add_child(_plate)
+		resized.connect(func(): pivot_offset = size * 0.5)
+
+	func _get_minimum_size() -> Vector2:
+		var m := Vector2.ZERO
+		for c in get_children():
+			if c != _plate and c is Control and c.visible:
+				m = m.max((c as Control).get_combined_minimum_size())
+		return m + Vector2(margin, margin) * 2.0
+
+	func _notification(what: int) -> void:
+		if what != NOTIFICATION_SORT_CHILDREN:
+			return
+		var pad := 18.0
+		_plate.setup(Rect2(Vector2.ZERO, size), pad, 64.0, 22.0)
+		_plate.set_param("rim_color", Color("7d52bf"))
+		_plate.set_param("gloss", 0.35)
+		_plate.set_param("face_color", Color("2b1258"))
+		_plate.set_param("face_color_bottom", Color("3a1a74"))
+		for c in get_children():
+			if c != _plate and c is Control:
+				fit_child_in_rect(c, Rect2(Vector2(margin, margin), size - Vector2(margin, margin) * 2.0))
+
+
+## A jelly button: a bright jelly plate in `rim`/`face` colours, Fredoka label, squashes when held.
+class JellyButton extends Button:
+	var _plate: Jelly
+
+	func _init(t: String, rim: Color, face: Color, h := 132.0, fs := 52) -> void:
+		text = t
+		custom_minimum_size = Vector2(0, h)
+		focus_mode = Control.FOCUS_NONE
+		var empty := StyleBoxEmpty.new()
+		for s in ["normal", "hover", "pressed", "focus", "disabled"]:
+			add_theme_stylebox_override(s, empty)
+		add_theme_font_override("font", Widgets.game_font())
+		add_theme_font_size_override("font_size", fs)
+		add_theme_constant_override("outline_size", int(fs * 0.22))
+		add_theme_color_override("font_outline_color", face.darkened(0.6))
+		for c in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			add_theme_color_override(c, Color.WHITE)
+		_plate = Jelly.new(rim, face.lightened(0.08), face.darkened(0.12))
+		_plate.show_behind_parent = true
+		_plate.set_param("gloss", 0.7)
+		_plate.set_param("inner_shadow", 0.25)
+		_plate.set_param("outline_color", face.darkened(0.7))
+		add_child(_plate)
+		resized.connect(_layout)
+		button_down.connect(func(): _squash(Vector2(1.05, 0.9)))
+		button_up.connect(func(): _squash(Vector2.ONE))
+
+	func _layout() -> void:
+		pivot_offset = size * 0.5
+		_plate.setup(Rect2(Vector2.ZERO, size), 14.0, size.y * 0.42, size.y * 0.13)
+
+	func _squash(to: Vector2) -> void:
+		create_tween().tween_property(self, "scale", to, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+
+
+## Juicy text: pops in with an overshoot and a white flash after `delay`; with `breathe` it
+## then keeps pulsing gently (an invitation, e.g. "Tap to start").
+class JuicyText extends Control:
+	var text := ""
+	var fs := 64
+	var color := Color.WHITE
+	var delay := 0.0
+	var breathe := false
+	var _t := 0.0
+	var _font: Font
+
+	func _init(t: String, size_px := 64, col := Color.WHITE, wait := 0.0, pulse := false) -> void:
+		text = t
+		fs = size_px
+		color = col
+		delay = wait
+		breathe = pulse
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = Widgets.game_font()
+		custom_minimum_size = Vector2(_font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x + fs * 0.6, fs * 1.4)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var t := _t - delay
+		if t <= 0.0:
+			return
+		var sc := Widgets.back_out(t / 0.32)
+		var a := clampf(t / 0.12, 0.0, 1.0)
+		if breathe:
+			sc *= 1.0 + 0.06 * sin(maxf(0.0, t - 0.32) * 4.2)
+			a *= 0.8 + 0.2 * sin(maxf(0.0, t - 0.32) * 4.2 + 1.0)
+		var c := size * 0.5
+		draw_set_transform(c, 0.0, Vector2(sc, sc))
+		Widgets.shadow_text(self, _font, Vector2.ZERO, text, fs, Color(color, a))
+		var flash := 1.0 - clampf(t / 0.18, 0.0, 1.0)
+		if flash > 0.0:
+			Widgets.shadow_text(self, _font, Vector2.ZERO, text, fs, Color(1, 1, 1, flash * 0.8), 0)
+		draw_set_transform(Vector2.ZERO)
+
+
+## The dig's goals as big framed slots, each with the amount under it; the slots pop in one
+## after another. No words: the gem in the frame says what to collect.
+class GoalCard extends Control:
+	const SLOT := 210.0
+	const GAP := 48.0
+	var goals: Array = []
+	var _t := 0.0
+	var _font: Font
+
+	func _init(g: Array) -> void:
+		goals = g
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = Widgets.game_font()
+		custom_minimum_size = Vector2(g.size() * SLOT + (g.size() - 1) * GAP, SLOT + 110.0)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if _t < 2.0:
+			queue_redraw()
+
+	func _draw() -> void:
+		var x0 := (size.x - (goals.size() * SLOT + (goals.size() - 1) * GAP)) * 0.5
+		for i in goals.size():
+			var g: Dictionary = goals[i]
+			var t := _t - 0.15 - i * 0.12
+			if t <= 0.0:
+				continue
+			var k := Widgets.back_out(t / 0.38)
+			var c := Vector2(x0 + i * (SLOT + GAP) + SLOT * 0.5, SLOT * 0.5)
+			draw_set_transform(c, 0.0, Vector2(k, k))
+			var fr := Widgets.goal_frame(g)
+			if fr != null:
+				draw_texture_rect(fr, Rect2(-Vector2(SLOT, SLOT) * 0.53, Vector2(SLOT, SLOT) * 1.06), false)
+			Widgets.draw_goal_icon(self, Vector2(0, SLOT * 0.02), SLOT * 0.4, g)
+			draw_set_transform(Vector2.ZERO)
+			var tk := Widgets.back_out((t - 0.1) / 0.32)
+			if tk > 0.0:
+				draw_set_transform(c + Vector2(0, SLOT * 0.5 + 58.0), 0.0, Vector2(tk, tk))
+				Widgets.shadow_text(self, _font, Vector2.ZERO, str(g.n), 76, Color.WHITE)
+				draw_set_transform(Vector2.ZERO)
+
+
+## The dig's reward: Coin (and Star, if any) counting up from 0 after `delay`, each icon
+## popping when its count lands.
+class RewardRow extends Control:
+	var coin := 0
+	var star := 0
+	var delay := 0.3
+	var _t := 0.0
+	var _font: Font
+
+	func _init(c: int, s: int, wait := 0.3) -> void:
+		coin = c
+		star = s
+		delay = wait
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_font = Widgets.game_font()
+		custom_minimum_size = Vector2(0, 150)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		if _t < delay + 3.0:
+			queue_redraw()
+
+	func _count_dur(n: int) -> float:
+		return clampf(0.25 + n * 0.03, 0.3, 0.9)
+
+	func _draw() -> void:
+		var items := [[false, coin]]
+		if star > 0:
+			items.append([true, star])
+		var w := 300.0
+		var x0 := (size.x - w * items.size()) * 0.5
+		var start := delay
+		for i in items.size():
+			var is_star: bool = items[i][0]
+			var n: int = items[i][1]
+			var t := _t - start
+			var dur := _count_dur(n)
+			start += dur + 0.15
+			if t <= 0.0:
+				continue
+			var shown := int(round(n * clampf(t / dur, 0.0, 1.0)))
+			var land := t - dur   # > 0 once the count is done: the icon pops
+			var k := Widgets.back_out(t / 0.3)
+			if land > 0.0 and land < 0.35:
+				k *= 1.0 + 0.3 * sin(PI * land / 0.35)
+			var c := Vector2(x0 + w * (i + 0.5), size.y * 0.5)
+			Widgets.draw_currency_icon(self, c + Vector2(-70, 0), 46.0 * k, is_star)
+			var col: Color = Pal.STAR if is_star else Pal.COIN
+			Widgets.shadow_text(self, _font, c + Vector2(50, 0), str(shown), 80, Color.WHITE.lerp(col, 0.55))

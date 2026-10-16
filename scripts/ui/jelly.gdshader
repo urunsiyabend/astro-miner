@@ -26,7 +26,10 @@ void fragment() {
 	vec2 p = UV * size - size * 0.5;
 	float d = sdf(p);
 	vec2 e = vec2(0.75, 0.0);
-	vec2 n = normalize(vec2(sdf(p + e.xy) - sdf(p - e.xy), sdf(p + e.yx) - sdf(p - e.yx)) + 1e-5);
+	// on a medial line (e.g. the middle row of a wide plate) the gradient is zero; a tiny
+	// epsilon underflows at mediump and normalize() gives NaN (a black line), so fall back
+	vec2 g = vec2(sdf(p + e.xy) - sdf(p - e.xy), sdf(p + e.yx) - sdf(p - e.yx));
+	vec2 n = dot(g, g) > 1e-4 ? g * inversesqrt(dot(g, g)) : vec2(0.0, -1.0);
 	float top = smoothstep(0.15, -0.65, p.y / (size.y * 0.5 - pad));
 	vec3 face = mix(face_color.rgb, face_color_bottom.rgb, clamp(UV.y, 0.0, 1.0));
 	COLOR = jelly_shade(d, n, top, face, sdf(p - drop_offset), pad);

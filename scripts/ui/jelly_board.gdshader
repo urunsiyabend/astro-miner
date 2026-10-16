@@ -45,7 +45,10 @@ void fragment() {
 		discard;
 	}
 	vec2 e = vec2(0.75, 0.0);
-	vec2 n = normalize(vec2(sdf(p + e.xy) - sdf(p - e.xy), sdf(p + e.yx) - sdf(p - e.yx)) + 1e-5);
+	// on a medial line (e.g. the middle row of a wide plate) the gradient is zero; a tiny
+	// epsilon underflows at mediump and normalize() gives NaN (a black line), so fall back
+	vec2 g = vec2(sdf(p + e.xy) - sdf(p - e.xy), sdf(p + e.yx) - sdf(p - e.yx));
+	vec2 n = dot(g, g) > 1e-4 ? g * inversesqrt(dot(g, g)) : vec2(0.0, -1.0);
 	float top = smoothstep(0.1, -0.6, n.y);   // gloss on the upper-facing parts of the rim
 	float k = clamp(length(p - light_center) / light_reach, 0.0, 1.0);
 	vec3 face = mix(earth_hi.rgb, earth.rgb, k);
