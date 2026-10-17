@@ -247,6 +247,16 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 			fxl.targets[g.ore] = _hud.icon_global.bind(i)
 		elif g.type == "crystal":
 			fxl.targets[Board.RES_CRYSTAL] = _hud.icon_global.bind(i)
+	# every goal piece flies to its icon (Royal Match): any-colour gems to the gems goal (unless a
+	# colour has its own goal), broken rock to the rock goal; the counter ticks as they land
+	for i in site.goals.size():
+		var g2: Dictionary = site.goals[i]
+		if g2.type == "chunks":
+			for k in Board.ORE_TYPES:
+				if not fxl.targets.has(k):
+					fxl.targets[k] = _hud.icon_global.bind(i)
+		elif g2.type == "rock":
+			fxl.targets["rock"] = _hud.icon_global.bind(i)
 	view.scanner = rules.scanner
 	view.drill = rules.drill
 	view.hint_dir = -1
@@ -780,13 +790,15 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 					fxl.confetti(at, 70)
 		"reveal":
 			fxl.burst(d.pos, Pal.TEXT, 10, 460.0)
+			if fxl.targets.has("rock"):
+				fxl.fly(d.pos, "rock", Pal.ROCK[1], 0.05)
 		"blast":
 			fxl.burst(d.pos, Pal.CHARGE, 22, 700.0)
 			fxl.sparks(d.pos, Color("ffd27a"), 14, 820.0, 30.0)
 
 
 func _on_arrived(res) -> void:
-	if res is int:
+	if res is int or res == "rock":
 		_hud.landed(res)
 	elif res == "coin":
 		_hud.coin_tick()
