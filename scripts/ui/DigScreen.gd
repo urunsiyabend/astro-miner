@@ -100,6 +100,7 @@ func _ready() -> void:
 	view = BoardView.new()
 	view.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	view.move_requested.connect(_on_move)
+	view.path_requested.connect(_on_path)
 	view.snap_changed.connect(_on_snap)
 	view.settled.connect(_on_settled)
 	view.fx.connect(_on_fx)
@@ -204,6 +205,8 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	supply = is_supply
 	var site := Sites.get_site(index)
 	var rules := Game.rules()
+	if String(site.get("mode", "robot")) == "fall":
+		rules.path_max = Game.path_max  # drawn paths (Settings): falling-gem digs only
 	board = Board.new()
 	var s := seed_value if seed_value >= 0 else randi()
 	if supply:
@@ -228,6 +231,10 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	view.classic = board.cfg.classic
 	view.portals = board.cfg.portals
 	view.gravity = board.cfg.gravity
+	view.path_max = board.cfg.path_max
+	view.pads = board.cfg.pads
+	view.belts = board.cfg.belts
+	view.tunnels = board.cfg.tunnels
 	_boosters.visible = not proto  # prototypes compare the core loops alone
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
@@ -352,7 +359,8 @@ func _show_mission(goals: Array) -> void:
 	v.add_child(gc)
 	var psite := Sites.get_site(site_index)
 	if psite.get("proto", false):
-		var tip := Ui.label(String(Sites.SPECIAL_TIPS.get(String(psite.get("special", "blast")), "")), Pal.FS_SMALL, Color("f3e9ff"))
+		var tip_text := String(psite.get("idea", ""))
+		var tip := Ui.label(tip_text, Pal.FS_SMALL, Color("f3e9ff"))
 		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tip.custom_minimum_size.x = 620
@@ -452,7 +460,13 @@ func _process(delta: float) -> void:
 		_recall_armed -= delta
 		if _recall_armed <= 0.0:
 			_recall_btn.text = "Recall"
-	if board and not board.over and not view.is_busy() and not _busy_talking():
+	if view.is_drawing():
+		# a path being drawn is the player thinking: no hints until it is done
+		_idle = 0.0
+		view.hint_dir = -1
+		if not view.glow.is_empty():
+			view.set_glow([])
+	elif board and not board.over and not view.is_busy() and not _busy_talking():
 		_idle += delta
 		if _auto_hint and _idle > AUTO_HINT_IDLE and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
@@ -491,10 +505,32 @@ func _on_move(dir: Vector2i) -> void:
 	if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or board.cfg.classic:
 		return
 	if view.is_busy():
-		_pending = dir
-		_has_pending = true
-		return
+		return  # a swipe made while the board is still moving is dropped, never queued
 	_do_move(dir)
+
+
+## A path drawn from the robot (path_max > 1): one move, resolved at the end.
+func _on_path(dirs: Array) -> void:
+	if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or view.is_busy():
+		view.cancel_path()
+		return
+	_idle = 0.0
+	view.new_turn()
+	var before := board.stats.duplicate()
+	var r := board.try_path(dirs)
+	if not r.ok:
+		view.cancel_path()
+		return
+	for k in _turn_events(before):
+		_events[k] = true
+	view.hint_dir = -1
+	view.set_glow([])
+	view.play_steps(r.steps)
+	if OS.has_feature("mobile"):
+		for s in r.steps:
+			if s.type == "match":
+				Input.vibrate_handheld(25)
+				break
 
 
 ## Classic prototype: swap a gem with its neighbour (a swap that makes no line wobbles back).
@@ -773,6 +809,9 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				fxl.fly(d.pos, "coin", Pal.COIN, 0.12 + k * 0.07, 0.55,
 						Vector2(randf_range(-150, 150), randf_range(-200, -80)))
 			Sfx.play("pickup")
+		"path_step":
+			# each step of a drawn path throws a few sparks, more as the path grows
+			fxl.sparks(d.pos, Color("bff6ff"), 4 + int(d.n), 300.0, 14.0)
 		"debris":
 			fxl.burst(d.pos, d.color, 7, 380.0)
 		"chain":

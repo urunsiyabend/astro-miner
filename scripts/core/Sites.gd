@@ -674,142 +674,135 @@ static func get_site(i: int) -> Dictionary:
 
 
 # --- prototypes ------------------------------------------------------------------------
-## Core-loop prototypes to compare by playing (Settings > Prototypes): the same five boards in
-## three modes, so the loop is the only difference. They sit after the campaign (index
-## count() + k), never count as progress and pay nothing.
-##   A "robot":   the robot walks, each step drags one gem, matched gems surface from below
-##   B "fall":    the robot walks, matched gems vanish and new ones drop in from above
-##   C "classic": no robot; swap two neighbouring gems; gems drop in from above
-## Each board also tries one special for a line of 4 (Board.Special): geode, drill, prism,
-## quake, and the original blast on the last board for comparison.
-const PROTO_MODES := [["A", "robot", "Robot"], ["B", "fall", "Robot + falling gems"], ["C", "classic", "Classic swap"]]
-const PROTO_BOARDS := [
-	{"name": "Open field", "special": "geode", "energy": 22, "goals": [{"type": "ore", "ore": 0, "n": 18}],
-		"rows": ["# . . . . . #", ". . . . . . .", ". . . . . . .", ". . . @ . . .",
-			". . . . . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
-	{"name": "Rubble band", "special": "drill", "energy": 24, "goals": [{"type": "rock", "n": 7}, {"type": "chunks", "n": 20}],
-		"rows": [". . . . . . .", ". . . . . . .", "1 1 1 1 1 1 1", ". . . . . . .",
-			". . . @ . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
-	{"name": "Crystal vaults", "special": "prism", "energy": 26, "goals": [{"type": "crystal", "n": 3}],
-		"rows": [". . . . . . .", ". 1c . . . 1c .", ". . . . . . .", ". . . @ . . .",
-			". . . . . . .", ". . . 1c . . .", ". . . . . . .", "# . . . . . #"]},
-	{"name": "Cells and rooms", "special": "quake", "energy": 22, "goals": [{"type": "chunks", "n": 36}],
-		"rows": [". . . # . . .", ". 1e . # . 1 .", ". . . # . . .", ". . . @ . . .",
-			". . . . . . .", ". 1 . # . 1e .", ". . . # . . .", "# . . # . . #"]},
-	{"name": "Mixed", "special": "blast", "energy": 28, "goals": [{"type": "rock", "n": 5}, {"type": "crystal", "n": 2}],
-		"rows": [". . . . . . .", ". 2 . . . 2 .", ". . 1c . 1c . .", ". . . @ . . .",
-			". 2 . . . 2 .", ". . . . . . .", ". . 1 . 1 . .", "# . . . . . #"]},
-]
-## Extra boards for the falling-gem mode only (B6+): odd maps in Royal Match's spirit.
-##   portals: [[source, destination]]: what falls out of the source cell drops in at the
-##            destination (the robot too: fall through to reach the other chamber)
-##   spawn_top: new gems only enter runs that reach the top of the board (pockets under a rock
-##            shelf drain and open up, and the robot can drop into them)
-##   collect: a crystal or cell is collected when it reaches the bottom of its run
-const PROTO_FALL_EXTRA := [
-	{"name": "Twin chambers", "special": "drill", "energy": 26, "goals": [{"type": "crystal", "n": 2}],
-		"portals": [[Vector2i(1, 2), Vector2i(1, 4)], [Vector2i(5, 2), Vector2i(5, 4)]],
-		"rows": [". . . . . . .", ". . . @ . . .", ". . . . . . .", "# # # # # # #",
-			". . . . . . .", ". 1c . . . 1c .", ". . . . . . .", "# . . . . . #"]},
-	{"name": "Funnel", "special": "geode", "energy": 22, "goals": [{"type": "chunks", "n": 45}],
-		"rows": [". . . . . . .", ". . . . . . .", "# . . . . . #", "# . . @ . . #",
-			"# # . . . # #", "# # . . . # #", "# # # . # # #", "# # # . # # #"]},
-	{"name": "Side stream", "special": "prism", "energy": 24, "goals": [{"type": "rock", "n": 6}],
-		"portals": [[Vector2i(0, 7), Vector2i(4, 0)], [Vector2i(1, 7), Vector2i(5, 0)], [Vector2i(2, 7), Vector2i(6, 0)]],
-		"rows": [". . . # . . .", ". . . # 1 . 1", ". . . # . . .", ". @ . # 1 . 1",
-			". . . # . . .", ". . . # 1 . 1", ". . . # . . .", ". . . # . . ."]},
-	{"name": "Hollow pockets", "special": "quake", "energy": 24, "spawn_top": true,
-		"goals": [{"type": "rock", "n": 6}, {"type": "chunks", "n": 20}],
-		"rows": [". . . . . . .", ". . . @ . . .", ". . . . . . .", "1 1 . 1 . 1 1",
-			". . . . . . .", ". . . . . . .", "1 1 1 . 1 1 1", ". . . . . . ."]},
-	{"name": "Crystal drop", "special": "drill", "energy": 22, "collect": true,
-		"goals": [{"type": "crystal", "n": 3}],
-		"rows": [". 1c . . . 1c .", ". . . . . . .", ". . . 1c . . .", ". . . @ . . .",
-			". . . . . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
-	{"name": "Chain lake", "special": "geode", "energy": 20, "goals": [{"type": "ore", "ore": 2, "n": 30}],
-		"rows": ["# . . . . . #", ". . . . . . .", ". . . . . . .", ". . . @ . . .",
-			". . . . . . .", ". . . . . . .", ". . . . . . .", "# # . . . # #"]},
+## Movement prototypes (Settings > Prototypes), to find the fun in drawn paths plus board
+## elements that move things. They sit after the campaign (index count() + k), never count
+## as progress and pay nothing. All are falling-gem digs on Royal Match sized boards (9 wide);
+## each has one idea, said on its goal card.
+##   pads:     [[pad, target]]: a special, crystal or cell resting on the pad flies to the
+##             target (a special goes off there); the dotted arc shows where
+##   belts:    [[cell, ...]]: a loop that moves everything on it one cell after every move
+##   tunnels:  [[a, dir out of a, b, dir out of b]]: walk off the edge at a, come out at b
+##   specials: [[cell, kind]]: gems that start out carrying a special
+##   collect:  crystals and cells are collected at the bottom of their run
+const PROTOS := [
+	{"name": "Launch bay", "energy": 20, "collect": true,
+		"idea": "The vault is sealed. The launch pad throws power-ups into it: clear the gems under the Quake and let it drop onto the pad.",
+		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
+		"pads": [[Vector2i(4, 9), Vector2i(4, 1)]],
+		"specials": [[Vector2i(4, 7), "quake"]],
+		"rows": [
+			"# # 1 1 1 1 1 # #",
+			"# # 1c 1 . 1 1c # #",
+			"# # 1 1 1 1 1 # #",
+			"# # # # # # # # #",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+		]},
+	{"name": "Conveyor ring", "energy": 20, "collect": true,
+		"idea": "The belt turns one step after every move, carrying gems round the rock core. Draw paths that leave lines for the belt to finish.",
+		"goals": [{"type": "rock", "n": 9}, {"type": "crystal", "n": 1}],
+		"belts": [[Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2), Vector2i(6, 2), Vector2i(6, 3),
+			Vector2i(6, 4), Vector2i(6, 5), Vector2i(6, 6), Vector2i(5, 6), Vector2i(4, 6), Vector2i(3, 6),
+			Vector2i(2, 6), Vector2i(2, 5), Vector2i(2, 4), Vector2i(2, 3)]],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . 2 2 2 . . .",
+			". . . 2 2c 2 . . .",
+			". . . 2 2 2 . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			"# . . . . . . . #",
+		]},
+	{"name": "Wraparound", "energy": 20,
+		"idea": "The left and right edges are linked: draw off one side and the robot comes out of the other. Crack the four crystal rocks and pick the crystals up.",
+		"goals": [{"type": "crystal", "n": 4}],
+		"tunnels": [[Vector2i(0, 3), Vector2i(-1, 0), Vector2i(8, 3), Vector2i(1, 0)],
+			[Vector2i(0, 6), Vector2i(-1, 0), Vector2i(8, 6), Vector2i(1, 0)]],
+		"rows": [
+			". . . . . . . . .",
+			". 1c . . # . . 1c .",
+			". . . . # . . . .",
+			". . . . # . . . .",
+			". . @ . # . . . .",
+			". . . . # . . . .",
+			". . . . # . . . .",
+			". . . . # . . . .",
+			". 1c . . # . . 1c .",
+			". . . . . . . . .",
+		]},
+	{"name": "Express belt", "energy": 20, "collect": true,
+		"idea": "The bottom belt runs into the launch pad. Put a power-up on the belt and it rides to the pad and flies into the vault. One is already on its way.",
+		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
+		"pads": [[Vector2i(8, 8), Vector2i(4, 1)]],
+		"belts": [[Vector2i(0, 8), Vector2i(1, 8), Vector2i(2, 8), Vector2i(3, 8), Vector2i(4, 8), Vector2i(5, 8),
+			Vector2i(6, 8), Vector2i(7, 8), Vector2i(8, 8), Vector2i(8, 9), Vector2i(7, 9), Vector2i(6, 9),
+			Vector2i(5, 9), Vector2i(4, 9), Vector2i(3, 9), Vector2i(2, 9), Vector2i(1, 9), Vector2i(0, 9)]],
+		"specials": [[Vector2i(3, 8), "quake"]],
+		"rows": [
+			"# # 1 1 1 1 1 # #",
+			"# # 1c 1 . 1 1c # #",
+			"# # 1 1 1 1 1 # #",
+			"# # # # # # # # #",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+		]},
+	{"name": "Big dig", "energy": 20, "collect": true,
+		"idea": "A big board, no tricks: dig down through the layers with long paths and big combos. The crystals wait at the bottom.",
+		"goals": [{"type": "rock", "n": 20}, {"type": "crystal", "n": 3}],
+		"specials": [[Vector2i(4, 2), "drill"]],
+		"rows": [
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			"1 1 1 . . . 1 1 1",
+			". . . . . . . . .",
+			". . 2 2 . 2 2 . .",
+			". . . . . . . . .",
+			"1 1 . . . . . 1 1",
+			". . . 2 2 2 . . .",
+			"1c . . . 1c . . . 1c",
+		]},
 ]
 
-## Budgets per mode and board, tuned with tools/tune_proto.gd (SLOPPY bot, ~82%).
-const PROTO_ENERGY := {"robot": [40, 21, 24, 23, 17], "fall": [23, 30, 22, 20, 17], "classic": [16, 23, 16, 13, 15],
-		"fall_extra": [16, 20, 24, 15, 27, 44]}
-
-## What each special does, for the prototype's goal card.
-const SPECIAL_TIPS := {
-	"blast": "Line of 4: a Blast charge. Step on it: it blows up the 3x3 around it.",
-	"drill": "Line of 4: a Drill Core. Move it: it bores on the way it moved until rock.",
-	"prism": "Line of 4: a Prism. Move it: four diagonal beams cut through everything.",
-	"geode": "Line of 4: a Geode. Move it: the 8 gems around it turn its colour.",
-	"quake": "Line of 4: a Quake. Move it: it shakes the ring two cells out.",
-}
+## Budgets (drawn paths, 4 steps). Set by hand for the first playtest: the path bot clears
+## Conveyor ring in ~7 moves (14 with the human margin), but cannot plan pad shots well enough
+## to rate Launch bay / Wraparound (40-60% at 60 moves), so those are guesses to calibrate.
+const PROTO_ENERGY := [30, 14, 26, 30, 22]
 
 static var _protos: Array = []
 
 
 static func protos() -> Array:
 	if _protos.is_empty():
-		for m in PROTO_MODES:
-			for k in PROTO_BOARDS.size():
-				var site: Dictionary = PROTO_BOARDS[k].duplicate(true)
-				site.id = "proto_%s%d" % [m[0], k + 1]
-				site.proto = true
-				site.mode = m[1]
-				site.title = "%s%d %s" % [m[0], k + 1, site.name]
-				if m[1] != "robot":
-					# falling gems cascade by themselves: with 3 colours a board plays itself (B1 took
-					# 5 moves for 18 Ferrite against the robot's 21), so they get one colour more
-					site.colours = 4
-				var budgets: Array = PROTO_ENERGY.get(m[1], [])
-				if k < budgets.size():
-					site.energy = budgets[k]
-				if m[1] == "classic":
-					# a swap anywhere plus cascades clears far more per move than the robot does:
-					# bigger ore goals and tougher rock keep a classic board as long as the others
-					var rows := []
-					for r in site.rows:
-						var codes := []
-						for code in String(r).replace("@", ".").split(" ", false):
-							if code.length() >= 1 and code[0] in ["1", "2"]:
-								code = "3" + code.substr(1)
-							codes.append(code)
-						rows.append(" ".join(codes))
-					site.rows = rows
-					for g in site.goals:
-						if g.type == "ore" or g.type == "chunks":
-							g.n = int(g.n * 3)
-				_protos.append(site)
-		for k in PROTO_FALL_EXTRA.size():
-			var site: Dictionary = PROTO_FALL_EXTRA[k].duplicate(true)
-			var n := PROTO_BOARDS.size() + k + 1
-			site.id = "proto_B%d" % n
+		for k in PROTOS.size():
+			var site: Dictionary = PROTOS[k].duplicate(true)
+			site.id = "proto_%d" % (k + 1)
 			site.proto = true
 			site.mode = "fall"
 			site.colours = 4
-			site.title = "B%d %s" % [n, site.name]
-			var budgets: Array = PROTO_ENERGY.get("fall_extra", [])
-			if k < budgets.size():
-				site.energy = budgets[k]
+			site.title = "%d %s" % [k + 1, site.name]
+			if k < PROTO_ENERGY.size():
+				site.energy = PROTO_ENERGY[k]
 			_protos.append(site)
 	return _protos
 
 
-## Campaign index of prototype k of mode m (0..2).
-static func proto_index(m: int, k: int) -> int:
-	return LIST.size() + m * PROTO_BOARDS.size() + k
-
-
-## The prototype picker's rows: [label, [[button text, campaign index], ...]] per mode.
-static func proto_rows() -> Array:
-	var rows := []
-	for m in PROTO_MODES.size():
-		var buttons := []
-		for i in protos().size():
-			var site: Dictionary = protos()[i]
-			if String(site.title).begins_with(PROTO_MODES[m][0]):
-				buttons.append([String(site.title).split(" ")[0].substr(1), LIST.size() + i])
-		rows.append(["%s: %s" % [PROTO_MODES[m][0], PROTO_MODES[m][2]], buttons])
-	return rows
+## The prototype picker's buttons: [title, campaign index].
+static func proto_list() -> Array:
+	var out := []
+	for i in protos().size():
+		out.append([String(protos()[i].title), LIST.size() + i])
+	return out
 
 
 static func goal_text(g: Dictionary) -> String:

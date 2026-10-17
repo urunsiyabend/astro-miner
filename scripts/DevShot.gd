@@ -83,6 +83,31 @@ func _run() -> void:
 			var cd := e.split(":")
 			main.dig._on_swap(int(cd[0]), map[cd[1]])
 			await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
+		if OS.has_environment("ASTRO_DRAWPATH"):  # "RRD": hold the robot and draw (no release)
+			var v: BoardView = main.dig.view
+			v._drawing = true
+			v._path_real = v.snap
+			v._path_dirs = []
+			v._path_cells = [v.snap.robot]
+			for ch in OS.get_environment("ASTRO_DRAWPATH"):
+				if OS.has_environment("ASTRO_DRAWWAIT"):  # draw slowly (movies)
+					var from := v._finger if v._path_dirs.size() > 0 else v.cell_center(v._path_cells[-1])
+					var to := v.cell_center(Board.idx(Board.pos(v._path_cells[-1]) + map[ch]))
+					var dt := float(OS.get_environment("ASTRO_DRAWWAIT"))
+					var t0 := 0.0
+					while t0 < dt:
+						await get_tree().process_frame
+						t0 += get_process_delta_time()
+						v._finger = from.lerp(to, minf(1.0, t0 / dt))
+						v._path_extend(v._cell_at(v._finger))
+				v._path_extend(Board.pos(v._path_cells[-1]) + map[ch])
+				v._finger = v.cell_center(v._path_cells[-1])
+			if OS.has_environment("ASTRO_HOLD"):
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_HOLD"))).timeout
+			if OS.has_environment("ASTRO_RELEASE"):
+				v._drawing = false
+				v._finish_path()
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_RELEASE"))).timeout
 		if OS.has_environment("ASTRO_AUTOMOVE"):  # ASTRO_AUTOMOVE=n: the planner plays n moves
 			var rng := RandomNumberGenerator.new()
 			rng.seed = 7
@@ -93,7 +118,10 @@ func _run() -> void:
 					break
 				if OS.has_environment("ASTRO_GAP"):  # seconds of "thinking" before each move
 					await get_tree().create_timer(float(OS.get_environment("ASTRO_GAP"))).timeout
-				main.dig._on_move(Bots.choose(main.dig.board, Bots.Kind.PLANNER, rng))
+				if main.dig.board.cfg.path_max > 1:
+					main.dig._on_path(Bots.choose_path(main.dig.board, Bots.Kind.PLANNER, rng))
+				else:
+					main.dig._on_move(Bots.choose(main.dig.board, Bots.Kind.PLANNER, rng))
 				if k < int(OS.get_environment("ASTRO_AUTOMOVE")) - 1:
 					while main.dig.view.is_busy():
 						await get_tree().process_frame

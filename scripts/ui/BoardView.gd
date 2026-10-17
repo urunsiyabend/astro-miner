@@ -9,6 +9,7 @@ signal snap_changed(snap: Dictionary)
 signal fx(kind: String, data: Dictionary)
 signal settled
 signal booster_target(target: int)
+signal path_requested(dirs: Array)  # a path drawn from the robot (path_max > 1)
 signal swap_requested(cell: int, dir: Vector2i)  # classic prototype: swap a gem with a neighbour  # a cell (the Laser: a DIRS index) picked for the armed booster
 
 const WARP_COL := Color("ff6bd8")
@@ -38,6 +39,30 @@ var _glow_t := 0.0
 var input_enabled := true
 var armed := -1   # Economy.Booster waiting for its target, or -1
 var classic := false  # the classic prototype: no robot, a swipe on a gem swaps it
+## Drawn paths: hold the robot and draw up to path_max steps. While the finger is down the
+## board shows the swaps live (a preview snap); lifting it sends the path as one move.
+var path_max := 1
+var pads := {}       # launch pad cell -> target cell
+var belts: Array = []  # conveyor loops of cells
+var tunnels: Array = []  # [a, dir out of a, b, dir out of b]
+var _finger := Vector2.ZERO  # where the drawing finger is (local)
+var _belt_from := {}
+var _path_groups: Array = []  # [{cells, ore, special (-1 none), at}]: what the release would match
+var _label_font: Font = preload("res://assets/fonts/LilitaOne-Regular.ttf")  # during a belt step: cell -> the cell its token came from
+const PAD_COL := Color("ffb347")
+const BELT_COL := Color("9fe7ff")
+var _drawing := false
+var _path_dirs: Array = []
+var _path_cells: Array = []   # robot cell first, then every cell the path visits
+var _path_real: Dictionary = {}  # the snap before the path, restored if it is cancelled
+var _path_t := 0.0
+var _path_rp := Vector2.ZERO   # where the held robot is drawn: it glides after the path's end
+var _path_lift := 0.0          # 0..1: the robot picked up off the board while drawing
+var _slide := {}               # cell -> [offset it slides in from, t]: gems the robot swaps past
+var _path_match := {}          # cells that would match if the finger lifted now
+var _pip_pop := -1.0           # t of the last pip filling (its pop)
+var _path_deny := 0.0          # 1 -> 0: the pips shake when the path is full
+const PATH_NOTES := [0, 2, 4, 7, 9, 12, 14, 16]  # the drawing climbs a major pentatonic
 var gravity := false  # falling gems: no veins, so no vein pips
 var portals: Array = []  # [[source, destination]] cells: drawn as a glowing pair of rings
 var _sel := -1        # classic: the gem tapped first (tap it, then a neighbour)
@@ -136,8 +161,11 @@ func show_snap(s: Dictionary) -> void:
 	_queue.clear()
 	_cur = {}
 	snap_changed.emit(snap)
-	_update_frame()
-	queue_redraw()
+	_layout()  # a dig sets its own board size
+
+
+func is_drawing() -> bool:
+	return _drawing
 
 
 func is_busy() -> bool:
@@ -201,6 +229,11 @@ func _next_step() -> void:
 		settled.emit()
 		return
 	_cur = _queue.pop_front()
+	if _cur.type == "move" and _cur.get("path", false):
+		# a drawn path's steps were already shown live while it was drawn
+		_apply(_cur.snap)
+		_next_step()
+		return
 	_t = 0.0
 	_phase = 0
 	var fast := 0.8 if _queue.size() > 2 else 1.0
@@ -289,6 +322,22 @@ func _next_step() -> void:
 		"swap":
 			_dur = 0.14
 			Sfx.play("swap", randf_range(0.95, 1.05))
+		"launch":
+			# up and over in an arc to the pad's target; a special goes off where it lands
+			var dist := cell_center(_cur.from).distance_to(cell_center(_cur.to))
+			_dur = clampf(0.28 + dist / (cell * 14.0), 0.32, 0.6)
+			_rings.append({"c": cell_center(_cur.from), "r0": cell * 0.25, "r1": cell * 1.1,
+					"t": 0.0, "dur": 0.3, "color": PAD_COL})
+			add_trauma(0.12)
+			Sfx.play("warp", 1.25)
+			Sfx.play("zap", 1.4)
+		"belt":
+			_dur = 0.24
+			_belt_from.clear()
+			for m in _cur.moves:
+				_belt_from[m[1]] = m[0]
+			Sfx.play("step", 0.7)
+			Sfx.play("swap", 0.6)
 		"special":
 			_dur = 0.42
 			_shake = 0.3
@@ -452,6 +501,20 @@ func _finish_phase() -> void:
 			_flash.clear()
 			_apply(_cur.snap)
 			_next_step()
+		"launch":
+			_rings.append({"c": cell_center(_cur.to), "r0": cell * 0.2, "r1": cell * 1.4,
+					"t": 0.0, "dur": 0.32, "color": PAD_COL})
+			_land[_cur.to] = 1.0
+			fx.emit("blast_done", {"cells": [cell_global(_cur.to)]})
+			Sfx.play("land", 0.8)
+			if _cur.robot:
+				add_trauma(0.15)
+			_apply(_cur.snap)
+			_next_step()
+		"belt":
+			_belt_from.clear()
+			_apply(_cur.snap)
+			_next_step()
 		_:
 			_apply(_cur.snap)
 			_next_step()
@@ -526,6 +589,24 @@ func _apply(s: Dictionary) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_path_t += delta
+	_path_lift = move_toward(_path_lift, 1.0 if _drawing else 0.0, delta / (0.09 if _drawing else 0.14))
+	# drawing pulls the player in: the board leans a touch closer and the music steps back
+	pivot_offset = size * 0.5
+	scale = Vector2.ONE * (1.0 + 0.025 * _ease(_path_lift))
+	if _drawing:
+		Sfx.duck(5.0)
+	if not snap.is_empty() and snap.robot >= 0:
+		_path_rp = _path_rp.lerp(cell_center(snap.robot), 1.0 - exp(-delta * 28.0))
+	for k in _slide.keys():
+		_slide[k][1] += delta / 0.11
+		if _slide[k][1] >= 1.0:
+			_slide.erase(k)
+	if _pip_pop >= 0.0:
+		_pip_pop += delta / 0.22
+		if _pip_pop >= 1.0:
+			_pip_pop = -1.0
+	_path_deny = maxf(0.0, _path_deny - delta / 0.3)
 	if _hold > 0.0:
 		_hold -= delta  # hit-stop: the board holds its breath, the rest of the screen runs on
 	elif not _cur.is_empty():
@@ -583,8 +664,16 @@ func _gui_input(event: InputEvent) -> void:
 	if classic:
 		_classic_input(event)
 		return
+	if _path_input(event):
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			if is_busy() or not input_enabled:
+				# a touch that starts while the board is still moving does nothing, even if it is
+				# still held when the board settles
+				_touching = false
+				accept_event()
+				return
 			_touching = true
 			_swiped = false
 			_touch_start = event.position
@@ -602,6 +691,169 @@ func _gui_input(event: InputEvent) -> void:
 			else:
 				_request(Vector2i(0, signi(int(d.y))))
 		accept_event()
+
+
+## Drawn paths: a touch that starts on the robot draws; anything else is a swipe or tap.
+## Returns true when the event was taken.
+func _path_input(event: InputEvent) -> bool:
+	if path_max <= 1 or snap.is_empty() or snap.robot < 0:
+		return false
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			if not input_enabled or is_busy():
+				return false
+			var rc := cell_center(snap.robot)
+			if event.position.distance_to(rc) > cell * 0.7:
+				return false
+			_drawing = true
+			_path_real = snap
+			_path_dirs = []
+			_path_cells = [snap.robot]
+			_path_t = 0.0
+			_path_rp = rc
+			_finger = event.position
+			_path_match.clear()
+			_path_groups.clear()
+			_slide.clear()
+			Sfx.play("tap", 1.5)
+			if OS.has_feature("mobile"):
+				Input.vibrate_handheld(12)
+			accept_event()
+			return true
+		if _drawing:
+			_drawing = false
+			_finish_path()
+			accept_event()
+			return true
+	elif event is InputEventScreenDrag and _drawing:
+		_finger = event.position
+		_path_extend(_cell_at(event.position))
+		accept_event()
+		return true
+	return false
+
+
+## Walk the path toward the cell under the finger, one cell at a time (a fast finger skips
+## cells); going back onto the previous cell takes the last step back.
+func _path_extend(target: Vector2i) -> void:
+	for guard in 8:
+		var last: int = _path_cells[-1]
+		var lp := Board.pos(last)
+		if target == lp:
+			return
+		var dv := target - lp
+		var step := Vector2i(signi(dv.x), 0) if absi(dv.x) >= absi(dv.y) else Vector2i(0, signi(dv.y))
+		var np := lp + step
+		if not Board.inside(np):
+			return
+		var ni := Board.idx(np)
+		if _path_cells.size() >= 2 and ni == _path_cells[-2]:
+			# back one step: the gem slides back where it was, the note steps down
+			var undone: int = _path_cells.pop_back()
+			_path_dirs.pop_back()
+			_slide[undone] = [cell_center(ni) - cell_center(undone), 0.0]
+			_preview()
+			Sfx.play("note", pow(2.0, PATH_NOTES[_path_dirs.size()] / 12.0) * 0.5)
+			Sfx.play("swap", 0.85)
+			continue
+		if _path_real.terrain[ni] != T.GROUND:
+			return
+		if _path_dirs.size() >= path_max:
+			if _path_deny <= 0.0:
+				_path_deny = 1.0
+				Sfx.play("bump", 1.3)
+			return
+		_path_cells.append(ni)
+		_path_dirs.append(step)
+		# the gem the robot steps onto slides into the cell it just left
+		_slide[last] = [cell_center(ni) - cell_center(last), 0.0]
+		_pip_pop = 0.0
+		_preview()
+		Sfx.play("note", pow(2.0, PATH_NOTES[mini(_path_dirs.size(), PATH_NOTES.size() - 1)] / 12.0) * 0.5)
+		Sfx.play("swap", 1.0 + 0.06 * _path_dirs.size())
+		fx.emit("path_step", {"pos": cell_global(ni), "n": _path_dirs.size()})
+		if OS.has_feature("mobile"):
+			Input.vibrate_handheld(8)
+
+
+## The board as it will stand once the path is walked (swaps only; matching waits for release).
+func _preview() -> void:
+	var p := _path_real.duplicate()
+	var tk: PackedInt32Array = PackedInt32Array(_path_real.token)
+	var orr: PackedInt32Array = PackedInt32Array(_path_real.ore)
+	var sp: PackedInt32Array = PackedInt32Array(_path_real.spec)
+	var cur: int = _path_real.robot
+	var pivot := -1
+	for k in range(1, _path_cells.size()):
+		var ti: int = _path_cells[k]
+		var carried := tk[ti] == K.ORE or (tk[ti] == K.CHARGE and sp[ti] != Board.Special.BLAST)
+		if carried:
+			tk[cur] = tk[ti]
+			orr[cur] = orr[ti]
+			sp[cur] = sp[ti]
+			if tk[cur] == K.ORE:
+				pivot = cur
+		tk[ti] = K.NONE
+		cur = ti
+	p.token = tk
+	p.ore = orr
+	p.spec = sp
+	p.robot = cur
+	snap = p
+	# what would match if the finger lifted now: those gems bounce and glow, and a new line
+	# chimes as it forms
+	var probe := Board.new()
+	probe.terrain = PackedInt32Array(_path_real.terrain)
+	probe.token = tk
+	probe.ore = orr
+	var before := _path_match.size()
+	var specials_before := _path_groups.filter(func(g): return g.special >= 0).size()
+	_path_match.clear()
+	_path_groups.clear()
+	for g in probe.find_groups():
+		var mid := Vector2.ZERO
+		for c in g.cells:
+			_path_match[c] = true
+			mid += cell_center(c)
+		var special := -1
+		var at: int = g.cells[0]
+		if g.cells.size() >= 4:
+			special = probe._special_for(g.cells)
+			at = pivot if g.cells.has(pivot) else probe._central(g.cells)
+		_path_groups.append({"cells": g.cells, "ore": g.ore, "special": special, "at": at,
+				"mid": mid / float(g.cells.size())})
+	var specials_now := _path_groups.filter(func(g): return g.special >= 0).size()
+	if specials_now > specials_before:
+		Sfx.play("forge", 1.2)
+	elif _path_match.size() > before:
+		Sfx.play("reveal", 1.3 + 0.05 * _path_match.size())
+	queue_redraw()
+
+
+func _finish_path() -> void:
+	_path_match.clear()
+	_path_groups.clear()
+	if _path_dirs.size() <= 1:
+		snap = _path_real
+		queue_redraw()
+		if _path_dirs.size() == 1:
+			_request(_path_dirs[0])
+		return
+	Sfx.play("land", 1.2)
+	_rings.append({"c": cell_center(snap.robot), "r0": cell * 0.3, "r1": cell * 1.2,
+			"t": 0.0, "dur": 0.26, "color": Color("7fe8ff")})
+	add_trauma(0.1)
+	path_requested.emit(_path_dirs.duplicate())
+
+
+## The drawn path was not taken (the dig is busy or over): put the board back.
+func cancel_path() -> void:
+	_drawing = false
+	_path_match.clear()
+	_path_groups.clear()
+	if not _path_real.is_empty():
+		snap = _path_real
+		queue_redraw()
 
 
 func _tap(p: Vector2) -> void:
@@ -720,8 +972,9 @@ func _draw() -> void:
 	for i in Board.W * Board.H:
 		if snap.terrain[i] == T.ROCK:
 			_draw_rock(i)
+	_draw_elements()
 	_draw_move_hints(moving_to)
-	var glowing := not glow.is_empty() and _cur.is_empty()
+	var glowing := not glow.is_empty() and _cur.is_empty() and not _drawing
 	if glowing:
 		for k in glow.size():
 			_draw_glow_halo(glow[k], k)
@@ -768,6 +1021,14 @@ func _draw() -> void:
 				_draw_token(cell_center(i), snap.token[i], snap.ore[i], (1.0 - mt) * _depth_scale(i), 0.0)
 			continue
 		var sc := _depth_scale(i)
+		if not _cur.is_empty() and _cur.type == "belt" and _belt_from.has(i):
+			_draw_token(cell_center(_belt_from[i]).lerp(cell_center(i), _ease(_t)), tok[i], kinds[i], sc, 0.0, specs[i])
+			continue
+		if not _cur.is_empty() and _cur.type == "launch" and not _cur.robot and i == _cur.to:
+			var lp := _arc(cell_center(_cur.from), cell_center(i), _t)
+			draw_circle(lp, cell * 0.42, Color(PAD_COL, 0.25))
+			_draw_token(lp, tok[i], kinds[i], sc * (1.0 + 0.35 * sin(PI * _t)), 0.3 * sin(PI * _t), specs[i])
+			continue
 		if _rise.has(i):
 			sc = _back_out(_rise[i])
 		var fl: float = _flash.get(i, 0.0)
@@ -793,9 +1054,26 @@ func _draw() -> void:
 			at = at.lerp(cell_center(other2), 0.35 * sin(PI * (1.0 - _reject.t)))
 		if i == _sel:
 			sc *= 1.08 + 0.04 * sin(_time * 10.0)
+		if _slide.has(i):
+			var st: float = _slide[i][1]
+			at += (_slide[i][0] as Vector2) * (1.0 - _ease(st))
+			at.y -= cell * 0.16 * sin(PI * st)
+			sc *= 1.0 + 0.18 * sin(PI * st)
+		if _drawing and _path_match.has(i):
+			var hop2 := absf(sin(_time * 11.0 + float(i) * 0.7))
+			at.y -= cell * 0.07 * hop2
+			sc *= 1.06 + 0.04 * hop2
+			fl = maxf(fl, 0.22 + 0.12 * hop2)
 		_tok_squash = _squash_of(i)
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
 		_tok_squash = Vector2.ONE
+	var hot := {}
+	for p in pads:
+		if snap.robot == p or (snap.token[p] == K.CHARGE or snap.token[p] == K.CRYSTAL or snap.token[p] == K.CELL):
+			hot[p] = true
+	if _drawing or _path_lift > 0.0:
+		_draw_outcome(tok, kinds, specs)
+	_draw_pad_paths(hot)
 	if snap.robot < 0:
 		_draw_booster_fx()
 		_draw_overlays(glowing)
@@ -826,10 +1104,196 @@ func _draw() -> void:
 		if _cur.get("warps", []).has(_cur.robot):
 			from_c = cell_center(_cur.robot[1]) - Vector2(0, pitch)
 		rp = from_c.lerp(cell_center(_cur.robot[1]), _t * _t)
+	if not _cur.is_empty() and _cur.type == "belt" and not _cur.robot.is_empty():
+		rp = cell_center(_cur.robot[0]).lerp(cell_center(_cur.robot[1]), _ease(_t))
+	if not _cur.is_empty() and _cur.type == "launch" and _cur.robot:
+		rp = _arc(cell_center(_cur.from), cell_center(_cur.to), _t)
+		rsc *= 1.0 + 0.3 * sin(PI * _t)
+	if _drawing or _path_lift > 0.0:
+		if _drawing:
+			_draw_path()
+		var lift := _back_out(_path_lift) if _drawing else _path_lift
+		if _drawing:
+			# held: the robot strains toward the finger, like something picked up
+			var pull := (_finger - _path_rp).limit_length(cell * 0.32)
+			rp = _path_rp + pull
+		# a soft shadow stays on the board while the robot is held up
+		draw_circle(rp + Vector2(0, cell * 0.28), cell * 0.3 * (1.0 - 0.25 * lift), Color(0.05, 0.0, 0.12, 0.28 * lift))
+		rp.y -= cell * 0.16 * lift
+		rsc *= 1.0 + 0.14 * lift
+		rp.x += sin(_time * 18.0) * cell * 0.012 * lift
 	_draw_robot(rp, rsc)
 	_draw_booster_fx()
 	_draw_overlays(glowing)
 	draw_set_transform(Vector2.ZERO)
+
+
+## The path being drawn: a glowing trail through the cells it visits, and pips over the robot
+## for the steps left.
+func _draw_path() -> void:
+	# the trail warms up as the steps run out: cyan, gold, then pink on the last one
+	var fill := float(_path_dirs.size()) / maxf(1.0, float(path_max))
+	var col := Color("7fe8ff").lerp(Color("ffd96b"), clampf(fill * 1.6, 0.0, 1.0))
+	if fill >= 1.0:
+		col = Color("ff8ef0")
+	var pts := PackedVector2Array()
+	for c in _path_cells:
+		pts.append(cell_center(c))
+	pts[-1] = _path_rp  # the head follows the gliding robot
+	if pts.size() > 1:
+		var pulse := 1.0 + 0.08 * sin(_time * 9.0)
+		draw_polyline(pts, Color(col, 0.18), cell * 0.5 * pulse, true)
+		draw_polyline(pts, Color(col, 0.55), cell * 0.2, true)
+		draw_polyline(pts, Color(1, 1, 1, 0.95), cell * 0.06, true)
+		# energy flowing along the trail toward the robot
+		var total := 0.0
+		for k in range(1, pts.size()):
+			total += pts[k - 1].distance_to(pts[k])
+		var spacing := cell * 0.42
+		var s := fmod(_path_t * cell * 2.6, spacing)
+		while s < total:
+			var p := _along(pts, s)
+			draw_circle(p, cell * 0.055, Color(1, 1, 1, 0.9))
+			draw_circle(p, cell * 0.1, Color(col, 0.35))
+			s += spacing
+		for k in range(1, pts.size() - 1):
+			draw_circle(pts[k], cell * 0.1, Color(col, 0.9))
+			draw_circle(pts[k], cell * 0.05, Color.WHITE)
+	# start ring where the robot was picked up
+	draw_arc(pts[0], cell * (0.36 + 0.03 * sin(_time * 6.0)), 0.0, TAU, 32, Color(col, 0.7), cell * 0.04, true)
+	# pips over the robot: the steps left; the newest pops, a full path shakes them
+	var rc := _path_rp - Vector2(0, cell * 0.16 * _back_out(_path_lift))
+	var shake := sin(_time * 70.0) * cell * 0.05 * _path_deny
+	for k in path_max:
+		var x := (k - (path_max - 1) * 0.5) * cell * 0.2 + shake
+		var at := rc + Vector2(x, -cell * 0.7)
+		var used := k < _path_dirs.size()
+		var r := cell * 0.06
+		if used and k == _path_dirs.size() - 1 and _pip_pop >= 0.0:
+			r *= 1.0 + 0.8 * sin(PI * _pip_pop)
+		draw_circle(at, r * 1.4, Color(0.1, 0.03, 0.2, 0.7))
+		draw_circle(at, r, Color(1, 1, 1, 0.25) if used else col)
+
+
+## While a path is drawn: the board dims, and what the release would do stands out. Each line
+## that would match glows in its colour with a +N, a line that would make a special shows the
+## special waiting where it will appear, and two or more lines call out the combo.
+func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: PackedInt32Array) -> void:
+	var k := _path_lift
+	for i in Board.W * Board.H:
+		if snap.terrain[i] != T.BEDROCK:
+			var o := cell_origin(Board.pos(i))
+			draw_rect(Rect2(o, Vector2(cell, pitch)), Color(0.04, 0.0, 0.1, 0.38 * k), true)
+	for g in _path_groups:
+		var col: Color = Pal.ORE[g.ore] if g.ore < Pal.ORE.size() else Color.WHITE
+		# a glowing band linking the line's gems
+		for c in g.cells:
+			for d in [Vector2i(1, 0), Vector2i(0, 1)]:
+				var nb: Vector2i = Board.pos(c) + d
+				if Board.inside(nb) and g.cells.has(Board.idx(nb)):
+					draw_line(cell_center(c), cell_center(Board.idx(nb)), Color(col, 0.55 * k), cell * 0.62, true)
+		for c in g.cells:
+			draw_circle(cell_center(c), cell * (0.46 + 0.03 * sin(_time * 9.0)), Color(col.lightened(0.3), 0.45 * k))
+		for c in g.cells:
+			var hop := absf(sin(_time * 11.0 + float(c) * 0.7))
+			var at := cell_center(c) - Vector2(0, cell * 0.07 * hop)
+			_draw_token(at, tok[c], kinds[c], _depth_scale(c) * (1.08 + 0.05 * hop), 0.25 + 0.15 * hop, specs[c])
+		if g.special >= 0:
+			var sp_at := cell_center(g.at) - Vector2(0, cell * 0.62)
+			var pulse := 1.0 + 0.12 * sin(_time * 8.0)
+			draw_circle(sp_at, cell * 0.3 * pulse, Color(1, 1, 1, 0.85 * k))
+			_draw_special(sp_at, g.special, g.ore, 0.5 * pulse)
+		var n: int = g.cells.size()
+		var txt := "+%d" % n
+		var fs := int(cell * (0.38 + 0.04 * n))
+		var tp: Vector2 = g.mid + Vector2(0, -cell * 0.5)
+		var tw := _label_font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+		draw_string_outline(_label_font, tp - Vector2(tw * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(cell * 0.1), Color(0.15, 0.03, 0.25, k))
+		draw_string(_label_font, tp - Vector2(tw * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, k))
+	if _path_groups.size() >= 2:
+		var ctxt := "x%d COMBO!" % _path_groups.size()
+		var cfs := int(cell * 0.6 * (1.0 + 0.05 * sin(_time * 10.0)))
+		var cw := _label_font.get_string_size(ctxt, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs).x
+		var cp := origin + Vector2(cell * Board.W * 0.5 - cw * 0.5, -cell * 0.15)
+		draw_string_outline(_label_font, cp, ctxt, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, int(cell * 0.14), Color(0.2, 0.02, 0.3, k))
+		draw_string(_label_font, cp, ctxt, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, Color("ffe27a"))
+
+
+## A launch's flight from a to b: up and over, higher for longer throws.
+func _arc(a: Vector2, b: Vector2, t: float) -> Vector2:
+	var h := cell * 0.8 + a.distance_to(b) * 0.3
+	var e := _ease(t)
+	return a.lerp(b, e) - Vector2(0, h * 4.0 * e * (1.0 - e))
+
+
+## Movement elements on the ground, under the gems: conveyor chevrons that flow, launch pads,
+## the dotted flight to each pad's target, and the tunnel gates at the board's edge.
+func _draw_elements() -> void:
+	for loop in belts:
+		var n: int = loop.size()
+		for k in n:
+			var a := cell_center(loop[k])
+			var b := cell_center(loop[(k + 1) % n])
+			var d := (b - a).normalized()
+			var side := Vector2(-d.y, d.x)
+			draw_line(a, b, Color(0.06, 0.1, 0.2, 0.55), cell * 0.78, true)
+			draw_line(a + side * cell * 0.39, b + side * cell * 0.39, Color(BELT_COL, 0.35), cell * 0.03, true)
+			draw_line(a - side * cell * 0.39, b - side * cell * 0.39, Color(BELT_COL, 0.35), cell * 0.03, true)
+			for j in 2:
+				var f := fmod(_time * 1.6 + j * 0.5, 1.0)
+				var c := a + d * cell * (f - 0.5) * 0.9
+				var al := sin(PI * f) * 0.75
+				draw_polyline(PackedVector2Array([c - d * cell * 0.1 + side * cell * 0.16, c + d * cell * 0.06, c - d * cell * 0.1 - side * cell * 0.16]),
+						Color(BELT_COL, al), cell * 0.05, true)
+	for p in pads:
+		var c := cell_center(p)
+		var pulse := 0.5 + 0.5 * sin(_time * 4.0)
+		draw_circle(c, cell * 0.44, Color(PAD_COL, 0.22 + 0.1 * pulse))
+		draw_arc(c, cell * 0.42, 0.0, TAU, 40, Color(PAD_COL, 0.9), cell * 0.05, true)
+		draw_arc(c, cell * (0.26 + 0.06 * pulse), 0.0, TAU, 32, Color(1, 0.95, 0.8, 0.6), cell * 0.03, true)
+	for t in tunnels:
+		for e in [[t[0], t[1]], [t[2], t[3]]]:
+			var c := cell_center(e[0]) + Vector2(e[1]) * cell * 0.5
+			var ang := Vector2(e[1]).angle()
+			draw_arc(c, cell * 0.36, ang - PI * 0.5, ang + PI * 0.5, 20, Color(WARP_COL, 0.85), cell * 0.08, true)
+			draw_arc(c, cell * 0.24, ang - PI * 0.5, ang + PI * 0.5, 16, Color(1, 1, 1, 0.4 + 0.3 * sin(_time * 5.0)), cell * 0.04, true)
+
+
+## Over the gems: each pad's flight path, dotted, and the target it hits.
+func _draw_pad_paths(hot: Dictionary) -> void:
+	for p in pads:
+		var a := cell_center(p)
+		var b := cell_center(pads[p])
+		var on := hot.has(p)
+		# the pad itself, over its gem: a bright ring with chevrons pointing along the throw
+		var pulse := 0.5 + 0.5 * sin(_time * 5.0)
+		draw_arc(a, cell * 0.47, 0.0, TAU, 40, Color(PAD_COL, 0.95), cell * 0.07, true)
+		var up := (_arc(a, b, 0.06) - a).normalized()
+		var sd := Vector2(-up.y, up.x)
+		for j in 2:
+			var c0 := a + up * cell * (0.5 + 0.12 * j + 0.06 * pulse)
+			draw_polyline(PackedVector2Array([c0 - up * cell * 0.1 + sd * cell * 0.14, c0, c0 - up * cell * 0.1 - sd * cell * 0.14]),
+					Color(PAD_COL, 0.9 - 0.3 * j), cell * 0.06, true)
+		var col := Color(PAD_COL, 1.0 if on else 0.75)
+		var n := 16
+		for k in n:
+			var f := (float(k) + fmod(_time * (3.0 if on else 1.2), 1.0)) / n
+			draw_circle(_arc(a, b, f), cell * (0.08 if on else 0.055), Color(0.1, 0.02, 0.2, 0.5))
+			draw_circle(_arc(a, b, f), cell * (0.06 if on else 0.04), col)
+		var r := cell * (0.4 + (0.06 * sin(_time * 10.0) if on else 0.0))
+		draw_arc(b, r, 0.0, TAU, 32, col, cell * (0.06 if on else 0.035), true)
+		draw_line(b - Vector2(r * 0.6, 0), b + Vector2(r * 0.6, 0), col, cell * 0.03, true)
+		draw_line(b - Vector2(0, r * 0.6), b + Vector2(0, r * 0.6), col, cell * 0.03, true)
+
+
+## The point `s` px along a polyline.
+func _along(pts: PackedVector2Array, s: float) -> Vector2:
+	for k in range(1, pts.size()):
+		var l := pts[k - 1].distance_to(pts[k])
+		if s <= l:
+			return pts[k - 1].lerp(pts[k], s / maxf(0.001, l))
+		s -= l
+	return pts[-1]
 
 
 ## Over everything on the board: the idle-hint sparks, Mira's focus frames, the pulse rings.
