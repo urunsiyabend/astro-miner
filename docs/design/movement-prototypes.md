@@ -38,20 +38,36 @@ movement.
   along the dotted arc to the target; a special goes off there (a Drill bores on in the flight
   direction). Plain gems and the robot stay put (a robot thrown into a sealed room could never
   leave). A special pushed onto a pad by a path flies instead of going off.
-- **Conveyor belt** (`belts`): a loop; after every move everything on it moves one cell (the
-  robot rides), then the board resolves again.
-- **Edge tunnel** (`tunnels`): walking (or drawing) off the board at one mouth comes out at the
-  other.
+- **Conveyor belt** (`belts`): after every move it runs one step, plus one step per gem matched
+  on it that move (at most 6), each step followed by the board resolving; the robot rides.
+  Gaps on a belt fill from above, so power-ups can be dropped onto it (an earlier version
+  closed gaps by sliding along the belt, which made that impossible). A belt whose ends touch
+  is a loop. Any other belt is a one-way line and a **shelf**: nothing falls through it, and
+  the cells under it are their own region, refilled from just under the belt. What reaches a
+  line's end drops off: if the cell under the end is open it is a **spout** and the thing
+  waits there until the column below makes room (holding the belt up behind it), else it
+  leaves the board (crystals and cells are collected). The robot on a line's last cell holds
+  it up.
+- **Teleporter pair** (`teleports`): a move or path that **ends** on a teleporter puts the robot
+  on its twin (the twin's gem drops into the first one); passing over one mid-path does
+  nothing. A special pushed or dropped onto one appears on the twin and goes off there, still
+  heading the way it was pushed. A fall never teleports the robot (no bouncing). While drawing,
+  a path that comes to rest on one arms it: charge-up sound, flash, buzz, a beam to the twin
+  and a ghost robot where it will come out. (Edge tunnels were tried and dropped: they needed
+  a single drag off the board's edge and nobody could tell what they did.)
 - Boards are any size per dig (`Board.W/H` from its rows); prototypes are 9 wide.
 
 ## Prototypes (Settings > Prototypes)
 
 1. **Launch bay**: a sealed vault; drop the waiting Quake onto the pad to blow it open.
 2. **Conveyor ring**: a belt around a rock core; leave lines for the belt to finish.
-3. **Wraparound**: left and right edges linked by two tunnels; four crystals far apart.
-4. **Express belt**: the bottom belt runs into a pad; anything special on it is thrown into
-   the vault. One Quake is already riding.
-5. **Big dig**: Royal Match size board, no tricks, strata down to three crystals.
+3. **Teleporters**: a wall splits the board; two teleporter pairs cross it, and a Drill next to
+   one shows that power-ups teleport too.
+4. **Express belt**: a one-way belt runs into a pad; anything special on it is thrown into the
+   vault. One Quake is already riding.
+5. **Shelf belt**: a belt across the middle; drop the Quake onto it, ride it to the spout, and
+   match the gem on the pad under the spout to let it fall in.
+6. **Big dig**: Royal Match size board, no tricks, strata down to three crystals.
 
 ## Next (user idea, 2026-10-17)
 

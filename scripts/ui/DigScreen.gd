@@ -234,7 +234,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	view.path_max = board.cfg.path_max
 	view.pads = board.cfg.pads
 	view.belts = board.cfg.belts
-	view.tunnels = board.cfg.tunnels
+	view.teleports = board.cfg.teleports
 	_boosters.visible = not proto  # prototypes compare the core loops alone
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes

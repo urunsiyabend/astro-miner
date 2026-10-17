@@ -22,6 +22,7 @@ const MIX := {
 	"bombdrop": [-4.0, 0.5, 0.05], "pulse": [-7.0, 0.5, 0.05], "bump": [-7.0, 0.6, 0.08],
 	"tap": [-7.0, 1.0, 0.04], "buy": [-3.0, 0.4, 0.05], "coin": [-9.0, 0.3, 0.02],
 	"collect": [-3.0, 0.6, 0.05], "fanfare": [-2.0, 0.0, 0.5], "lose": [-3.0, 0.0, 0.5],
+	"teleport": [-2.0, 0.3, 0.1], "telearm": [-6.0, 0.3, 0.1],
 }
 ## the old synthesised names the game still calls, mapped onto recorded sounds
 const ALIAS := {"match": "pop", "win": "fanfare", "tick": "tap"}
