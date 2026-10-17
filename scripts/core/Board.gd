@@ -88,8 +88,7 @@ var cfg := {
 	"pads": {},     # launch pad cell -> target cell: a special, crystal or cell that comes to
 	                # rest on the pad flies to the target (a special goes off there)
 	"belts": [],    # conveyors [cell, ...]: after every move everything on one moves a cell along
-	                # it (the robot rides too); a loop turns round, a line drops what reaches its
-	                # end and fills its start from above
+	                # it (the robot rides too), and what leaves the last cell comes back on the first
 	"teleports": {},  # teleporter cell -> its twin (both ways): a move or path that ends on one
 	                  # puts the robot on the twin; a special that comes to rest on one appears on
 	                  # the twin and goes off there
@@ -611,12 +610,10 @@ func _teleport_robot(steps: Array) -> int:
 ## After the player's move has resolved, the conveyors run: one step, plus one for every gem
 ## matched on a belt this move (a match on a belt pushes it on), at most BELT_MAX, each step
 ## followed by the board resolving (a belt can carry a gem into a line, or a special onto a
-## pad). A belt whose ends touch is a loop and turns round. Any other belt is a one-way line
-## and a shelf: what is on it never falls through it, and what falls from above lands on it.
-## What reaches a line's end drops off: into the column below if the end is open underneath
-## (a spout: it waits there until the column below makes room, holding the belt up behind
-## it), otherwise off the board (a crystal or cell is collected). The robot rides; on a line's
-## last cell it holds the line up.
+## pad). Every belt is a cycle: everything on it moves one cell along, the robot too, and what
+## leaves the last cell comes back on the first (a line's ends are a pair of gates; a belt
+## whose ends touch simply turns round). A belt that is not a closed loop is also a shelf:
+## nothing on it falls through it, and gaps on it fill from above.
 const BELT_MAX := 6
 var belt_boost := 0  # gems matched on belts during this move
 
@@ -634,7 +631,6 @@ func _turn_end(steps: Array) -> void:
 
 func _belt_step(steps: Array) -> void:
 	var moves := []
-	var exits := []
 	var robot_move := []
 	for belt in cfg.belts:
 		var n: int = belt.size()
@@ -644,71 +640,28 @@ func _belt_step(steps: Array) -> void:
 		for c in belt:
 			tk.append(token[c]); orr.append(ore[c]); sp.append(spec[c])
 		var new_robot := robot
-		if _belt_is_loop(belt):
-			for k in n:
-				var from: int = belt[k]
-				var to: int = belt[(k + 1) % n]
-				token[to] = tk[k]; ore[to] = orr[k]; spec[to] = sp[k]
-				if tk[k] != Token.NONE:
-					moves.append([from, to])
-				if robot == from:
-					new_robot = to
-		else:
-			var spout := _belt_spout(belt)
-			var blocked := false
-			for k in range(n - 1, -1, -1):
-				var c: int = belt[k]
-				if robot == c:
-					if k == n - 1:
-						blocked = true  # the robot at the end of the line holds it up
-					elif not blocked:
-						new_robot = belt[k + 1]
-					continue
-				if blocked:
-					continue
-				if k == n - 1:
-					if tk[k] == Token.NONE:
-						continue
-					if spout:
-						blocked = true  # it waits over the spout until the column below makes room
-						continue
-					exits.append(c)
-					if tk[k] == Token.CRYSTAL:
-						haul[RES_CRYSTAL] += 1
-						stats.crystals += 1
-					elif tk[k] == Token.CELL:
-						energy += cfg.cell_energy
-						stats.cells += 1
-					token[c] = Token.NONE
-					continue
-				var to2: int = belt[k + 1]
-				token[to2] = tk[k]; ore[to2] = orr[k]; spec[to2] = sp[k]
-				token[c] = Token.NONE
-				if tk[k] != Token.NONE:
-					moves.append([c, to2])
+		for k in n:
+			var from: int = belt[k]
+			var to: int = belt[(k + 1) % n]
+			token[to] = tk[k]; ore[to] = orr[k]; spec[to] = sp[k]
+			if tk[k] != Token.NONE:
+				moves.append([from, to])
+			if robot == from:
+				new_robot = to
 		if new_robot != robot:
 			robot_move = [robot, new_robot]
 			robot = new_robot
-	_push(steps, {"type": "belt", "moves": moves, "exits": exits, "robot": robot_move})
+	_push(steps, {"type": "belt", "moves": moves, "robot": robot_move})
 
 
-## Is a line's end open underneath (what reaches it falls into the column below)?
-func _belt_spout(belt: Array) -> bool:
-	var below: Vector2i = pos(belt[belt.size() - 1]) + Vector2i(0, 1)
-	return inside(below) and terrain[idx(below)] == Terrain.GROUND
-
-
-## The cells that hold up what is on them: every cell of a one-way line but a spout end.
+## The cells that hold up what is on them: every cell of a belt that is not a closed loop.
 func _belt_shelf() -> Dictionary:
 	var out := {}
 	for belt in cfg.belts:
 		if _belt_is_loop(belt):
 			continue
-		var n: int = belt.size()
-		for k in n:
-			if k == n - 1 and _belt_spout(belt):
-				continue
-			out[belt[k]] = true
+		for c in belt:
+			out[c] = true
 	return out
 
 

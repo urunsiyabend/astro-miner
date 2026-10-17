@@ -48,8 +48,14 @@ var teleports := {}   # teleporter cell -> its twin
 const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ffd24a")]
 var _path_tele := -1  # while drawing: the twin the robot would come out of, or -1
 var _tele_arm := 0.0  # 1 -> 0: the flash when a path comes to rest on a teleporter
+var _path_specials := {}  # while drawing: cell a dragged special ends on -> the way it will fire
+var _spec_angle := {}     # cell -> the angle a dragged Drill is drawn at (it turns to aim)
+var _tok_rot := 0.0       # rotation for the next special drawn (_draw_special)
+var _draw_off := Vector2.ZERO
 var _finger := Vector2.ZERO  # where the drawing finger is (local)
-var _belt_from := {}
+var _belt_from := {}  # during a belt step: cell -> the cell its token came from
+var _belt_run := 0.0    # 0..1: how hard the belt is running (only while it moves)
+var _belt_phase := 0.0  # where the chevrons are along each cell
 var _path_groups: Array = []  # [{cells, ore, special (-1 none), at}]: what the release would match
 var _label_font: Font = preload("res://assets/fonts/LilitaOne-Regular.ttf")  # during a belt step: cell -> the cell its token came from
 const PAD_COL := Color("ffb347")
@@ -343,7 +349,8 @@ func _next_step() -> void:
 			add_trauma(0.14)
 			fx.emit("path_step", {"pos": cell_global(_cur.from), "n": 10})
 		"belt":
-			_dur = 0.24
+			# a clear, separate shove per step: the belt revs, everything on it slides one cell
+			_dur = 0.3
 			_belt_from.clear()
 			for m in _cur.moves:
 				_belt_from[m[1]] = m[0]
@@ -524,8 +531,9 @@ func _finish_phase() -> void:
 			_next_step()
 		"belt":
 			_belt_from.clear()
-			for c in _cur.get("exits", []):
-				fx.emit("path_step", {"pos": cell_global(c), "n": 2})
+			Sfx.play("land", 0.7)
+			for m in _cur.moves:
+				_land[m[1]] = 0.6
 			_apply(_cur.snap)
 			_next_step()
 		"teleport":
@@ -630,6 +638,16 @@ func _process(delta: float) -> void:
 			_pip_pop = -1.0
 	_path_deny = maxf(0.0, _path_deny - delta / 0.3)
 	_tele_arm = maxf(0.0, _tele_arm - delta / 0.35)
+	var belting: bool = not _cur.is_empty() and _cur.type == "belt"
+	_belt_run = move_toward(_belt_run, 1.0 if belting else 0.0, delta / (0.06 if belting else 0.3))
+	_belt_phase = fmod(_belt_phase + delta * 3.4 * _belt_run, 1.0)
+	for c in _spec_angle.keys():
+		if not _path_specials.has(c):
+			_spec_angle.erase(c)
+	for c in _path_specials:
+		var aim := _special_aim(c)
+		var target_a := Vector2(aim[1]).angle() + PI * 0.5
+		_spec_angle[c] = lerp_angle(float(_spec_angle.get(c, 0.0)), target_a, 1.0 - exp(-delta * 16.0))
 	if _hold > 0.0:
 		_hold -= delta  # hit-stop: the board holds its breath, the rest of the screen runs on
 	elif not _cur.is_empty():
@@ -687,7 +705,8 @@ func _gui_input(event: InputEvent) -> void:
 	if classic:
 		_classic_input(event)
 		return
-	if _path_input(event):
+	if path_max > 1:
+		accept_event()  # drawn paths: DigScreen takes the drag from anywhere (begin_drag)
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
@@ -716,44 +735,52 @@ func _gui_input(event: InputEvent) -> void:
 		accept_event()
 
 
-## Drawn paths: a touch that starts on the robot draws; anything else is a swipe or tap.
-## Returns true when the event was taken.
-func _path_input(event: InputEvent) -> bool:
-	if path_max <= 1 or snap.is_empty() or snap.robot < 0:
+## Drawn paths, from anywhere on the screen: the finger's travel since it went down is
+## mapped onto the robot (a cell of travel is a step), so the finger never hides the robot.
+## A drag of one cell is a one-step move (into rock: a drill bump); a tap does nothing.
+var _drag_start := Vector2.ZERO
+var _path_drill := false  # the path is a single bump into rock (the Drill)
+
+
+func begin_drag(screen_pos: Vector2) -> bool:
+	if path_max <= 1 or snap.is_empty() or snap.robot < 0 or not input_enabled or is_busy() or armed >= 0:
 		return false
-	if event is InputEventScreenTouch:
-		if event.pressed:
-			if not input_enabled or is_busy():
-				return false
-			var rc := cell_center(snap.robot)
-			if event.position.distance_to(rc) > cell * 0.7:
-				return false
-			_drawing = true
-			_path_real = snap
-			_path_dirs = []
-			_path_cells = [snap.robot]
-			_path_t = 0.0
-			_path_rp = rc
-			_finger = event.position
-			_path_match.clear()
-			_path_groups.clear()
-			_slide.clear()
-			Sfx.play("tap", 1.5)
-			if OS.has_feature("mobile"):
-				Input.vibrate_handheld(12)
-			accept_event()
-			return true
-		if _drawing:
-			_drawing = false
-			_finish_path()
-			accept_event()
-			return true
-	elif event is InputEventScreenDrag and _drawing:
-		_finger = event.position
-		_path_extend(_cell_at(event.position))
-		accept_event()
-		return true
-	return false
+	_drawing = true
+	_drag_start = _to_local(screen_pos)
+	_path_real = snap
+	_path_dirs = []
+	_path_cells = [snap.robot]
+	_path_drill = false
+	_path_t = 0.0
+	_path_rp = cell_center(snap.robot)
+	_finger = _path_rp
+	_path_match.clear()
+	_path_groups.clear()
+	Sfx.play("tap", 1.5)
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(12)
+	return true
+
+
+func drag_to(screen_pos: Vector2) -> void:
+	if not _drawing:
+		return
+	var travel := _to_local(screen_pos) - _drag_start
+	_finger = cell_center(_path_real.robot) + travel
+	var start := Board.pos(_path_real.robot)
+	var target := start + Vector2i(roundi(travel.x / cell), roundi(travel.y / pitch))
+	_path_extend(target)
+
+
+func end_drag() -> void:
+	if not _drawing:
+		return
+	_drawing = false
+	_finish_path()
+
+
+func _to_local(screen_pos: Vector2) -> Vector2:
+	return get_global_transform_with_canvas().affine_inverse() * screen_pos
 
 
 ## Walk the path toward the cell under the finger, one cell at a time (a fast finger skips
@@ -774,11 +801,23 @@ func _path_extend(target: Vector2i) -> void:
 			# back one step: the gem slides back where it was, the note steps down
 			var undone: int = _path_cells.pop_back()
 			_path_dirs.pop_back()
+			if _path_drill:
+				_path_drill = false
+				continue
 			_slide[undone] = [cell_center(ni) - cell_center(undone), 0.0]
 			_preview()
 			Sfx.play("note", pow(2.0, PATH_NOTES[_path_dirs.size()] / 12.0) * 0.5)
 			Sfx.play("swap", 0.85)
 			continue
+		if _path_drill:
+			return
+		if _path_real.terrain[ni] == T.ROCK and _path_dirs.is_empty() and drill:
+			# one step into rock with the Drill: a bump, nothing to preview
+			_path_cells.append(ni)
+			_path_dirs.append(step)
+			_path_drill = true
+			Sfx.play("tap", 0.8)
+			return
 		if _path_real.terrain[ni] != T.GROUND:
 			return
 		if _path_dirs.size() >= path_max:
@@ -801,15 +840,23 @@ func _path_extend(target: Vector2i) -> void:
 
 ## The board as it will stand once the path is walked (swaps only; matching waits for release).
 func _preview() -> void:
+	if _path_drill:
+		snap = _path_real
+		return
 	var p := _path_real.duplicate()
 	var tk: PackedInt32Array = PackedInt32Array(_path_real.token)
 	var orr: PackedInt32Array = PackedInt32Array(_path_real.ore)
 	var sp: PackedInt32Array = PackedInt32Array(_path_real.spec)
 	var cur: int = _path_real.robot
 	var pivot := -1
+	_path_specials.clear()
 	for k in range(1, _path_cells.size()):
 		var ti: int = _path_cells[k]
 		var carried := tk[ti] == K.ORE or (tk[ti] == K.CHARGE and sp[ti] != Board.Special.BLAST)
+		if carried and tk[ti] == K.CHARGE:
+			# a dragged special fires the way it was pushed: back along the robot's step
+			_path_specials.erase(ti)
+			_path_specials[cur] = Board.pos(cur) - Board.pos(ti)
 		if carried:
 			tk[cur] = tk[ti]
 			orr[cur] = orr[ti]
@@ -876,6 +923,7 @@ func _preview() -> void:
 
 func _finish_path() -> void:
 	_path_tele = -1
+	_path_specials.clear()
 	_path_match.clear()
 	_path_groups.clear()
 	if _path_dirs.size() <= 1:
@@ -895,6 +943,7 @@ func _finish_path() -> void:
 func cancel_path() -> void:
 	_drawing = false
 	_path_tele = -1
+	_path_specials.clear()
 	_path_match.clear()
 	_path_groups.clear()
 	if not _path_real.is_empty():
@@ -1002,6 +1051,7 @@ func _draw() -> void:
 	if snap.is_empty() or cell < 16.0:
 		return
 	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * (_shake * 10.0 + _trauma * _trauma * 16.0)
+	_draw_off = off
 	draw_set_transform(off)
 	if not _art:
 		draw_rect(Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20)), Pal.BEDROCK)
@@ -1068,7 +1118,18 @@ func _draw() -> void:
 			continue
 		var sc := _depth_scale(i)
 		if not _cur.is_empty() and _cur.type == "belt" and _belt_from.has(i):
-			_draw_token(cell_center(_belt_from[i]).lerp(cell_center(i), _ease(_t)), tok[i], kinds[i], sc, 0.0, specs[i])
+			var bf: int = _belt_from[i]
+			var gap := Board.pos(i) - Board.pos(bf)
+			if absi(gap.x) + absi(gap.y) > 1:
+				# round the end: into the exit gate, back out of the entry
+				if _t < 0.5:
+					var dout := cell_center(bf) - cell_center(belts_prev(bf))
+					_draw_token(cell_center(bf) + dout * _ease(_t * 2.0) * 0.5, tok[i], kinds[i], sc * (1.0 - _ease(_t * 2.0)), 0.3, specs[i])
+				else:
+					var din := cell_center(i) - cell_center(belts_next(i))
+					_draw_token(cell_center(i) + din * (1.0 - _ease((_t - 0.5) * 2.0)) * 0.5, tok[i], kinds[i], sc * _ease((_t - 0.5) * 2.0), 0.3, specs[i])
+			else:
+				_draw_token(cell_center(bf).lerp(cell_center(i), _ease(_t)), tok[i], kinds[i], sc, 0.0, specs[i])
 			continue
 		if not _cur.is_empty() and _cur.type == "teleport" and not _cur.robot and i == _cur.to:
 			var tt := _t
@@ -1117,7 +1178,9 @@ func _draw() -> void:
 			sc *= 1.06 + 0.04 * hop2
 			fl = maxf(fl, 0.22 + 0.12 * hop2)
 		_tok_squash = _squash_of(i)
+		_tok_rot = float(_spec_angle.get(i, 0.0)) if _drawing and tok[i] == K.CHARGE and specs[i] == Board.Special.DRILL else 0.0
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
+		_tok_rot = 0.0
 		_tok_squash = Vector2.ONE
 	var hot := {}
 	for p in pads:
@@ -1191,6 +1254,8 @@ func _draw() -> void:
 	if _drawing or _path_lift > 0.0:
 		if _drawing:
 			_draw_path()
+			for c in _path_specials:
+				_draw_special_aim(c)  # over the trail, so an armed special is never hidden
 		var lift := _back_out(_path_lift) if _drawing else _path_lift
 		if _drawing:
 			# held: the robot strains toward the finger, like something picked up
@@ -1260,15 +1325,12 @@ func _draw_path() -> void:
 		draw_circle(at, r, Color(1, 1, 1, 0.25) if used else col)
 
 
-## While a path is drawn: the board dims, and what the release would do stands out. Each line
+## While a path is drawn, what the release would do stands out (no dimming: the user found it
+## unnecessary). Each line
 ## that would match glows in its colour with a +N, a line that would make a special shows the
 ## special waiting where it will appear, and two or more lines call out the combo.
 func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: PackedInt32Array) -> void:
 	var k := _path_lift
-	for i in Board.W * Board.H:
-		if snap.terrain[i] != T.BEDROCK:
-			var o := cell_origin(Board.pos(i))
-			draw_rect(Rect2(o, Vector2(cell, pitch)), Color(0.04, 0.0, 0.1, 0.38 * k), true)
 	for g in _path_groups:
 		var col: Color = Pal.ORE[g.ore] if g.ore < Pal.ORE.size() else Color.WHITE
 		# a glowing band linking the line's gems
@@ -1304,6 +1366,47 @@ func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: Packed
 		draw_string(_label_font, cp, ctxt, HORIZONTAL_ALIGNMENT_LEFT, -1, cfs, Color("ffe27a"))
 
 
+## Where a dragged special will go off and which way: [cell, direction]. Pushed onto a pad it
+## goes off at the pad's target, heading along the throw; onto a teleporter, at the twin.
+func _special_aim(c: int) -> Array:
+	var d: Vector2i = _path_specials[c]
+	if pads.has(c):
+		var dv := Board.pos(pads[c]) - Board.pos(c)
+		return [pads[c], Vector2i(signi(dv.x), 0) if absi(dv.x) > absi(dv.y) else Vector2i(0, signi(dv.y))]
+	if teleports.has(c):
+		return [teleports[c], d]
+	return [c, d]
+
+
+## A dragged special, before release: it stands out of the dimmed board, armed. A Drill
+## turns to the way it will fire, with a sparking tip; any special trembles and throbs in its
+## glow. Sent through a pad or teleporter, a small ring marks where it will go off.
+func _draw_special_aim(c: int) -> void:
+	if snap.token[c] != K.CHARGE:
+		return
+	var kind: int = snap.spec[c]
+	var aim := _special_aim(c)
+	var col: Color = SPECIAL_COL[kind]
+	var pulse := 0.5 + 0.5 * sin(_time * 14.0)
+	if aim[0] != c:
+		draw_arc(cell_center(aim[0]), cell * (0.4 + 0.05 * pulse), 0.0, TAU, 32, Color(col, 0.85), cell * 0.05, true)
+	var at := cell_center(c) + Vector2(sin(_time * 53.0), cos(_time * 47.0)) * cell * 0.025
+	draw_circle(at, cell * (0.5 + 0.08 * pulse), Color(col, 0.22 + 0.18 * pulse))
+	_tok_rot = float(_spec_angle.get(c, 0.0)) if kind == Board.Special.DRILL else 0.0
+	_draw_token(at, K.CHARGE, snap.ore[c], _depth_scale(c) * (1.08 + 0.08 * pulse), 0.25 * pulse, kind)
+	_tok_rot = 0.0
+	if kind == Board.Special.DRILL:
+		# the tip, where it will bore from: a flickering spark
+		var ang: float = _spec_angle.get(c, 0.0) - PI * 0.5
+		var tip := at + Vector2(cos(ang), sin(ang)) * cell * 0.4
+		draw_circle(tip, cell * (0.1 + 0.05 * pulse), Color(1, 0.95, 0.7, 0.9))
+		draw_circle(tip, cell * (0.17 + 0.06 * pulse), Color(col, 0.35))
+		for k in 3:
+			var sa := ang + sin(_time * 23.0 + k * 2.1) * 0.9
+			var sl := cell * (0.12 + 0.1 * fmod(_time * 3.0 + k * 0.37, 1.0))
+			draw_line(tip, tip + Vector2(cos(sa), sin(sa)) * sl, Color(1, 0.9, 0.6, 0.8), cell * 0.025, true)
+
+
 ## A launch's flight from a to b: up and over, higher for longer throws.
 func _arc(a: Vector2, b: Vector2, t: float) -> Vector2:
 	var h := cell * 0.8 + a.distance_to(b) * 0.3
@@ -1324,23 +1427,28 @@ func _draw_elements() -> void:
 			if closed or k < n - 1:
 				b = cell_center(loop[(k + 1) % n])
 			else:
-				# a line's last cell points on, off the end, or down if it is a spout
-				var below := Board.pos(loop[k]) + Vector2i(0, 1)
-				if Board.inside(below) and snap.terrain[Board.idx(below)] == T.GROUND:
-					b = a + Vector2(0, pitch * 0.5)
-				else:
-					b = a + (a - cell_center(loop[k - 1])) * 0.5
+				# a line's last cell points on, into its exit gate
+				b = a + (a - cell_center(loop[k - 1])) * 0.5
 			var d := (b - a).normalized()
 			var side := Vector2(-d.y, d.x)
+			# the belt is still between moves (static chevrons), and only runs, bright and fast,
+			# while it actually moves: what moves, and when, reads off the belt itself
+			var run := _belt_run
 			draw_line(a, b, Color(0.06, 0.1, 0.2, 0.55), cell * 0.78, true)
-			draw_line(a + side * cell * 0.39, b + side * cell * 0.39, Color(BELT_COL, 0.35), cell * 0.03, true)
-			draw_line(a - side * cell * 0.39, b - side * cell * 0.39, Color(BELT_COL, 0.35), cell * 0.03, true)
+			var rail := Color(BELT_COL, 0.35 + 0.55 * run)
+			draw_line(a + side * cell * 0.39, b + side * cell * 0.39, rail, cell * (0.03 + 0.02 * run), true)
+			draw_line(a - side * cell * 0.39, b - side * cell * 0.39, rail, cell * (0.03 + 0.02 * run), true)
 			for j in 2:
-				var f := fmod(_time * 1.6 + j * 0.5, 1.0)
+				var f := fmod(_belt_phase + j * 0.5, 1.0)
 				var c := a + d * cell * (f - 0.5) * 0.9
-				var al := sin(PI * f) * 0.75
+				var al := (0.35 + 0.6 * run) * (0.4 + 0.6 * sin(PI * f))
 				draw_polyline(PackedVector2Array([c - d * cell * 0.1 + side * cell * 0.16, c + d * cell * 0.06, c - d * cell * 0.1 - side * cell * 0.16]),
-						Color(BELT_COL, al), cell * 0.05, true)
+						Color(BELT_COL.lightened(0.3 * run), al), cell * (0.05 + 0.02 * run), true)
+		if not closed:
+			# a line's two ends are a pair of gates: out at the end, back in at the start
+			_draw_belt_gate(loop[n - 1], cell_center(loop[n - 1]) - cell_center(loop[n - 2]), true)
+			_draw_belt_gate(loop[0], cell_center(loop[0]) - cell_center(loop[1]), false)
+		_draw_belt_badge(loop)
 	for p in pads:
 		var c := cell_center(p)
 		var pulse := 0.5 + 0.5 * sin(_time * 4.0)
@@ -1378,6 +1486,69 @@ func _tele_col(c: int) -> Color:
 	pairs.sort()
 	var lo2 := mini(c, teleports.get(c, c))
 	return TELE_COLS[maxi(0, pairs.find(lo2)) % TELE_COLS.size()]
+
+
+## The belt cell before / after c on its belt (c itself if it has none).
+func belts_prev(c: int) -> int:
+	for b in belts:
+		var k: int = b.find(c)
+		if k > 0:
+			return b[k - 1]
+	return c
+
+
+func belts_next(c: int) -> int:
+	for b in belts:
+		var k: int = b.find(c)
+		if k >= 0 and k < b.size() - 1:
+			return b[k + 1]
+	return c
+
+
+## A belt gate at the outer edge of an end cell: a half ring the colour of the belt, the
+## exit with its chevron pointing out, the entry with it pointing in.
+func _draw_belt_gate(c: int, out_dir: Vector2, exit: bool) -> void:
+	var d := out_dir.normalized()
+	var at := cell_center(c) + d * cell * 0.46
+	var ang := d.angle()
+	var col := BELT_COL.lightened(0.2 + 0.4 * _belt_run)
+	draw_arc(at, cell * 0.3, ang - PI * 0.5, ang + PI * 0.5, 16, Color(col, 0.95), cell * 0.07, true)
+	draw_arc(at, cell * 0.18, ang - PI * 0.5, ang + PI * 0.5, 12, Color(col, 0.5), cell * 0.04, true)
+	var side := Vector2(-d.y, d.x)
+	var tip := at + d * cell * (0.12 if exit else -0.12)
+	var back := tip - d * cell * (0.1 if exit else -0.1)
+	draw_polyline(PackedVector2Array([back + side * cell * 0.09, tip, back - side * cell * 0.09]), Color(col, 0.95), cell * 0.04, true)
+
+
+## How many steps the belt will run after this move: 1, plus one per gem a drawn path would
+## match on it (the cap is Board.BELT_MAX). A small badge at the belt's start, ▶ and the
+## count; it swells when a path would push the belt further.
+func _draw_belt_badge(belt: Array) -> void:
+	var steps := 1
+	if _drawing:
+		for g in _path_groups:
+			for c in g.cells:
+				if belt.has(c):
+					steps += 1
+	steps = mini(steps, Board.BELT_MAX)
+	var a := cell_center(belt[0])
+	var d := (cell_center(belt[1]) - a).normalized()
+	var at := a - d * cell * 0.5 - Vector2(0, pitch * 0.42)
+	var big := steps > 1
+	var sc := 1.0 + (0.18 + 0.06 * sin(_time * 10.0) if big else 0.0)
+	var w := cell * 0.62 * sc
+	var h := cell * 0.34 * sc
+	# keep it on the board: a belt that starts at the edge gets its badge over its first cell
+	at.x = clampf(at.x, origin.x + w * 0.5, origin.x + cell * Board.W - w * 0.5)
+	_round_rect(Rect2(at - Vector2(w, h) * 0.5, Vector2(w, h)), Color(0.08, 0.12, 0.24, 0.92), int(h * 0.5))
+	var col := Color("ffe27a") if big else BELT_COL
+	var tri := at + Vector2(-w * 0.2, 0)
+	var r := h * 0.28
+	draw_colored_polygon(PackedVector2Array([tri + Vector2(-r * 0.6, -r), tri + Vector2(r, 0), tri + Vector2(-r * 0.6, r)]), col)
+	var txt := str(steps)
+	var fs := int(h * 0.82)
+	var tw := _label_font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	draw_string(_label_font, at + Vector2(w * 0.14 - tw * 0.5, fs * 0.36), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
 ## Over the gems: each pad's flight path, dotted, and the target it hits.
@@ -1917,7 +2088,13 @@ func _draw_special(c: Vector2, sp: int, kind: int, sc: float) -> void:
 	var tex := Art.tex("res://assets/ui/specials/%s.png" % SPECIAL_ART[sp])
 	if tex != null:
 		var size := cell * 0.86 * sc * (1.0 + 0.05 * pul)
-		_draw_lifted(tex, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
+		if _tok_rot != 0.0:
+			# a Drill being aimed turns about its own centre
+			draw_set_transform(_draw_off + c, _tok_rot)
+			_draw_lifted(tex, Rect2(-Vector2(size, size) * 0.5, Vector2(size, size)))
+			draw_set_transform(_draw_off)
+		else:
+			_draw_lifted(tex, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
 		return
 	var w := maxf(3.0, s * 0.15)
 	var dark := Color(0.08, 0.02, 0.16, 0.9)

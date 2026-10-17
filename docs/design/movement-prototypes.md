@@ -39,15 +39,16 @@ movement.
   direction). Plain gems and the robot stay put (a robot thrown into a sealed room could never
   leave). A special pushed onto a pad by a path flies instead of going off.
 - **Conveyor belt** (`belts`): after every move it runs one step, plus one step per gem matched
-  on it that move (at most 6), each step followed by the board resolving; the robot rides.
-  Gaps on a belt fill from above, so power-ups can be dropped onto it (an earlier version
-  closed gaps by sliding along the belt, which made that impossible). A belt whose ends touch
-  is a loop. Any other belt is a one-way line and a **shelf**: nothing falls through it, and
-  the cells under it are their own region, refilled from just under the belt. What reaches a
-  line's end drops off: if the cell under the end is open it is a **spout** and the thing
-  waits there until the column below makes room (holding the belt up behind it), else it
-  leaves the board (crystals and cells are collected). The robot on a line's last cell holds
-  it up.
+  on it that move (at most 6; a ▶N badge at its start shows the count, and grows while a drawn
+  path would push it further), each step followed by the board resolving; the robot rides.
+  **Every belt is a cycle**: what leaves the last cell comes back on the first (a line's two
+  ends are a pair of gates; a belt whose ends touch just turns round). The belt is still
+  between moves and only runs, bright and fast, while it moves. A belt whose ends don't touch
+  is a **shelf**: nothing on it falls through, gaps on it fill from above (so power-ups can be
+  dropped onto it). A pad on a belt cell throws a special that rides onto it.
+  (Tried and dropped: gaps closing by sliding along the belt, which stopped drops from above;
+  a line whose end swallowed things or poured them into the column below, which nobody could
+  follow.)
 - **Teleporter pair** (`teleports`): a move or path that **ends** on a teleporter puts the robot
   on its twin (the twin's gem drops into the first one); passing over one mid-path does
   nothing. A special pushed or dropped onto one appears on the twin and goes off there, still
@@ -65,8 +66,8 @@ movement.
    one shows that power-ups teleport too.
 4. **Express belt**: a one-way belt runs into a pad; anything special on it is thrown into the
    vault. One Quake is already riding.
-5. **Shelf belt**: a belt across the middle; drop the Quake onto it, ride it to the spout, and
-   match the gem on the pad under the spout to let it fall in.
+5. **Shelf belt**: a belt across the middle into a pad; drop the Quake onto it and speed it to
+   the pad with matches on the belt.
 6. **Big dig**: Royal Match size board, no tricks, strata down to three crystals.
 
 ## Next (user idea, 2026-10-17)

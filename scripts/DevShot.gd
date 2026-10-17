@@ -83,6 +83,21 @@ func _run() -> void:
 			var cd := e.split(":")
 			main.dig._on_swap(int(cd[0]), map[cd[1]])
 			await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
+		if OS.has_environment("ASTRO_TOUCHDRAG"):  # "x,y,dx,dy": a real drag through DigScreen._input
+			var tv := OS.get_environment("ASTRO_TOUCHDRAG").split(",")
+			var p0 := Vector2(float(tv[0]), float(tv[1]))
+			var d0 := Vector2(float(tv[2]), float(tv[3]))
+			var ev := InputEventScreenTouch.new()
+			ev.pressed = true
+			ev.position = p0
+			Input.parse_input_event(ev)
+			await get_tree().process_frame
+			for k in 20:
+				var dr := InputEventScreenDrag.new()
+				dr.position = p0 + d0 * (k + 1) / 20.0
+				Input.parse_input_event(dr)
+				await get_tree().process_frame
+			await get_tree().create_timer(0.4).timeout
 		if OS.has_environment("ASTRO_DRAWPATH"):  # "RRD": hold the robot and draw (no release)
 			var v: BoardView = main.dig.view
 			v._drawing = true

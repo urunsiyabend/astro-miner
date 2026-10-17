@@ -485,6 +485,28 @@ func _process(delta: float) -> void:
 			view.set_glow(gems)
 
 
+## Drawn paths: a drag anywhere on the dig screen draws the robot's path (BoardView maps the
+## finger's travel onto the robot), except on the HUD and the booster bar, and not while a
+## card, Mira or a booster is up.
+func _input(event: InputEvent) -> void:
+	if not visible or view == null:
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or board.cfg.classic:
+				return
+			if _hud.get_global_rect().has_point(event.position) or (_boosters.visible and _boosters.get_global_rect().has_point(event.position)):
+				return
+			if view.begin_drag(event.position):
+				get_viewport().set_input_as_handled()
+		elif view.is_drawing():
+			view.end_drag()
+			get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag and view.is_drawing():
+		view.drag_to(event.position)
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or board == null or _busy_talking():
 		return
