@@ -318,6 +318,7 @@ func _finish_phase() -> void:
 			else:
 				_next_step()
 		"blast":
+			_emit_extract(_cur.cells)  # what the blast took flies to its goal like a match's
 			for c in _cur.cells:
 				_flash[c] = 0.6
 			for c in _cur.surfaced:
