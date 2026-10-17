@@ -785,7 +785,7 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				var at := Vector2(r.get_center().x, r.position.y + r.size.y * 0.42)
 				fxl.callout(at, tier[0], tier[1], tier[2])
 				fxl.sparks(at, tier[1], 10 + int(d.n) * 2, 700.0, 30.0)
-				Sfx.play("reveal", 1.0 + 0.05 * int(d.n))
+				Sfx.play("prism" if int(d.n) >= 7 else "reveal", 1.0 + 0.03 * int(d.n))
 				if int(d.n) >= 9:
 					fxl.confetti(at, 70)
 		"reveal":
@@ -800,6 +800,7 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 func _on_arrived(res) -> void:
 	if res is int or res == "rock":
 		_hud.landed(res)
+		Sfx.play("tick", 1.3)
 	elif res == "coin":
 		_hud.coin_tick()
 		# each Coin rings a little higher, so a long run of moves climbs

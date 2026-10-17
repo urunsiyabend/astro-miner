@@ -51,6 +51,7 @@ func _run() -> void:
 		var site := int(OS.get_environment("ASTRO_SITE")) if OS.has_environment("ASTRO_SITE") else 0
 		main.colony.visible = false
 		main.dig.visible = true
+		Sfx.music("dig")
 		main.dig.force_treasure = OS.has_environment("ASTRO_TREASURE")  # hide a chest in this dig
 		main.dig.start(site, false, 12345)
 		await get_tree().create_timer(0.4).timeout
@@ -90,6 +91,8 @@ func _run() -> void:
 					await get_tree().process_frame
 				if main.dig.board.over:
 					break
+				if OS.has_environment("ASTRO_GAP"):  # seconds of "thinking" before each move
+					await get_tree().create_timer(float(OS.get_environment("ASTRO_GAP"))).timeout
 				main.dig._on_move(Bots.choose(main.dig.board, Bots.Kind.PLANNER, rng))
 				if k < int(OS.get_environment("ASTRO_AUTOMOVE")) - 1:
 					while main.dig.view.is_busy():
