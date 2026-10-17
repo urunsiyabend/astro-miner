@@ -16,6 +16,7 @@ var unlocked := 1
 var cleared := []
 var sfx_on := true
 var music_on := true
+var path_max := 4  # drawn paths: most steps per path (1: off, a swipe is one step)
 var show_fps := false  # Settings: a frame-rate readout in the corner (to test on a phone)
 var tips_seen := {}
 var totals := {}
@@ -268,7 +269,7 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 func save() -> void:
 	var data := {
 		"version": SAVE_VERSION, "coin": coin, "star": star, "levels": levels, "unlocked": unlocked,
-		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "music_on": music_on, "show_fps": show_fps, "tips_seen": tips_seen, "totals": totals,
+		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "music_on": music_on, "path_max": path_max, "show_fps": show_fps, "tips_seen": tips_seen, "totals": totals,
 		"dig_log": dig_log, "milestones_seen": milestones_seen, "treasure_dry": treasure_dry,
 		"boosters": boosters, "made": made, "made_progress": made_progress,
 	}
@@ -316,6 +317,7 @@ func load_save() -> void:
 			unlocked = maxi(unlocked, mini(Sites.count(), i + 2))
 	sfx_on = bool(data.get("sfx_on", true))
 	music_on = bool(data.get("music_on", true))
+	path_max = int(data.get("path_max", 4))
 	show_fps = bool(data.get("show_fps", false))
 	tips_seen = data.get("tips_seen", {})
 	treasure_dry = int(data.get("treasure_dry", 0))

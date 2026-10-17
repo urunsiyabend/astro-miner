@@ -21,6 +21,53 @@ static func choose(b: Board, kind: int, rng: RandomNumberGenerator) -> Vector2i:
 			return _plan(b, rng)
 
 
+## Drawn paths (cfg.path_max > 1): every path up to path_max steps (no straight backtrack) is
+## played on a clone (fresh surfacing RNG) and scored by the planner's value, as a player
+## weighing where to draw; a single step can still drill. SLOPPY draws a random path now and
+## then. Returns the path's directions.
+static func choose_path(b: Board, kind: int, rng: RandomNumberGenerator) -> Array:
+	var paths := []
+	_paths_from(b, b.robot, -1, [], paths)
+	for d in _legal(b):
+		var ti := b.step_to(b.robot, d)
+		if ti >= 0 and b.terrain[ti] == Board.Terrain.ROCK:
+			paths.append([d])  # a drill bump
+	if paths.is_empty():
+		return [Board.DIRS[0]]
+	if kind == Kind.RANDOM or (kind == Kind.SLOPPY and rng.randf() < SLOPPY_RATE):
+		return paths[rng.randi_range(0, paths.size() - 1)]
+	var base := _value(b, true)
+	var seed := rng.randi()
+	var best: Array = paths[0]
+	var best_s := -INF
+	for p in paths:
+		var c := b.clone()
+		c.rng.seed = seed
+		if not c.try_path(p).ok:
+			continue
+		var s := _value(c, true) - base
+		if c.complete:
+			s += 1000.0
+		s += rng.randf() * 0.01
+		if s > best_s:
+			best_s = s
+			best = p
+	return best
+
+
+static func _paths_from(b: Board, at: int, prev: int, cur: Array, out: Array) -> void:
+	if cur.size() >= b.cfg.path_max:
+		return
+	for d in Board.DIRS:
+		var ti := b.step_to(at, d)
+		if ti < 0 or ti == prev or b.terrain[ti] != Board.Terrain.GROUND:
+			continue
+		var next: Array = cur.duplicate()
+		next.append(d)
+		out.append(next)
+		_paths_from(b, ti, at, next, out)
+
+
 static func _random_dir(b: Board, rng: RandomNumberGenerator) -> Vector2i:
 	var opts := _legal(b)
 	if opts.is_empty():
@@ -303,8 +350,11 @@ static func play(site: Dictionary, rules: Dictionary, seed_value: int, kind: int
 			if kind != Kind.RANDOM and b.can_pulse():
 				b.pulse()
 				continue
-		var d := choose(b, kind, rng)
-		var r := b.try_move(d)
+		var r := {}
+		if b.cfg.path_max > 1:
+			r = b.try_path(choose_path(b, kind, rng))
+		else:
+			r = b.try_move(choose(b, kind, rng))
 		if not r.ok:
 			rejected += 1
 			if rejected > 20:
