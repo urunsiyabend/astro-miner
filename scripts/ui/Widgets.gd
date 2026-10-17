@@ -192,10 +192,16 @@ class DigHud extends Control:
 		_top.queue_redraw()
 
 	## An ore/crystal particle landed on the HUD: its counter catches up and pops now.
-	func landed(res: int) -> void:
+	func landed(res) -> void:
 		for i in goals.size():
 			var g: Dictionary = goals[i]
-			if (g.type == "ore" and g.ore == res) or (g.type == "crystal" and res == Board.RES_CRYSTAL):
+			var hit := false
+			if res is int:
+				hit = (g.type == "ore" and g.ore == res) or (g.type == "crystal" and res == Board.RES_CRYSTAL) \
+						or (g.type == "chunks" and res < Board.RES_CRYSTAL)
+			else:
+				hit = g.type == res
+			if hit:
 				if shown[i] != have[i]:
 					shown[i] = have[i]
 					_pop[i] = 1.0
@@ -203,7 +209,7 @@ class DigHud extends Control:
 				return
 
 	func _flies(g: Dictionary) -> bool:
-		return g.type == "ore" or g.type == "crystal"
+		return g.type in ["ore", "crystal", "chunks", "rock"]
 
 	func haul_global() -> Vector2:
 		return get_global_transform_with_canvas() * _haul_center()

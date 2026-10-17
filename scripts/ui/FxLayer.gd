@@ -121,6 +121,18 @@ func _draw() -> void:
 				var w: float = p.size * (1.0 + 0.35 * sin(PI * k)) * (1.0 - 0.35 * k * k)
 				draw_texture_rect(p.tex, Rect2(pos - Vector2(w, w) * 0.5, Vector2(w, w)), false)
 				continue
+			# a goal piece flies as itself (the gem, the crystal, a chip of rock): big as it
+			# leaves, shrinking into the icon
+			var art: Texture2D = null
+			if p.res is int:
+				art = Art.ore(p.res)
+			elif p.res is String and p.res == "rock":
+				art = Art.rock(1, 1)
+			if art != null:
+				var w2 := 96.0 * (1.0 + 0.25 * sin(PI * k)) * (1.0 - 0.5 * k)
+				draw_circle(pos, w2 * 0.55, Color(p.color, 0.18 * (1.0 - k)))
+				draw_texture_rect(art, Rect2(pos - Vector2(w2, w2) * 0.5, Vector2(w2, w2)), false)
+				continue
 			if p.res is String and p.res == "coin":
 				Widgets.draw_currency_icon(self, pos, 30.0 * (1.0 + 0.25 * sin(PI * k)), false)
 				continue
