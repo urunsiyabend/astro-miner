@@ -44,7 +44,10 @@ var classic := false  # the classic prototype: no robot, a swipe on a gem swaps 
 var path_max := 1
 var pads := {}       # launch pad cell -> target cell
 var belts: Array = []  # conveyor loops of cells
-var tunnels: Array = []  # [a, dir out of a, b, dir out of b]
+var teleports := {}   # teleporter cell -> its twin
+const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ffd24a")]
+var _path_tele := -1  # while drawing: the twin the robot would come out of, or -1
+var _tele_arm := 0.0  # 1 -> 0: the flash when a path comes to rest on a teleporter
 var _finger := Vector2.ZERO  # where the drawing finger is (local)
 var _belt_from := {}
 var _path_groups: Array = []  # [{cells, ore, special (-1 none), at}]: what the release would match
@@ -331,6 +334,14 @@ func _next_step() -> void:
 			add_trauma(0.12)
 			Sfx.play("warp", 1.25)
 			Sfx.play("zap", 1.4)
+		"teleport":
+			# in through one, out of the other: shrink and spin away, pop out of the twin
+			_dur = 0.42
+			_rings.append({"c": cell_center(_cur.from), "r0": cell * 0.7, "r1": cell * 0.1,
+					"t": 0.0, "dur": 0.2, "color": _tele_col(_cur.from)})
+			Sfx.play("teleport")
+			add_trauma(0.14)
+			fx.emit("path_step", {"pos": cell_global(_cur.from), "n": 10})
 		"belt":
 			_dur = 0.24
 			_belt_from.clear()
@@ -513,6 +524,17 @@ func _finish_phase() -> void:
 			_next_step()
 		"belt":
 			_belt_from.clear()
+			for c in _cur.get("exits", []):
+				fx.emit("path_step", {"pos": cell_global(c), "n": 2})
+			_apply(_cur.snap)
+			_next_step()
+		"teleport":
+			_rings.append({"c": cell_center(_cur.to), "r0": cell * 0.2, "r1": cell * 1.3,
+					"t": 0.0, "dur": 0.3, "color": _tele_col(_cur.to)})
+			_rings.append({"c": cell_center(_cur.to), "r0": cell * 0.1, "r1": cell * 2.0,
+					"t": -0.06, "dur": 0.4, "color": Color.WHITE})
+			fx.emit("path_step", {"pos": cell_global(_cur.to), "n": 14})
+			fx.emit("blast_done", {"cells": [cell_global(_cur.to)]})
 			_apply(_cur.snap)
 			_next_step()
 		_:
@@ -607,6 +629,7 @@ func _process(delta: float) -> void:
 		if _pip_pop >= 1.0:
 			_pip_pop = -1.0
 	_path_deny = maxf(0.0, _path_deny - delta / 0.3)
+	_tele_arm = maxf(0.0, _tele_arm - delta / 0.35)
 	if _hold > 0.0:
 		_hold -= delta  # hit-stop: the board holds its breath, the rest of the screen runs on
 	elif not _cur.is_empty():
@@ -795,6 +818,27 @@ func _preview() -> void:
 				pivot = cur
 		tk[ti] = K.NONE
 		cur = ti
+	# ending on a teleporter: the robot will come out of the twin, and the twin's gem drops into
+	# the teleporter (shown now, so the preview's matches are the real ones)
+	var was_tele := _path_tele
+	_path_tele = -1
+	if _path_cells.size() > 1 and teleports.has(cur):
+		var tw: int = teleports[cur]
+		if _path_real.terrain[tw] == T.GROUND:
+			_path_tele = tw
+			if tk[tw] == K.ORE or tk[tw] == K.CHARGE:
+				tk[cur] = tk[tw]
+				orr[cur] = orr[tw]
+				sp[cur] = sp[tw]
+				if tk[cur] == K.ORE:
+					pivot = cur
+			tk[tw] = K.NONE
+	if _path_tele >= 0 and was_tele != _path_tele:
+		# the path just came to rest on a teleporter: it arms with a charge-up, a flash and a buzz
+		_tele_arm = 1.0
+		Sfx.play("telearm")
+		if OS.has_feature("mobile"):
+			Input.vibrate_handheld(30)
 	p.token = tk
 	p.ore = orr
 	p.spec = sp
@@ -831,6 +875,7 @@ func _preview() -> void:
 
 
 func _finish_path() -> void:
+	_path_tele = -1
 	_path_match.clear()
 	_path_groups.clear()
 	if _path_dirs.size() <= 1:
@@ -849,6 +894,7 @@ func _finish_path() -> void:
 ## The drawn path was not taken (the dig is busy or over): put the board back.
 func cancel_path() -> void:
 	_drawing = false
+	_path_tele = -1
 	_path_match.clear()
 	_path_groups.clear()
 	if not _path_real.is_empty():
@@ -1024,6 +1070,12 @@ func _draw() -> void:
 		if not _cur.is_empty() and _cur.type == "belt" and _belt_from.has(i):
 			_draw_token(cell_center(_belt_from[i]).lerp(cell_center(i), _ease(_t)), tok[i], kinds[i], sc, 0.0, specs[i])
 			continue
+		if not _cur.is_empty() and _cur.type == "teleport" and not _cur.robot and i == _cur.to:
+			var tt := _t
+			var at3 := cell_center(_cur.from) if tt < 0.5 else cell_center(i)
+			var k3 := 1.0 - _ease(tt * 2.0) if tt < 0.5 else _back_out((tt - 0.5) * 2.0)
+			_draw_token(at3, tok[i], kinds[i], sc * k3, 0.4, specs[i])
+			continue
 		if not _cur.is_empty() and _cur.type == "launch" and not _cur.robot and i == _cur.to:
 			var lp := _arc(cell_center(_cur.from), cell_center(i), _t)
 			draw_circle(lp, cell * 0.42, Color(PAD_COL, 0.25))
@@ -1106,9 +1158,36 @@ func _draw() -> void:
 		rp = from_c.lerp(cell_center(_cur.robot[1]), _t * _t)
 	if not _cur.is_empty() and _cur.type == "belt" and not _cur.robot.is_empty():
 		rp = cell_center(_cur.robot[0]).lerp(cell_center(_cur.robot[1]), _ease(_t))
+	if not _cur.is_empty() and _cur.type == "teleport" and _cur.robot:
+		if _t < 0.5:
+			rp = cell_center(_cur.from)
+			rsc *= 1.0 - _ease(_t * 2.0)
+		else:
+			rsc *= _back_out((_t - 0.5) * 2.0)
 	if not _cur.is_empty() and _cur.type == "launch" and _cur.robot:
 		rp = _arc(cell_center(_cur.from), cell_center(_cur.to), _t)
 		rsc *= 1.0 + 0.3 * sin(PI * _t)
+	if _drawing and _path_tele >= 0:
+		# where the robot will come out: a ghost on the twin, linked to the end of the path
+		var tc := cell_center(_path_tele)
+		var col2 := _tele_col(_path_tele)
+		var a2 := cell_center(snap.robot)
+		# a live beam between the pair, flickering, with charge running along it
+		draw_line(a2, tc, Color(col2, 0.22 + 0.1 * sin(_time * 30.0)), cell * (0.34 + 0.25 * _tele_arm), true)
+		draw_line(a2, tc, Color(1, 1, 1, 0.6), cell * 0.05, true)
+		var n2 := 12
+		for k2 in n2:
+			var f2 := (float(k2) + fmod(_time * 3.5, 1.0)) / n2
+			draw_circle(a2.lerp(tc, f2), cell * 0.06, Color(col2.lightened(0.4), 0.95))
+		# the teleporter under the robot charges up: rings rushing inward, a flash on arming
+		for j2 in 3:
+			var f3 := fmod(_time * 2.2 + j2 / 3.0, 1.0)
+			draw_arc(a2, cell * (0.9 - 0.55 * f3), 0.0, TAU, 32, Color(col2, f3 * 0.8), cell * 0.05, true)
+		if _tele_arm > 0.0:
+			draw_circle(a2, cell * (0.5 + 0.9 * (1.0 - _tele_arm)), Color(col2.lightened(0.5), 0.5 * _tele_arm))
+			draw_circle(tc, cell * (0.5 + 0.9 * (1.0 - _tele_arm)), Color(col2.lightened(0.5), 0.5 * _tele_arm))
+		draw_arc(tc, cell * (0.5 + 0.05 * sin(_time * 9.0)), 0.0, TAU, 32, Color(col2, 0.9), cell * 0.06, true)
+		_draw_ghost_robot(tc, rsc, col2)
 	if _drawing or _path_lift > 0.0:
 		if _drawing:
 			_draw_path()
@@ -1122,6 +1201,12 @@ func _draw() -> void:
 		rp.y -= cell * 0.16 * lift
 		rsc *= 1.0 + 0.14 * lift
 		rp.x += sin(_time * 18.0) * cell * 0.012 * lift
+		if _drawing and _path_tele >= 0:
+			# armed: the robot hums with the charge, glowing in the pair's colour
+			var tcol := _tele_col(_path_tele)
+			draw_circle(rp, cell * (0.55 + 0.05 * sin(_time * 24.0)), Color(tcol, 0.3))
+			rp += Vector2(randf_range(-1, 1), randf_range(-1, 1)) * cell * 0.02
+			rsc *= 1.0 + 0.04 * sin(_time * 30.0)
 	_draw_robot(rp, rsc)
 	_draw_booster_fx()
 	_draw_overlays(glowing)
@@ -1227,13 +1312,24 @@ func _arc(a: Vector2, b: Vector2, t: float) -> Vector2:
 
 
 ## Movement elements on the ground, under the gems: conveyor chevrons that flow, launch pads,
-## the dotted flight to each pad's target, and the tunnel gates at the board's edge.
+## the dotted flight to each pad's target, and teleporters.
 func _draw_elements() -> void:
 	for loop in belts:
 		var n: int = loop.size()
+		var ends := Board.pos(loop[0]) - Board.pos(loop[n - 1])
+		var closed := absi(ends.x) + absi(ends.y) == 1
 		for k in n:
 			var a := cell_center(loop[k])
-			var b := cell_center(loop[(k + 1) % n])
+			var b: Vector2
+			if closed or k < n - 1:
+				b = cell_center(loop[(k + 1) % n])
+			else:
+				# a line's last cell points on, off the end, or down if it is a spout
+				var below := Board.pos(loop[k]) + Vector2i(0, 1)
+				if Board.inside(below) and snap.terrain[Board.idx(below)] == T.GROUND:
+					b = a + Vector2(0, pitch * 0.5)
+				else:
+					b = a + (a - cell_center(loop[k - 1])) * 0.5
 			var d := (b - a).normalized()
 			var side := Vector2(-d.y, d.x)
 			draw_line(a, b, Color(0.06, 0.1, 0.2, 0.55), cell * 0.78, true)
@@ -1251,16 +1347,49 @@ func _draw_elements() -> void:
 		draw_circle(c, cell * 0.44, Color(PAD_COL, 0.22 + 0.1 * pulse))
 		draw_arc(c, cell * 0.42, 0.0, TAU, 40, Color(PAD_COL, 0.9), cell * 0.05, true)
 		draw_arc(c, cell * (0.26 + 0.06 * pulse), 0.0, TAU, 32, Color(1, 0.95, 0.8, 0.6), cell * 0.03, true)
-	for t in tunnels:
-		for e in [[t[0], t[1]], [t[2], t[3]]]:
-			var c := cell_center(e[0]) + Vector2(e[1]) * cell * 0.5
-			var ang := Vector2(e[1]).angle()
-			draw_arc(c, cell * 0.36, ang - PI * 0.5, ang + PI * 0.5, 20, Color(WARP_COL, 0.85), cell * 0.08, true)
-			draw_arc(c, cell * 0.24, ang - PI * 0.5, ang + PI * 0.5, 16, Color(1, 1, 1, 0.4 + 0.3 * sin(_time * 5.0)), cell * 0.04, true)
+	for p in teleports:
+		var c := cell_center(p)
+		var col := _tele_col(p)
+		draw_circle(c, cell * 0.46, Color(col, 0.22))
+		for j in 3:
+			var a0 := _time * 2.4 + j * TAU / 3.0
+			draw_arc(c, cell * (0.3 + 0.08 * j), a0, a0 + PI * 0.9, 16, Color(col, 0.5 - 0.12 * j), cell * 0.05, true)
+
+
+## The robot as it will appear somewhere else: a soft, pulsing silhouette in a colour.
+func _draw_ghost_robot(c: Vector2, sc: float, col: Color) -> void:
+	var s := cell * 0.4 * sc * (1.0 + 0.06 * sin(_time * 10.0))
+	draw_circle(c, s * 1.5, Color(col, 0.18))
+	var body := Rect2(c - Vector2(s, s * 0.9), Vector2(s * 2, s * 1.8))
+	_round_rect(body, Color(col.lightened(0.5), 0.55), 20)
+	var visor := Rect2(c + Vector2(-s * 0.78, -s * 0.55), Vector2(s * 1.56, s * 0.75))
+	_round_rect(visor, Color(0.1, 0.15, 0.25, 0.6), 14)
+	draw_circle(c + Vector2(-s * 0.35, -s * 0.18), s * 0.15, Color(1, 1, 1, 0.8))
+	draw_circle(c + Vector2(s * 0.35, -s * 0.18), s * 0.15, Color(1, 1, 1, 0.8))
+
+
+## Teleporter pairs share a colour (by the pair's lower cell).
+func _tele_col(c: int) -> Color:
+	var pairs := []
+	for p in teleports:
+		var lo := mini(p, teleports[p])
+		if not pairs.has(lo):
+			pairs.append(lo)
+	pairs.sort()
+	var lo2 := mini(c, teleports.get(c, c))
+	return TELE_COLS[maxi(0, pairs.find(lo2)) % TELE_COLS.size()]
 
 
 ## Over the gems: each pad's flight path, dotted, and the target it hits.
 func _draw_pad_paths(hot: Dictionary) -> void:
+	# teleporters: a bright swirling rim over the gem, in the pair's colour
+	for p in teleports:
+		var c := cell_center(p)
+		var col := _tele_col(p)
+		draw_arc(c, cell * 0.47, 0.0, TAU, 40, Color(col, 0.95), cell * 0.06, true)
+		for j in 4:
+			var a0 := -_time * 3.0 + j * TAU / 4.0
+			draw_arc(c, cell * 0.47, a0, a0 + 0.35, 6, Color.WHITE, cell * 0.08, true)
 	for p in pads:
 		var a := cell_center(p)
 		var b := cell_center(pads[p])

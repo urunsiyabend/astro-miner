@@ -680,8 +680,12 @@ static func get_site(i: int) -> Dictionary:
 ## each has one idea, said on its goal card.
 ##   pads:     [[pad, target]]: a special, crystal or cell resting on the pad flies to the
 ##             target (a special goes off there); the dotted arc shows where
-##   belts:    [[cell, ...]]: a loop that moves everything on it one cell after every move
-##   tunnels:  [[a, dir out of a, b, dir out of b]]: walk off the edge at a, come out at b
+##   belts:    [[cell, ...]]: after every move it runs one step, plus one per gem matched on it
+##             (Board._turn_end). Ends touching: a loop. Otherwise a one-way line and a shelf
+##             (nothing falls through it): what reaches its end drops into the column below if
+##             that is open (a spout), else off the board
+##   teleports: [[a, b]]: a move or path that ends on one puts the robot on the twin; a special
+##             pushed or dropped onto one goes off at the twin
 ##   specials: [[cell, kind]]: gems that start out carrying a special
 ##   collect:  crystals and cells are collected at the bottom of their run
 const PROTOS := [
@@ -719,31 +723,30 @@ const PROTOS := [
 			". . . . @ . . . .",
 			"# . . . . . . . #",
 		]},
-	{"name": "Wraparound", "energy": 20,
-		"idea": "The left and right edges are linked: draw off one side and the robot comes out of the other. Crack the four crystal rocks and pick the crystals up.",
-		"goals": [{"type": "crystal", "n": 4}],
-		"tunnels": [[Vector2i(0, 3), Vector2i(-1, 0), Vector2i(8, 3), Vector2i(1, 0)],
-			[Vector2i(0, 6), Vector2i(-1, 0), Vector2i(8, 6), Vector2i(1, 0)]],
+	{"name": "Teleporters", "energy": 22, "collect": true,
+		"idea": "A wall splits the board. End a path on a teleporter and the robot comes out of its twin; push a power-up onto one and it goes off at the twin.",
+		"goals": [{"type": "crystal", "n": 3}, {"type": "rock", "n": 9}],
+		"teleports": [[Vector2i(2, 7), Vector2i(6, 7)], [Vector2i(1, 2), Vector2i(7, 5)]],
+		"specials": [[Vector2i(2, 6), "drill"]],
 		"rows": [
-			". . . . . . . . .",
-			". 1c . . # . . 1c .",
 			". . . . # . . . .",
+			". . . . # . 1c . .",
 			". . . . # . . . .",
+			". . . . # 1 1 1 1",
 			". . @ . # . . . .",
 			". . . . # . . . .",
+			". . . . # 2 . . 2",
 			". . . . # . . . .",
+			". . . . # . 1c . 1c",
 			". . . . # . . . .",
-			". 1c . . # . . 1c .",
-			". . . . . . . . .",
 		]},
 	{"name": "Express belt", "energy": 20, "collect": true,
-		"idea": "The bottom belt runs into the launch pad. Put a power-up on the belt and it rides to the pad and flies into the vault. One is already on its way.",
+		"idea": "The belt runs into the launch pad. It moves a step after every move, and every gem you match on it pushes it one step more. Speed the Quake to the pad.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
-		"pads": [[Vector2i(8, 8), Vector2i(4, 1)]],
-		"belts": [[Vector2i(0, 8), Vector2i(1, 8), Vector2i(2, 8), Vector2i(3, 8), Vector2i(4, 8), Vector2i(5, 8),
-			Vector2i(6, 8), Vector2i(7, 8), Vector2i(8, 8), Vector2i(8, 9), Vector2i(7, 9), Vector2i(6, 9),
-			Vector2i(5, 9), Vector2i(4, 9), Vector2i(3, 9), Vector2i(2, 9), Vector2i(1, 9), Vector2i(0, 9)]],
-		"specials": [[Vector2i(3, 8), "quake"]],
+		"pads": [[Vector2i(8, 9), Vector2i(4, 1)]],
+		"belts": [[Vector2i(0, 9), Vector2i(1, 9), Vector2i(2, 9), Vector2i(3, 9), Vector2i(4, 9), Vector2i(5, 9),
+			Vector2i(6, 9), Vector2i(7, 9), Vector2i(8, 9)]],
+		"specials": [[Vector2i(2, 9), "quake"]],
 		"rows": [
 			"# # 1 1 1 1 1 # #",
 			"# # 1c 1 . 1 1c # #",
@@ -755,6 +758,24 @@ const PROTOS := [
 			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . . . . . .",
+		]},
+	{"name": "Shelf belt", "energy": 30, "collect": true,
+		"idea": "A belt runs across the middle. What lands on it rides to the end and drops down. Match under the Quake to drop it on the belt, then match the gem on the pad below the end to let it fall in.",
+		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
+		"pads": [[Vector2i(5, 7), Vector2i(4, 1)]],
+		"belts": [[Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6)]],
+		"specials": [[Vector2i(2, 5), "quake"]],
+		"rows": [
+			"# # 1 1 1 1 1 # #",
+			"# # 1c 1 . 1 1c # #",
+			"# # 1 1 1 1 1 # #",
+			"# # # # # # # # #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . @ . # . . .",
+			"# . . . . . . . #",
 		]},
 	{"name": "Big dig", "energy": 20, "collect": true,
 		"idea": "A big board, no tricks: dig down through the layers with long paths and big combos. The crystals wait at the bottom.",
@@ -776,8 +797,8 @@ const PROTOS := [
 
 ## Budgets (drawn paths, 4 steps). Set by hand for the first playtest: the path bot clears
 ## Conveyor ring in ~7 moves (14 with the human margin), but cannot plan pad shots well enough
-## to rate Launch bay / Wraparound (40-60% at 60 moves), so those are guesses to calibrate.
-const PROTO_ENERGY := [30, 14, 26, 30, 22]
+## to rate Launch bay (40% at 60 moves), so the others are guesses to calibrate.
+const PROTO_ENERGY := [30, 14, 22, 30, 30, 22]
 
 static var _protos: Array = []
 

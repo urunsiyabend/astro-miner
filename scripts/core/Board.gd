@@ -46,7 +46,7 @@ var treasure_coin := 0   # Coin from chests opened this dig (paid even if the di
 var stats := {
 	"moves": 0, "drills": 0, "groups": 0, "cascade_groups": 0, "chunks": 0,
 	"rocks_broken": 0, "crystals": 0, "cells": 0, "charges_made": 0, "blasts": 0, "treasures": 0,
-	"energy_refunded": 0, "rejected": 0, "paths": 0, "launches": 0, "pulses": 0, "continues": 0, "boosters": 0,
+	"energy_refunded": 0, "rejected": 0, "paths": 0, "launches": 0, "teleports": 0, "pulses": 0, "continues": 0, "boosters": 0,
 }
 var goals: Array = []  # [{type:"ore", ore:int, n:int} | {type:"rock", n} | {type:"crystal", n}]
 var over := false
@@ -87,12 +87,16 @@ var cfg := {
 	# movement elements (falling-gem digs):
 	"pads": {},     # launch pad cell -> target cell: a special, crystal or cell that comes to
 	                # rest on the pad flies to the target (a special goes off there)
-	"belts": [],    # conveyor loops [cell, ...]: after every move everything on a loop moves one
-	                # cell along it (the robot rides too), then the board resolves
-	"tunnels": [],  # [a, dir out of a, b, dir out of b]: walking off the board at a comes out at b
+	"belts": [],    # conveyors [cell, ...]: after every move everything on one moves a cell along
+	                # it (the robot rides too); a loop turns round, a line drops what reaches its
+	                # end and fills its start from above
+	"teleports": {},  # teleporter cell -> its twin (both ways): a move or path that ends on one
+	                  # puts the robot on the twin; a special that comes to rest on one appears on
+	                  # the twin and goes off there
 }
 
 var record := true  # build per-step snapshots for the view; sims switch this off
+var pushed := {}  # teleporter cell -> the way the special on it was pushed (this move)
 
 
 static func idx(c: Vector2i) -> int:
@@ -139,10 +143,11 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 	for loop in site.get("belts", []):
 		belts.append(loop.map(func(c): return idx(c)))
 	r.belts = belts
-	var tunnels := []
-	for t in site.get("tunnels", []):
-		tunnels.append([idx(t[0]), t[1], idx(t[2]), t[3]])
-	r.tunnels = tunnels
+	var teleports := {}
+	for t in site.get("teleports", []):
+		teleports[idx(t[0])] = idx(t[1])
+		teleports[idx(t[1])] = idx(t[0])
+	r.teleports = teleports
 	setup(site.rows, int(site.get("seed", seed_value)), r, site.goals, site.get("ore", []))
 	# pre-placed specials ([[cell, "drill"], ...]): a gem that already carries one, as Royal
 	# Match seeds a TNT to show what a level wants
@@ -350,6 +355,7 @@ func try_move(dir: Vector2i) -> Dictionary:
 			return out
 		energy -= cfg.drill_cost
 		stats.drills += 1
+		belt_boost = 0
 		var step := {"type": "drill", "cell": ti, "revealed": []}
 		_damage_rock(ti, cfg.drill_power, step.revealed)
 		_push(out.steps, step)
@@ -361,6 +367,8 @@ func try_move(dir: Vector2i) -> Dictionary:
 
 	energy -= 1
 	stats.moves += 1
+	pushed.clear()
+	belt_boost = 0
 	var fi := robot
 	var step := {"type": "move", "from": fi, "to": ti, "swap": false, "pickup": Token.NONE}
 	var dd := pos(ti) - pos(fi)
@@ -401,9 +409,12 @@ func try_move(dir: Vector2i) -> Dictionary:
 	_push(out.steps, step)
 	if step.pickup == Token.CHARGE:
 		_blast(ti, out.steps)
-	elif step.has("special") and not cfg.pads.has(fi):
+	elif step.has("special") and not cfg.pads.has(fi) and not cfg.teleports.has(fi):
 		_special(fi, -dir, out.steps)
-	_resolve(out.steps, pivot)
+	elif step.has("special") and cfg.teleports.has(fi):
+		pushed[fi] = -dir
+	var tp := _teleport_robot(out.steps)
+	_resolve(out.steps, tp if tp >= 0 else pivot)
 	_turn_end(out.steps)
 	_finish_turn()
 	out.ok = true
@@ -448,7 +459,9 @@ func try_path(dirs: Array) -> Dictionary:
 	energy -= 1
 	stats.moves += 1
 	stats.paths += 1
+	belt_boost = 0
 	var moved := []    # [cell, direction it was pushed] of every dragged special, in order
+	pushed.clear()
 	var charges := []  # blast charges stepped on
 	var pivot := -1
 	for k in cells.size():
@@ -495,9 +508,12 @@ func try_path(dirs: Array) -> Dictionary:
 	for c in charges:
 		_blast(c, out.steps)
 	for m in moved:
-		if token[m[0]] == Token.CHARGE and not cfg.pads.has(m[0]):
-			_special(m[0], m[1], out.steps)  # one pushed onto a pad flies instead (_launch)
-	_resolve(out.steps, pivot)
+		if token[m[0]] == Token.CHARGE and not cfg.pads.has(m[0]) and not cfg.teleports.has(m[0]):
+			_special(m[0], m[1], out.steps)  # one pushed onto a pad or teleporter travels first (_launch)
+		elif cfg.teleports.has(m[0]):
+			pushed[m[0]] = m[1]
+	var tp := _teleport_robot(out.steps)
+	_resolve(out.steps, tp if tp >= 0 else pivot)
 	_turn_end(out.steps)
 	_finish_turn()
 	out.ok = true
@@ -510,6 +526,29 @@ func try_path(dirs: Array) -> Dictionary:
 ## thrown into a sealed room could never leave). Returns true if anything flew.
 func _launch(steps: Array) -> bool:
 	var any := false
+	for p in cfg.teleports:
+		var t: int = cfg.teleports[p]
+		if token[p] != Token.CHARGE or t == robot or terrain[t] != Terrain.GROUND:
+			continue
+		# a special on a teleporter appears on the twin and goes off there, still heading the way
+		# it was pushed (straight on if it fell in)
+		var d: Vector2i = pushed.get(p, Vector2i(0, 1))
+		pushed.erase(p)
+		var step := {"type": "teleport", "from": p, "to": t, "robot": false}
+		if token[t] != Token.NONE:
+			_take(t)
+		token[t] = Token.CHARGE
+		ore[t] = ore[p]
+		spec[t] = spec[p]
+		token[p] = Token.NONE
+		stats.launches += 1
+		_push(steps, step)
+		if spec[t] == Special.BLAST:
+			token[t] = Token.NONE
+			_blast(t, steps)
+		else:
+			_special(t, d, steps)
+		any = true
 	for p in cfg.pads:
 		var t: int = cfg.pads[p]
 		var dv := pos(t) - pos(p)
@@ -538,34 +577,144 @@ func _launch(steps: Array) -> bool:
 	return any
 
 
-## After the player's move has resolved: the conveyors move one cell, and the board resolves
-## again (a belt can carry a gem into a line, or a special onto a pad).
+## The robot's move ended on a teleporter: it appears on the twin, and what stood there
+## (a gem or special) takes the robot's place on the first one (a crystal or cell is picked
+## up). Only the player's own move does this, never a fall, so the robot cannot bounce
+## back and forth. Returns the cell the swapped gem landed on (a match pivot) or -1.
+func _teleport_robot(steps: Array) -> int:
+	if not cfg.teleports.has(robot):
+		return -1
+	var a := robot
+	var t: int = cfg.teleports[a]
+	if terrain[t] != Terrain.GROUND:
+		return -1
+	var pivot := -1
+	match token[t]:
+		Token.ORE, Token.CHARGE:
+			token[a] = token[t]
+			ore[a] = ore[t]
+			spec[a] = spec[t]
+			pivot = a
+		Token.CRYSTAL:
+			haul[RES_CRYSTAL] += 1
+			stats.crystals += 1
+		Token.CELL:
+			energy += cfg.cell_energy
+			stats.cells += 1
+	token[t] = Token.NONE
+	robot = t
+	stats.teleports += 1
+	_push(steps, {"type": "teleport", "from": a, "to": t, "robot": true})
+	return pivot
+
+
+## After the player's move has resolved, the conveyors run: one step, plus one for every gem
+## matched on a belt this move (a match on a belt pushes it on), at most BELT_MAX, each step
+## followed by the board resolving (a belt can carry a gem into a line, or a special onto a
+## pad). A belt whose ends touch is a loop and turns round. Any other belt is a one-way line
+## and a shelf: what is on it never falls through it, and what falls from above lands on it.
+## What reaches a line's end drops off: into the column below if the end is open underneath
+## (a spout: it waits there until the column below makes room, holding the belt up behind
+## it), otherwise off the board (a crystal or cell is collected). The robot rides; on a line's
+## last cell it holds the line up.
+const BELT_MAX := 6
+var belt_boost := 0  # gems matched on belts during this move
+
+
 func _turn_end(steps: Array) -> void:
 	if cfg.belts.is_empty() or over:
 		return
+	var done := 0
+	while done < mini(1 + belt_boost, BELT_MAX) and not over:
+		_belt_step(steps)
+		_resolve(steps, -1)
+		done += 1
+	belt_boost = 0
+
+
+func _belt_step(steps: Array) -> void:
 	var moves := []
+	var exits := []
 	var robot_move := []
-	for loop in cfg.belts:
-		var n: int = loop.size()
+	for belt in cfg.belts:
+		var n: int = belt.size()
 		var tk := []
 		var orr := []
 		var sp := []
-		for c in loop:
+		for c in belt:
 			tk.append(token[c]); orr.append(ore[c]); sp.append(spec[c])
 		var new_robot := robot
-		for k in n:
-			var from: int = loop[k]
-			var to: int = loop[(k + 1) % n]
-			token[to] = tk[k]; ore[to] = orr[k]; spec[to] = sp[k]
-			if tk[k] != Token.NONE:
-				moves.append([from, to])
-			if robot == from:
-				new_robot = to
+		if _belt_is_loop(belt):
+			for k in n:
+				var from: int = belt[k]
+				var to: int = belt[(k + 1) % n]
+				token[to] = tk[k]; ore[to] = orr[k]; spec[to] = sp[k]
+				if tk[k] != Token.NONE:
+					moves.append([from, to])
+				if robot == from:
+					new_robot = to
+		else:
+			var spout := _belt_spout(belt)
+			var blocked := false
+			for k in range(n - 1, -1, -1):
+				var c: int = belt[k]
+				if robot == c:
+					if k == n - 1:
+						blocked = true  # the robot at the end of the line holds it up
+					elif not blocked:
+						new_robot = belt[k + 1]
+					continue
+				if blocked:
+					continue
+				if k == n - 1:
+					if tk[k] == Token.NONE:
+						continue
+					if spout:
+						blocked = true  # it waits over the spout until the column below makes room
+						continue
+					exits.append(c)
+					if tk[k] == Token.CRYSTAL:
+						haul[RES_CRYSTAL] += 1
+						stats.crystals += 1
+					elif tk[k] == Token.CELL:
+						energy += cfg.cell_energy
+						stats.cells += 1
+					token[c] = Token.NONE
+					continue
+				var to2: int = belt[k + 1]
+				token[to2] = tk[k]; ore[to2] = orr[k]; spec[to2] = sp[k]
+				token[c] = Token.NONE
+				if tk[k] != Token.NONE:
+					moves.append([c, to2])
 		if new_robot != robot:
 			robot_move = [robot, new_robot]
 			robot = new_robot
-	_push(steps, {"type": "belt", "moves": moves, "robot": robot_move})
-	_resolve(steps, -1)
+	_push(steps, {"type": "belt", "moves": moves, "exits": exits, "robot": robot_move})
+
+
+## Is a line's end open underneath (what reaches it falls into the column below)?
+func _belt_spout(belt: Array) -> bool:
+	var below: Vector2i = pos(belt[belt.size() - 1]) + Vector2i(0, 1)
+	return inside(below) and terrain[idx(below)] == Terrain.GROUND
+
+
+## The cells that hold up what is on them: every cell of a one-way line but a spout end.
+func _belt_shelf() -> Dictionary:
+	var out := {}
+	for belt in cfg.belts:
+		if _belt_is_loop(belt):
+			continue
+		var n: int = belt.size()
+		for k in n:
+			if k == n - 1 and _belt_spout(belt):
+				continue
+			out[belt[k]] = true
+	return out
+
+
+static func _belt_is_loop(belt: Array) -> bool:
+	var ends := pos(belt[0]) - pos(belt[belt.size() - 1])
+	return absi(ends.x) + absi(ends.y) == 1
 
 
 func _finish_turn() -> void:
@@ -638,6 +787,7 @@ func use_booster(k: int, c: int) -> Dictionary:
 		out.reason = "target"
 		return out
 	stats.boosters += 1
+	belt_boost = 0
 	var pivot := -1
 	match k:
 		Economy.Booster.BOMB:
@@ -771,7 +921,7 @@ func _resolve(steps: Array, pivot: int) -> void:
 	while pass_no < 30:
 		if cfg.gravity:
 			_gravity(steps)
-		if not cfg.pads.is_empty() and _launch(steps):
+		if (not cfg.pads.is_empty() or not cfg.teleports.is_empty()) and _launch(steps):
 			pass_no += 1
 			continue  # what flew left holes and blasts: settle again before matching
 		var groups := find_groups()
@@ -788,6 +938,10 @@ func _resolve(steps: Array, pivot: int) -> void:
 			stats.groups += 1
 			if pass_no > 0:
 				stats.cascade_groups += 1
+			for belt in cfg.belts:
+				for c in cells:
+					if belt.has(c):
+						belt_boost += 1  # a match on a belt pushes it on (_turn_end)
 			stats.chunks += n
 			extracted[kind] += n
 			haul[kind] += n + cfg.yield_bonus
@@ -921,6 +1075,7 @@ func _open(p: Vector2i) -> bool:
 ## mode a crystal or energy cell that reaches the bottom of its run is collected (as Candy
 ## Crush's ingredients), which opens a hole and drops again.
 func _gravity(steps: Array) -> void:
+	var shelf := _belt_shelf()
 	var dst_of := {}  # portal destination cell -> its source
 	for pp in cfg.portals:
 		dst_of[pp[1]] = pp[0]
@@ -936,7 +1091,9 @@ func _gravity(steps: Array) -> void:
 					y -= 1
 					continue
 				var bottom := y
-				while y >= 0 and _open(Vector2i(x, y)):
+				# a belt is a shelf: what is on it never falls through, so a belt cell can only be
+				# the bottom of a run, and the cells under it are a run of their own
+				while y >= 0 and _open(Vector2i(x, y)) and (y == bottom or not shelf.has(idx(Vector2i(x, y)))):
 					y -= 1
 				var top := y + 1
 				var write := bottom
@@ -1287,11 +1444,6 @@ func step_to(c: int, d: Vector2i) -> int:
 	var p := pos(c) + d
 	if inside(p) and terrain[idx(p)] != Terrain.BEDROCK:
 		return idx(p)
-	for t in cfg.tunnels:
-		if t[0] == c and t[1] == d:
-			return t[2]
-		if t[2] == c and t[3] == d:
-			return t[0]
 	for pp in cfg.portals:
 		if d == Vector2i(0, 1) and pp[0] == c:
 			return pp[1]
