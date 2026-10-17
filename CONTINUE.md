@@ -3,7 +3,76 @@
 Bu dosya, son konuşmanın devamı için hazırlanmış bir devir notu. Terminalden (Claude Code CLI)
 devam ederken önce bunu okut.
 
-## 1. Repo durumu
+## 0. GÜNCEL DURUM (2026-10-17): GDD v4, önce bunu oku
+
+Doğrudan `main` üzerinde çalışılıyor, PR yok. Sürüm `0.9.7`. Main'e push edilince workflow
+`v0.9.7` release'ini kendisi açar. Aşağıdaki §1–§3 eski notlar.
+
+- **Tasarım:** `docs/design/gdd-v4.md`. Araştırma: `docs/research/match3-meta-balance.md`.
+  - Binalar kalıcı güç vermiyor; booster üretiyor.
+  - Yıldız sadece bir dig'in ilk temizlenmesinden geliyor (kristal yıldız vermiyor).
+  - Hamle başına coin kaldı.
+- **4 booster** (`Economy.BOOSTERS`):
+
+  | Booster | Üreten bina | Açılış |
+  |---|---|---|
+  | Bomba | Power | 8 yıldız |
+  | Warp | Teleporter (bina indeksi 3, yeni) | 14 yıldız |
+  | Lazer | Workshop | 20 yıldız |
+  | Mıknatıs | Lab | 30 yıldız |
+
+- **Üretim:** temizlenen dig başına. L1 5'te 1, L2 4'te 1, L3 3'te 1.
+  - Bina toplanmamış booster varken yenisini üretmez (balon her zaman "1 hazır" demek).
+  - `Game.made` / `collect` / `use_booster`.
+  - Yeni kurulan bina ilk booster'ı hemen verir.
+- **Dig:**
+  - Altta `Widgets.BoosterBar`: kilitliler sadece kilit gösterir, basınca "Locked".
+  - Tahta mekanikleri: `Board.use_booster`. Animasyonlar: `BoardView` step'leri `bomb`, `warp`,
+    `laser`, `magnet`.
+  - Hint ve Recall butonları kalktı. Tıkanan tahta kendiliğinden Pulse yapıyor.
+  - Android geri tuşuna iki kez basınca dig'den çıkılıyor. Pause ve çıkış butonu yapılacak.
+- **Koloni:**
+  - Hazır booster binanın üstünde balon olarak çıkar; dokununca toplanıp DIG butonuna uçar.
+  - Binaya dokununca zıplar (`ColonyView.poke`), kart 0.16 sn sonra açılır.
+- **Bot:** `Bots.PLANNER` artık plan yapıyor: ulaşılabilir match'ler, pickup ve drill planlarını
+  kopyada oynatıp hamle başına değere bakıyor.
+  - Araçlar: `tools/bot_probe.gd` (dig başına bitirme oranı / kalan / kullanılan hamle;
+    `sloppy`, `c3`/`c4`), `tools/balance_probe.gd` (upgrade alan ve tekrar deneyen oyuncu) ve
+    `tools/tune_v4.gd` (tier'e göre bütçe bulur).
+  - Rozet ve balon dokuları: `tools/art/badges.py`. Sayılar `Widgets.ink_text` ile ortalanır.
+- **Performans:**
+  - HUD ve tahta arasındaki layout döngüsü düzeltildi; bazı ekran oranlarında oyunu donduruyordu.
+  - Ayarlar → FPS göstergesi.
+  - DevShot `ASTRO_PERF=s` ve `ASTRO_HIDE=bar,hud,board,sky,fx`.
+- **Yeni DevShot değişkenleri:**
+  - `ASTRO_BOOST=b,w,l,m`: booster sayıları (-1 = kilitli).
+  - `ASTRO_ARM=k` ve `ASTRO_USE=hedef` (`ASTRO_USEWAIT`).
+  - `ASTRO_LOCKTAP=k`.
+  - `ASTRO_MADE=p,w,l,t`.
+  - `ASTRO_CARD=b` ile `ASTRO_TAPWAIT`.
+  - Not: zsh'de birden fazla değişkeni `env ${=e}` ile ver.
+- **5. adım YAPILDI (bölümler v4):** `docs/design/level-plan.md` v4 bölümü (tablo, yöntem,
+  dersler). Her rastgele dig'de `tier` (intro / normal / hard / superhard / breather / reward)
+  ve `colours` (3/4) var. Bütçeler `tools/tune_v4.gd` ile SLOPPY bota göre (`Bots.Kind.SLOPPY`).
+  - 4. cevher Ruby (indeks 3); kristal 4'e taşındı (`Board.RES_CRYSTAL`).
+  - Zor bölüm kartında "Hard Dig" / "Super Hard!" yazıyor.
+- **İterasyon 1 (ilk 15 dig, yeni tempo):** `docs/design/level-plan.md` en üstte. Yeni dig'ler
+  `quarry` (Bomba), `cellar` (hücre pratiği), `boulders` (2 katlı kaya). Power 10 yıldızda.
+  Kullanıcı telefonda oynayacak; eğlenceliyse kalan dig'ler aynı tarzda, değilse çekirdek döngü
+  sorgulanacak. Gezegen 1 uzunluğu (~60 dig önerisi) bu oynanıştan sonra kararlaştırılacak.
+- **Çekirdek döngü prototipleri:** Ayarlar → Prototypes. A robot, B robot + düşen gem'ler (robot da
+  düşer), C klasik swap. 5 ortak tahta, her biri farklı bir "hareket ettirilince çalışan" özel taş
+  dener (drill, prism, geode, quake, blast). Ayrıntı: `docs/design/level-plan.md` en üstte. Bütçeler:
+  `tools/tune_proto.gd`, `Sites.PROTO_ENERGY`. Kullanıcı hangisinin eğlenceli olduğuna karar verecek.
+- **Sırada (GDD v4 §5):**
+  - `longhaul` Bomba öğreticisine dönüşecek. El yapımı dersler playtest edilmeli.
+  - 6) Coin ile devam (+5 hamle, fiyatı artarak).
+  - 7) Fiyatlar.
+  - 8) Canlar.
+  - 4. gem rengi (ruby, dig başına `colours` ayarı) karar verildi ama ölçülmedi ve yapılmadı.
+  - Bot booster kullanmıyor; bu bilinçli, zorluk booster'sız ölçülüyor.
+
+## 1. Repo durumu (eski)
 
 - Branch: `claude/tender-ritchie-9meqga`. Açık PR: https://github.com/urunsiyabend/astro-miner/pull/9
   (merge edilmedi). Sürüm `0.8.2` (`project.godot` `config/version`, `export_presets.cfg`

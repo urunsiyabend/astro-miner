@@ -9,12 +9,12 @@ func _initialize() -> void:
 	for si in Sites.count():
 		per.append([0.0, 0.0, 0.0])
 	for c in n:
-		var levels := [0, 0, 0]
+		var levels := [0, 0, 0, 0]
 		for si in Sites.count():
 			var site: Dictionary = Sites.get_site(si)
 			var m := Bots.play(site, Economy.rules(levels), 777 + c * 31 + si, Bots.Kind.PLANNER)
 			var coin := 0
-			var star: int = m.haul[3]
+			var star := 0
 			if m.complete:
 				coin += Economy.clear_coin(si) + Economy.move_coin(m.energy_left)
 				star += Economy.FIRST_CLEAR_STARS

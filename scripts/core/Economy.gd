@@ -1,52 +1,53 @@
 class_name Economy
 extends RefCounted
 
-## Colony buildings, their costs, and how levels translate into Board rules.
-## Economy v3 (GDD v3): two currencies.
+## Colony buildings, their costs, the boosters they make, and how levels turn into Board rules.
+## Economy v4 (docs/design/gdd-v4.md):
 ##   Coin  — earned by CLEARING a dig: a fixed reward for the chapter plus 1 per move left
-##           (a failed or recalled dig earns none). The only SPENT currency, used to upgrade
-##           a building to level 2 and 3. Ore no longer pays: income does not depend on how
-##           lucky the board was or on farming matches, only on clearing and clearing well.
-##   Star  — a scarce, NEVER-SPENT progress counter (+1 per crystal, +1 per dig first-clear).
-##           Reaching a star milestone unlocks the next building (granted free at level 1) and
-##           grows the colony. See STAR_MILESTONES / STAR_UNLOCK.
+##           (a failed or recalled dig earns none). The only SPENT currency: building upgrades.
+##   Star  — +1 per dig first-clear, nothing else; NEVER spent. Star N means N digs cleared, so
+##           the colony milestones (STAR_MILESTONES) land on known digs.
+## Buildings give NO permanent board power. Building one opens its mechanic (the Workshop's
+## Drill, the Lab's Scanner) and starts its booster production; its level only sets how fast
+## it makes boosters and how many it holds until collected. Board help is consumable.
 ## RES_NAMES names the board's ore types and crystal (for goal text), not currency banks.
 
-const RES_NAMES := ["Ferrite", "Cryo", "Lumen", "Crystal"]
+const RES_NAMES := ["Ferrite", "Cryo", "Lumen", "Ruby", "Crystal"]
 
+## Boosters, in unlock order: used during a dig from the bar under the board, 0 moves each.
+enum Booster { BOMB, WARP, LASER, MAGNET }
+const BOOSTERS := [
+	{"id": "bomb", "name": "Bomb", "building": 0, "tip": "Tap a cell: blasts 3x3"},
+	{"id": "warp", "name": "Warp", "building": 3, "tip": "Tap a cell: the robot warps there"},
+	{"id": "laser", "name": "Laser", "building": 1, "tip": "Swipe: a beam from the robot"},
+	{"id": "magnet", "name": "Magnet", "building": 2, "tip": "Tap a gem: pulls every gem of its colour"},
+]
+
+## Index order is save order (Game.levels): the Teleporter came last, so it is 3.
 const BUILDINGS := [
-	{
-		"id": "power", "name": "Power Station",
-		"effects": ["+0 energy", "+3 energy every dig", "+6 energy every dig", "+10 energy every dig"],
-		"costs": [0, 75, 135],  # Coin to reach level 1, 2, 3 (level 1 is free, granted by a star milestone)
-	},
-	{
-		"id": "workshop", "name": "Mining Workshop",
-		"effects": ["No drill", "Drill: bump rock, -1 layer (2 energy)",
-				"Drill removes 2 layers", "Drill costs 1, matches crack 2 layers"],
-		"costs": [0, 95, 165],
-	},
-	{
-		"id": "lab", "name": "Research Lab",
-		"effects": ["No scanner", "Deep Scanner: see what rock hides",
-				"Broken rock opens richer veins (3 layers)", "+1 energy per match"],
-		"costs": [0, 110, 190],
-	},
+	{"id": "power", "name": "Power Station", "booster": Booster.BOMB, "costs": [0, 75, 135]},
+	{"id": "workshop", "name": "Mining Workshop", "booster": Booster.LASER, "costs": [0, 95, 165],
+			"opens": "Drill: bump rock to break a layer (2 energy)"},
+	{"id": "lab", "name": "Research Lab", "booster": Booster.MAGNET, "costs": [0, 110, 190],
+			"opens": "Scanner: see what rock hides"},
+	{"id": "teleporter", "name": "Teleporter", "booster": Booster.WARP, "costs": [0, 85, 150]},
 ]
 
 const MAX_LEVEL := 3
 const FIRST_CLEAR_STARS := 1
 
-## Cumulative-star thresholds for the six Planet-1 colony milestones (GDD v3 §4). The three
-## functional buildings sit at milestones 2/4/6; the others are cosmetic colony-growth beats.
-## Tuned against tools/econ_probe.gd: star accrues ~1/dig (mostly first-clears), so arriving at
-## a building's needs-dig (digs 11/21/31) means 10/20/30 digs were cleared, GUARANTEEING the
-## building unlocks in time regardless of how many crystals the player found.
-const STAR_MILESTONES := [4, 8, 14, 20, 30]
-## Star needed to unlock each building [power, workshop, lab] — milestones 2/4/6.
-const STAR_UNLOCK := [8, 20, 30]
-## Extra energy the Power Station adds to EVERY dig's budget, by level.
-const POWER_BUDGET_BONUS := [0, 3, 6, 10]
+## Production by building level: one booster every PRODUCE_EVERY[lv] cleared digs. A building
+## holds ONE until the player taps its bubble to collect it, and makes no other meanwhile (a
+## bubble always means "one is ready"; the level only makes it come sooner).
+const PRODUCE_EVERY := [0, 5, 4, 3]
+const HOLD := [0, 1, 1, 1]
+
+## Cumulative-star thresholds for the Planet-1 colony milestones (GDD v3 §4, v4 §1). Star is
+## one per cleared dig, so milestone k arrives exactly at dig STAR_MILESTONES[k].
+const STAR_MILESTONES := [4, 10, 14, 20, 30]
+## Star needed to unlock each building, by building index [power, workshop, lab, teleporter].
+## Power at 10: the Bomb arrives as chapter 1 ends (iteration 1, docs/design/level-plan.md).
+const STAR_UNLOCK := [10, 20, 30, 14]
 
 
 ## Coin cost to take a building from current_level to current_level+1, or -1 at max.
@@ -61,20 +62,20 @@ static func can_afford(coin: int, c: int) -> bool:
 	return c >= 0 and coin >= c
 
 
-## Board rule overrides for a given set of building levels [power, workshop, lab].
+## What a building does at a level (the upgrade card's Now / Next lines).
+static func effect(building: int, level: int) -> String:
+	if level <= 0:
+		return "Not built yet"
+	var bname: String = BOOSTERS[BUILDINGS[building].booster].name
+	return "Makes a %s every %d digs" % [bname, PRODUCE_EVERY[level]]
+
+
+## Board rule overrides for a set of building levels [power, workshop, lab, teleporter]. Only
+## mechanics: the Drill (Workshop) and the Scanner (Lab). No level changes the board.
 static func rules(levels: Array) -> Dictionary:
-	var p: int = levels[0]
-	var w: int = levels[1]
-	var l: int = levels[2]
 	var r := {}
-	r.budget_bonus = POWER_BUDGET_BONUS[p]
-	r.drill = w >= 1
-	r.drill_power = 2 if w >= 2 else 1
-	r.drill_cost = 1 if w >= 3 else 2
-	r.crack_power = 2 if w >= 3 else 1
-	r.scanner = l >= 1
-	r.reveal_reserve = 3 if l >= 2 else 2
-	r.refund_bonus = 1 if l >= 3 else 0
+	r.drill = levels[1] >= 1
+	r.scanner = levels[2] >= 1
 	return r
 
 

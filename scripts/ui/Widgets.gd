@@ -195,7 +195,7 @@ class DigHud extends Control:
 	func landed(res: int) -> void:
 		for i in goals.size():
 			var g: Dictionary = goals[i]
-			if (g.type == "ore" and g.ore == res) or (g.type == "crystal" and res == 3):
+			if (g.type == "ore" and g.ore == res) or (g.type == "crystal" and res == Board.RES_CRYSTAL):
 				if shown[i] != have[i]:
 					shown[i] = have[i]
 					_pop[i] = 1.0
@@ -429,7 +429,7 @@ class MilestoneBar extends Control:
 ## (Mobile puzzle HUDs keep the top bar for goals and moves; extras get one compact slot.)
 class HaulChip extends Control:
 	signal tapped
-	var values := [0, 0, 0, 0]
+	var values := [0, 0, 0, 0, 0]
 	var _pop := 0.0
 	var _last := -1
 	var _font: Font
@@ -440,7 +440,7 @@ class HaulChip extends Control:
 		_font = ThemeDB.fallback_font
 
 	func set_values(v: Array) -> void:
-		for r in 4:
+		for r in values.size():
 			if v[r] > values[r]:
 				_last = r
 				_pop = 1.0
@@ -475,7 +475,7 @@ class HaulChip extends Control:
 			# the gem that just came in, popping
 			Widgets.draw_res_icon(self, c, 26.0 * (1.0 + 0.3 * minf(1.0, _pop * 2.0)), _last)
 		else:
-			for r in 4:
+			for r in values.size():
 				var o := Vector2(-17 if r % 2 == 0 else 17, -16 if r < 2 else 16)
 				Widgets.draw_res_icon(self, c + o, 15.0, r)
 		var fs := Pal.FS
@@ -759,7 +759,7 @@ static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) 
 		"ore":
 			draw_res_icon(ci, c, s * 0.8, g.ore)
 		"crystal":
-			draw_res_icon(ci, c, s * 0.85, 3)
+			draw_res_icon(ci, c, s * 0.85, Board.RES_CRYSTAL)
 		"rock":
 			var rk := Art.rock(1, 1)
 			if rk != null:
@@ -851,7 +851,7 @@ static func draw_bolt(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:
 static func goal_frame(g: Dictionary) -> Texture2D:
 	var n := "pink"
 	match g.type:
-		"ore": n = ["orange", "cyan", "yellow"][g.ore]
+		"ore": n = ["orange", "cyan", "yellow", "pink"][g.ore]
 		"crystal": n = "violet"
 		"rock": n = "grey"
 		"treasure": n = "yellow"
@@ -872,6 +872,38 @@ static func shadow_text(ci: CanvasItem, font: Font, c: Vector2, t: String, fs: i
 	ci.draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
 
 
+## Text centred on `c` by its ink (the glyphs' measured outline, not the font's line box), so
+## a short number sits dead centre in a badge; the drop shadow and outline are balanced around
+## it. Same look as shadow_text.
+static func ink_text(ci: CanvasItem, font: Font, c: Vector2, t: String, fs: int, col: Color, ol := -1) -> void:
+	if ol < 0:
+		ol = int(fs * 0.16)
+	var ts := TextServerManager.get_primary_interface()
+	var rid: RID = font.get_rids()[0]
+	var pen := 0.0
+	var x0 := INF
+	var x1 := -INF
+	var y0 := INF
+	var y1 := -INF
+	for i in t.length():
+		var g := ts.font_get_glyph_index(rid, fs, t.unicode_at(i), 0)
+		var off := ts.font_get_glyph_offset(rid, Vector2i(fs, 0), g)
+		var sz := ts.font_get_glyph_size(rid, Vector2i(fs, 0), g)
+		x0 = minf(x0, pen + off.x)
+		x1 = maxf(x1, pen + off.x + sz.x)
+		y0 = minf(y0, off.y)
+		y1 = maxf(y1, off.y + sz.y)
+		pen += ts.font_get_glyph_advance(rid, fs, g).x
+	var drop := maxf(2.0, fs * 0.06)
+	# baseline origin that puts the ink box's centre on c (the shadow below lifts it a hair)
+	var at := Vector2(c.x - (x0 + x1) * 0.5, c.y - (y0 + y1) * 0.5 - drop * 0.4)
+	var a := col.a
+	ci.draw_string_outline(font, at + Vector2(0, drop), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("12041f", a))
+	ci.draw_string(font, at + Vector2(0, drop), t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color("12041f", a))
+	ci.draw_string_outline(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, ol, Color("1e0a3a", a))
+	ci.draw_string(font, at, t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, col)
+
+
 ## Back-out ease (0..1 -> 0..1 with an overshoot of about `over`), for pops.
 static func back_out(x: float, over := 3.0) -> float:
 	var s := clampf(x, 0.0, 1.0) - 1.0
@@ -881,6 +913,7 @@ static func back_out(x: float, over := 3.0) -> float:
 ## A jelly plate (the HUD's look) behind one content child, `margin` px inside the rim.
 class JellyCard extends Container:
 	var margin := 56.0
+	var rim := Color("7d52bf")  # a hard dig's card wears its tier's colour
 	var _plate: Jelly
 
 	func _init(m := 56.0) -> void:
@@ -902,7 +935,7 @@ class JellyCard extends Container:
 			return
 		var pad := 18.0
 		_plate.setup(Rect2(Vector2.ZERO, size), pad, 64.0, 22.0)
-		_plate.set_param("rim_color", Color("7d52bf"))
+		_plate.set_param("rim_color", rim)
 		_plate.set_param("gloss", 0.35)
 		_plate.set_param("face_color", Color("2b1258"))
 		_plate.set_param("face_color_bottom", Color("3a1a74"))
@@ -1461,3 +1494,166 @@ class CostButton extends JellyButton:
 			Widgets.shadow_text(over, _font, Vector2(over.size.x * 0.81, cy), str(cost), 52,
 					Color("ff8f8f") if short else Color("fff2b0")))
 		add_child(over)
+
+
+## The dig's booster bar (after the C1-C3 hero mockups): a dark jelly tray under the board
+## with one glossy blue jelly slot per booster, its icon inside and a red count badge on the
+## corner. A locked booster's slot is grey with only a padlock (what it holds stays a surprise); tapping it shakes
+## and says "Locked". The armed booster's slot glows gold and bobs until it is used or tapped
+## again. All four always show, so the player sees what is still to come.
+class BoosterBar extends Control:
+	signal picked(k: int)
+	const ICONS := ["bomb", "warp", "laser", "magnet"]
+	var counts := [0, 0, 0, 0]
+	var unlocked := [false, false, false, false]
+	var armed := -1
+	var _tray: Jelly
+	var _slots: Array = []
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		custom_minimum_size = Vector2(0, 236)
+		_tray = Jelly.new(Color("8d6cc9"), Color("2a1550"), Color("341a63"))
+		_tray.show_behind_parent = true
+		_tray.set_param("gloss", 0.35)
+		add_child(_tray)
+		for k in 4:
+			var s := BoosterSlot.new(k)
+			s.tapped.connect(_on_slot)
+			add_child(s)
+			_slots.append(s)
+		resized.connect(_layout)
+
+	func set_state(c: Array, u: Array, a: int) -> void:
+		for k in 4:
+			var s: BoosterSlot = _slots[k]
+			if s.count != c[k] and s.unlocked:
+				s.pop()
+			s.count = c[k]
+			s.unlocked = u[k]
+			s.armed = a == k
+			s.restyle()
+		counts = c.duplicate()
+		unlocked = u.duplicate()
+		armed = a
+
+	func slot_global(k: int) -> Vector2:
+		var s: Control = _slots[k]
+		return s.get_global_rect().get_center()
+
+	func _on_slot(k: int) -> void:
+		if not unlocked[k]:
+			(_slots[k] as BoosterSlot).deny()
+			Sfx.play("bump")
+			return
+		picked.emit(k)
+
+	func _layout() -> void:
+		var h := size.y
+		var s := minf(h * 0.78, size.x / 5.2)
+		var gap := s * 0.2
+		var tw := s * 4.0 + gap * 5.0
+		var th := s + gap * 1.6
+		var tr := Rect2(Vector2((size.x - tw) * 0.5, (h - th) * 0.5), Vector2(tw, th))
+		_tray.setup(tr, 16.0, th * 0.34, th * 0.08)
+		for k in 4:
+			var sl: Control = _slots[k]
+			sl.size = Vector2(s, s)
+			sl.position = Vector2(tr.position.x + gap + k * (s + gap), tr.position.y + (th - s) * 0.5)
+			sl.pivot_offset = sl.size * 0.5
+
+
+class BoosterSlot extends Control:
+	signal tapped(k: int)
+	var k := 0
+	var count := 0
+	var unlocked := false
+	var armed := false
+	var _plate: Jelly
+	var _font: Font
+	var _t := 0.0
+	var _deny := 0.0     # 1..0 shake + "Locked" after a tap on a locked slot
+	var _pop := 0.0      # 1..0 count badge pop
+	var _press := false
+
+	func _init(index: int) -> void:
+		k = index
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		_font = Widgets.game_font()
+		_plate = Jelly.new()
+		_plate.show_behind_parent = true
+		_plate.set_param("gloss", 0.8)
+		_plate.set_param("inner_shadow", 0.2)
+		add_child(_plate)
+		resized.connect(func(): _plate.setup(Rect2(Vector2.ZERO, size), 12.0, size.x * 0.26, size.x * 0.09))
+		restyle()
+
+	func restyle() -> void:
+		var rim := Color("7ee0ff")
+		var face := Color("2f97ea")
+		if not unlocked:
+			rim = Color("b4aec6")
+			face = Color("6d6788")
+		elif armed:
+			rim = Color("ffe27a")
+			face = Color("3aa8f2")
+		_plate.set_param("rim_color", rim)
+		_plate.set_param("face_color", face.lightened(0.1))
+		_plate.set_param("face_color_bottom", face.darkened(0.2))
+		_plate.set_param("outline_color", face.darkened(0.72))
+		queue_redraw()
+
+	func pop() -> void:
+		_pop = 1.0
+
+	func deny() -> void:
+		_deny = 1.0
+
+	func _gui_input(e: InputEvent) -> void:
+		if e is InputEventScreenTouch or (e is InputEventMouseButton and e.button_index == MOUSE_BUTTON_LEFT):
+			if e.pressed:
+				_press = true
+			elif _press:
+				_press = false
+				tapped.emit(k)
+			accept_event()
+
+	func _process(delta: float) -> void:
+		_t += delta
+		_deny = maxf(0.0, _deny - delta / 0.6)
+		_pop = maxf(0.0, _pop - delta / 0.35)
+		var sc := 0.92 if _press else 1.0
+		if armed:
+			sc *= 1.06 + 0.04 * sin(_t * 8.0)
+		sc *= 1.0 + 0.12 * _pop
+		scale = Vector2(sc, sc)
+		rotation = sin(_deny * 30.0) * 0.12 * _deny
+		queue_redraw()
+
+	func _draw() -> void:
+		var s := size.x
+		var c := size * 0.5
+		if armed:
+			var g := 0.5 + 0.5 * sin(_t * 8.0)
+			for r in 3:
+				draw_circle(c, s * (0.62 + 0.08 * r), Color(1.0, 0.86, 0.4, (0.10 - r * 0.03) * (0.6 + 0.4 * g)), true, -1.0, true)
+		var tex := Art.tex("res://assets/ui/boosters/%s.png" % BoosterBar.ICONS[k])
+		var iw := s * 0.74
+		var bob := -s * 0.04 * sin(_t * 8.0) if armed else 0.0
+		if not unlocked:
+			# a locked booster stays a mystery until its building goes up: only the padlock shows
+			var lw := s * 0.62
+			draw_texture_rect(Art.tex("res://assets/ui/boosters/lock.png"), Rect2(c - Vector2(lw, lw) * 0.5, Vector2(lw, lw)), false)
+			if _deny > 0.0:
+				var a := minf(1.0, _deny * 2.0)
+				Widgets.shadow_text(self, _font, Vector2(c.x, -s * 0.18 - (1.0 - _deny) * s * 0.3), "Locked", int(s * 0.3), Color(1, 1, 1, a))
+			return
+		draw_texture_rect(tex, Rect2(c - Vector2(iw, iw) * 0.5 + Vector2(0, bob), Vector2(iw, iw)), false,
+				Color(1, 1, 1, 0.55) if count <= 0 else Color.WHITE)
+		# count badge on the bottom-right corner
+		var bc := Vector2(s * 0.86, s * 0.86)
+		var br := s * 0.21 * (1.0 + 0.3 * _pop)
+		var bw := br * 2.4
+		var tex2 := Art.tex("res://assets/ui/badge_red.png" if count > 0 else "res://assets/ui/badge_grey.png")
+		draw_texture_rect(tex2, Rect2(bc - Vector2(bw, bw) * 0.5, Vector2(bw, bw)), false)
+		Widgets.ink_text(self, _font, bc, str(count), int(br * 1.2), Color.WHITE)

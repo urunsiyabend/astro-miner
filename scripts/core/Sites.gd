@@ -53,8 +53,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "drag", "energy": 20,
-		"goals": [{"type": "ore", "ore": 1, "n": 9}],
+		"id": "drag", "tier": "intro", "energy": 24,
+		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"# # # # # # #",
 			"# # . . . # #",
@@ -67,8 +67,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "vein", "energy": 15,
-		"goals": [{"type": "chunks", "n": 15}],
+		"id": "vein", "tier": "intro", "energy": 18,
+		"goals": [{"type": "chunks", "n": 21}],
 		"rows": [
 			"# # # # # # #",
 			"# : . o . : #",
@@ -84,8 +84,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "landing", "energy": 22,
-		"goals": [{"type": "ore", "ore": 2, "n": 12}],
+		"id": "landing", "tier": "intro", "energy": 32,
+		"goals": [{"type": "ore", "ore": 2, "n": 15}],
 		"rows": [
 			"# . . . . . #",
 			". . . . . . .",
@@ -98,8 +98,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rocks", "energy": 32,
-		"goals": [{"type": "rock", "n": 4}],
+		"id": "rocks", "tier": "intro", "energy": 24,
+		"goals": [{"type": "rock", "n": 5}],
 		"rows": [
 			"# # # # # # #",
 			"# 1 1 1 1 1 #",
@@ -116,8 +116,22 @@ const LIST := [
 		],
 	},
 	{
-		"id": "glint", "energy": 16,
-		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 10}],
+		"id": "ring", "tier": "normal", "energy": 29,
+		"goals": [{"type": "rock", "n": 8}, {"type": "chunks", "n": 42}],
+		"rows": [
+			"# : : : : : #",
+			": : : : : : :",
+			": : 1 1 1 : :",
+			": : 1 o 1 : :",
+			": : 1 1 1 : :",
+			": : : @ : : :",
+			": : : : : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		"id": "glint", "tier": "intro", "energy": 30,
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
 		"rows": [
 			"# # # # # # #",
 			"# . . 1c . . #",
@@ -131,6 +145,65 @@ const LIST := [
 		"script": [
 			{"say": "That rock glints: there's a crystal inside! Make a match next to it to crack it open.", "until": "reveal", "focus": [Vector2i(3, 1)]},
 			{"say": "Drive onto the crystal to pick it up. The colony needs crystals for its bigger buildings.", "until": "crystal", "focus": [Vector2i(3, 1)]},
+		],
+	},
+	{
+		"id": "nearby", "tier": "normal", "energy": 18,
+		"goals": [{"type": "crystal", "n": 3}, {"type": "chunks", "n": 18}],
+		"rows": [
+			". . . . . . .",
+			". o . . . o .",
+			". . 1c . 1c . .",
+			". . . @ . . .",
+			". o . . . o .",
+			". . 1c . 1c . .",
+			". . . . . . .",
+			"# . . . . . #",
+		],
+	},
+	{
+		"id": "rooms", "tier": "normal", "energy": 34,
+		"goals": [{"type": "chunks", "n": 36}],
+		"rows": [
+			"# # # # # # #",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			": @ : 1 : : :",
+			": : : 1 : : :",
+			": : : 1 : : :",
+			"# # # # # # #",
+			"# # # # # # #",
+		],
+	},
+	{
+		"id": "lode", "tier": "reward", "energy": 20,
+		"goals": [{"type": "chunks", "n": 30}],
+		"rows": [
+			"o o . o . o o",
+			"o . . o . . o",
+			". . o o o . .",
+			"o o o @ o o o",
+			". . o o o . .",
+			"o . . o . . o",
+			"o o . o . o o",
+			"# o o . o o #",
+		],
+	},
+	{
+		# the Bomb lesson (GDD v4, iteration 1): the Power Station has just handed out a free Bomb.
+		# Rubble clumps 2x2 are slow to crack with matches (only their outer cells touch open
+		# ground), a Bomb on a clump breaks all four at once
+		"id": "quarry", "tier": "normal", "energy": 24,
+		"goals": [{"type": "rock", "n": 10}],
+		"rows": [
+			". . . . . . .",
+			". 1 1 . 1 1 .",
+			". 1 1 . 1 1 .",
+			". . . . . . .",
+			". . . @ . . .",
+			". . . . . . .",
+			". . 1 1 1 . .",
+			"# . . . . . #",
 		],
 	},
 	{
@@ -150,39 +223,11 @@ const LIST := [
 		],
 	},
 	{
-		"id": "ring", "energy": 26,
-		"goals": [{"type": "rock", "n": 5}, {"type": "ore", "ore": 0, "n": 14}],
-		"rows": [
-			"# : : : : : #",
-			": : : : : : :",
-			": : 1 1 1 : :",
-			": : 1 o 1 : :",
-			": : 1 1 1 : :",
-			": : : @ : : :",
-			": : : : : : :",
-			"# : : : : : #",
-		],
-	},
-	{
-		"id": "rooms", "energy": 27,
-		"goals": [{"type": "ore", "ore": 1, "n": 12}],
-		"rows": [
-			"# # # # # # #",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			": @ : 1 : : :",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			"# # # # # # #",
-			"# # # # # # #",
-		],
-	},
-	{
 		# hand-made (seed 71, picked by tools/handmade_probe.gd): with a random fill it was a
-		# coin flip whether the last rocks could be reached in time. This opening and the 11 of
-		# 14 rocks leave room for wasted moves: greedy, planner and a sloppy planner (12% random
-		# moves) all clear it, with ~16 energy left
-		"id": "zigzag", "energy": 30, "seed": 71,
+		# coin flip whether the last rocks could be reached in time. This opening sets off a
+		# chain that breaks most of the zig-zag in a handful of moves (the solution takes 5): a
+		# short, showy end to chapter 1. Budget 10 (v4): the sloppy bot clears it 90%
+		"id": "zigzag", "energy": 10, "seed": 71,
 		"goals": [{"type": "rock", "n": 11}],
 		"rows": [
 			"# # # # # # #",
@@ -203,69 +248,6 @@ const LIST := [
 			"- L - @ - L -",
 			"- C C - C F -",
 			"- - - - - - -",
-		],
-	},
-	{
-		"id": "lode", "energy": 15, "unlock": 0,
-		"goals": [{"type": "chunks", "n": 25}],
-		"rows": [
-			"o o . o . o o",
-			"o . . o . . o",
-			". . o o o . .",
-			"o o o @ o o o",
-			". . o o o . .",
-			"o . . o . . o",
-			"o o . o . o o",
-			"# o o . o o #",
-		],
-	},
-	{
-		# three rooms, each closed by a rock gate; every room is a small puzzle (a pair next to
-		# the gate, the third gem one row away: walk over and step onto it), the crystal is in
-		# the rock in the top-left corner. The intended route takes 23 moves: the old battery
-		# (22) falls one short, the Power Station's 25 leaves room for two wasted moves.
-		"id": "longhaul", "building_level": true, "seed": 31, "energy": 22,
-		"goals": [{"type": "crystal", "n": 1}],
-		"needs": {"building": 0, "level": 1},
-		"rows": [
-			"1c . . . . . .",
-			". . . . . . .",
-			"# # # # # 1 #",
-			". . . . . . .",
-			". . . . . . .",
-			"# 1 # # # # #",
-			". . . . . @ .",
-			". . . . . . .",
-		],
-		"ore": [
-			"- C L F C F C",
-			"L L F C F C F",
-			"- - - - - - -",
-			"L F L F L C C",
-			"C C F L C F L",
-			"- - - - - - -",
-			"F F C L C - L",
-			"C L F C L C F",
-		],
-		"script": [
-			{"say": "The Power Station is online: you have 25 moves now, three more than before."},
-			{"say": "The crystal is in the top room, behind two rock gates. Each room hides a match that cracks its gate."},
-			{"say": "Two Ferrite sit by the gate. Walk over and step down onto the third.", "until": "reveal", "focus": [Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 7)]},
-			{"say": "Gate's open. Same trick in every room: find the pair next to the gate.", "until": "crystal"},
-		],
-	},
-	{
-		"id": "nearby", "energy": 16,
-		"goals": [{"type": "crystal", "n": 2}],
-		"rows": [
-			". . . . . . .",
-			". o . . . o .",
-			". . 1c . 1c . .",
-			". . . @ . . .",
-			". o . . . o .",
-			". . . . . . .",
-			". . . . . . .",
-			"# . . . . . #",
 		],
 	},
 	{
@@ -301,7 +283,76 @@ const LIST := [
 		],
 	},
 	{
-		"id": "charge", "guide": true, "seed": 9,
+		# energy cells, practised: shallow ground runs dry fast, and the cells sit under rubble, so
+		# cracking the right rock first buys the moves to finish
+		"id": "cellar", "tier": "normal", "energy": 22,
+		"goals": [{"type": "chunks", "n": 32}],
+		"rows": [
+			": : : : : : :",
+			": 1e : 1 : 1e :",
+			": : : : : : :",
+			". . . @ . . .",
+			": : : : : : :",
+			": 1 : 1e : 1 :",
+			": : : : : : :",
+			"# : : : : : #",
+		],
+	},
+	{
+		# a variation, not a new mechanic: 2-layer rock (a match cracks one layer, so each needs two)
+		"id": "boulders", "tier": "normal", "energy": 29,
+		"goals": [{"type": "rock", "n": 5}, {"type": "chunks", "n": 18}],
+		"rows": [
+			". . . . . . .",
+			". 2 . . . 2 .",
+			". . . 2 . . .",
+			". . . @ . . .",
+			". 2 . . . 2 .",
+			". . . . . . .",
+			". . 2 . 2 . .",
+			"# . . . . . #",
+		],
+		"script": [
+			{"say": "Some rocks here are tougher: two layers. A match next to one only cracks a layer, so hit it twice."},
+		],
+	},
+	{
+		# three rooms, each closed by a rock gate; every room is a small puzzle (a pair next to
+		# the gate, the third gem one row away: walk over and step onto it), the crystal is in
+		# the rock in the top-left corner. The intended route takes 23 moves; 25 leaves room for
+		# two wasted moves. (v4: it no longer teaches the Power Station, whose +moves are gone;
+		# the Bomb lesson replaces it when the levels are redone.)
+		"id": "longhaul", "building_level": true, "seed": 31, "energy": 25,
+		"goals": [{"type": "crystal", "n": 1}],
+		"needs": {"building": 0, "level": 1},
+		"rows": [
+			"1c . . . . . .",
+			". . . . . . .",
+			"# # # # # 1 #",
+			". . . . . . .",
+			". . . . . . .",
+			"# 1 # # # # #",
+			". . . . . @ .",
+			". . . . . . .",
+		],
+		"ore": [
+			"- C L F C F C",
+			"L L F C F C F",
+			"- - - - - - -",
+			"L F L F L C C",
+			"C C F L C F L",
+			"- - - - - - -",
+			"F F C L C - L",
+			"C L F C L C F",
+		],
+		"script": [
+			{"say": "The crystal is in the top room, behind two rock gates. Each room hides a match that cracks its gate."},
+			{"say": "Two Ferrite sit by the gate. Walk over and step down onto the third.", "until": "reveal", "focus": [Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 7)]},
+			{"say": "Gate's open. Same trick in every room: find the pair next to the gate.", "until": "crystal"},
+		],
+	},
+	{
+		"id": "charge", "guide": true, "seed": 9, "energy": 14,
 		"goals": [{"type": "blast", "n": 2}],
 		"rows": [
 			"# # # # # # #",
@@ -331,22 +382,22 @@ const LIST := [
 		],
 	},
 	{
-		"id": "checker", "energy": 32,
+		"id": "checker", "tier": "hard", "energy": 21,
 		"goals": [{"type": "crystal", "n": 2}],
 		"rows": [
 			". . . . . . .",
-			". 1 . 1c . 1 .",
+			". 1 . 2c . 1 .",
 			". . . . . . .",
 			". 1e . 1 . 1e .",
 			". . . @ . . .",
-			". 1 . 1c . 1 .",
+			". 1 . 2c . 1 .",
 			". . . . . . .",
 			"# . . . . . #",
 		],
 	},
 	{
-		"id": "route", "energy": 39,
-		"goals": [{"type": "crystal", "n": 2}],
+		"id": "route", "tier": "normal", "energy": 37,
+		"goals": [{"type": "crystal", "n": 2}, {"type": "chunks", "n": 27}],
 		"rows": [
 			"1 . 1c 1 1c . 1",
 			". . . . . . .",
@@ -359,8 +410,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "deep", "energy": 29,
-		"goals": [{"type": "crystal", "n": 1}, {"type": "ore", "ore": 2, "n": 14}],
+		"id": "deep", "tier": "normal", "energy": 31,
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 42}],
 		"rows": [
 			"o : : : : : o",
 			": o : : : o :",
@@ -387,8 +438,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "shallows", "energy": 30,
-		"goals": [{"type": "crystal", "n": 2}],
+		"id": "shallows", "tier": "superhard", "energy": 19,
+		"goals": [{"type": "crystal", "n": 3}],
 		"rows": [
 			": : : : : : :",
 			"1c : : : : : 1c",
@@ -401,8 +452,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "well", "energy": 30,
-		"goals": [{"type": "crystal", "n": 1}],
+		"id": "well", "tier": "breather", "energy": 24,
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 12}],
 		"rows": [
 			"# . . . . . #",
 			"# . . @ . . #",
@@ -415,8 +466,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "garden", "energy": 40, "unlock": 1,
-		"goals": [{"type": "crystal", "n": 3}],
+		"id": "garden", "tier": "reward", "energy": 41, "unlock": 1,
+		"goals": [{"type": "crystal", "n": 4}],
 		"rows": [
 			". . 1c . 1c . .",
 			". o . . . o .",
@@ -461,8 +512,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "stone", "energy": 45,
-		"goals": [{"type": "rock", "n": 4}],
+		"id": "stone", "tier": "normal", "energy": 34,
+		"goals": [{"type": "rock", "n": 6}],
 		"rows": [
 			"# # # # # # #",
 			". . 2 . 2 . .",
@@ -478,8 +529,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "seam", "energy": 16,
-		"goals": [{"type": "chunks", "n": 32}],
+		"id": "seam", "tier": "normal", "colours": 4, "energy": 26,
+		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"o o o o o o o",
 			". . . . . . .",
@@ -490,10 +541,13 @@ const LIST := [
 			": : : : : : :",
 			"# . . . . . #",
 		],
+		"script": [
+			{"say": "A new gem down here: Ruby! Four colours means lines are rarer, so look before you move."},
+		],
 	},
 	{
-		"id": "rubble", "energy": 28,
-		"goals": [{"type": "rock", "n": 9}],
+		"id": "rubble", "tier": "hard", "energy": 18,
+		"goals": [{"type": "rock", "n": 14}],
 		"rows": [
 			". . . . . . .",
 			". . . @ . . .",
@@ -506,8 +560,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "strata", "energy": 39,
-		"goals": [{"type": "rock", "n": 6}],
+		"id": "strata", "tier": "normal", "energy": 48,
+		"goals": [{"type": "rock", "n": 10}],
 		"rows": [
 			"o . 2 . 2 . o",
 			". 2 . . . 2 .",
@@ -520,22 +574,22 @@ const LIST := [
 		],
 	},
 	{
-		"id": "pockets", "energy": 45,
-		"goals": [{"type": "crystal", "n": 3}],
+		"id": "pockets", "tier": "normal", "energy": 36,
+		"goals": [{"type": "crystal", "n": 4}],
 		"rows": [
-			". . 1c . 1c . .",
+			". . 2c . 2c . .",
 			". . . . . . .",
 			". 1e . . . 1e .",
 			". . . @ . . .",
 			". . . . . . .",
-			". 1c . . . 1c .",
+			". 2c . . . 2c .",
 			". . . . . . .",
 			"# . . . . . #",
 		],
 	},
 	{
-		"id": "maze", "energy": 45,
-		"goals": [{"type": "crystal", "n": 2}],
+		"id": "maze", "tier": "normal", "energy": 24,
+		"goals": [{"type": "crystal", "n": 3}],
 		"rows": [
 			"# # # # # # #",
 			". . 2 . 2 . .",
@@ -548,8 +602,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "shale", "energy": 34,
-		"goals": [{"type": "ore", "ore": 1, "n": 12}, {"type": "crystal", "n": 1}],
+		"id": "shale", "tier": "superhard", "colours": 4, "energy": 28,
+		"goals": [{"type": "ore", "ore": 1, "n": 8}, {"type": "crystal", "n": 1}],
 		"rows": [
 			": : : : : : :",
 			": : : @ : : :",
@@ -562,8 +616,8 @@ const LIST := [
 		],
 	},
 	{
-		"id": "core", "energy": 45,
-		"goals": [{"type": "crystal", "n": 2}],
+		"id": "core", "tier": "breather", "energy": 23,
+		"goals": [{"type": "crystal", "n": 2}, {"type": "chunks", "n": 15}],
 		"needs": {"building": 1, "level": 1},
 		"rows": [
 			"# # # # # # #",
@@ -577,7 +631,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "openseam", "energy": 22, "unlock": 2,
+		"id": "openseam", "tier": "reward", "energy": 28, "unlock": 2,
 		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"2 o 2 . 2 o 2",
@@ -591,7 +645,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "readings", "building_level": true, "seed": 33, "energy": 42,
+		"id": "readings", "building_level": true, "seed": 33, "energy": 34,
 		"goals": [{"type": "crystal", "n": 2}],
 		"needs": {"building": 2, "level": 1},
 		"rows": [
@@ -628,7 +682,148 @@ static func count() -> int:
 
 
 static func get_site(i: int) -> Dictionary:
+	if i >= LIST.size() and i - LIST.size() < protos().size():
+		return protos()[i - LIST.size()]
 	return LIST[clampi(i, 0, LIST.size() - 1)]
+
+
+# --- prototypes ------------------------------------------------------------------------
+## Core-loop prototypes to compare by playing (Settings > Prototypes): the same five boards in
+## three modes, so the loop is the only difference. They sit after the campaign (index
+## count() + k), never count as progress and pay nothing.
+##   A "robot":   the robot walks, each step drags one gem, matched gems surface from below
+##   B "fall":    the robot walks, matched gems vanish and new ones drop in from above
+##   C "classic": no robot; swap two neighbouring gems; gems drop in from above
+## Each board also tries one special for a line of 4 (Board.Special): geode, drill, prism,
+## quake, and the original blast on the last board for comparison.
+const PROTO_MODES := [["A", "robot", "Robot"], ["B", "fall", "Robot + falling gems"], ["C", "classic", "Classic swap"]]
+const PROTO_BOARDS := [
+	{"name": "Open field", "special": "geode", "energy": 22, "goals": [{"type": "ore", "ore": 0, "n": 18}],
+		"rows": ["# . . . . . #", ". . . . . . .", ". . . . . . .", ". . . @ . . .",
+			". . . . . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
+	{"name": "Rubble band", "special": "drill", "energy": 24, "goals": [{"type": "rock", "n": 7}, {"type": "chunks", "n": 20}],
+		"rows": [". . . . . . .", ". . . . . . .", "1 1 1 1 1 1 1", ". . . . . . .",
+			". . . @ . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
+	{"name": "Crystal vaults", "special": "prism", "energy": 26, "goals": [{"type": "crystal", "n": 3}],
+		"rows": [". . . . . . .", ". 1c . . . 1c .", ". . . . . . .", ". . . @ . . .",
+			". . . . . . .", ". . . 1c . . .", ". . . . . . .", "# . . . . . #"]},
+	{"name": "Cells and rooms", "special": "quake", "energy": 22, "goals": [{"type": "chunks", "n": 36}],
+		"rows": [". . . # . . .", ". 1e . # . 1 .", ". . . # . . .", ". . . @ . . .",
+			". . . . . . .", ". 1 . # . 1e .", ". . . # . . .", "# . . # . . #"]},
+	{"name": "Mixed", "special": "blast", "energy": 28, "goals": [{"type": "rock", "n": 5}, {"type": "crystal", "n": 2}],
+		"rows": [". . . . . . .", ". 2 . . . 2 .", ". . 1c . 1c . .", ". . . @ . . .",
+			". 2 . . . 2 .", ". . . . . . .", ". . 1 . 1 . .", "# . . . . . #"]},
+]
+## Extra boards for the falling-gem mode only (B6+): odd maps in Royal Match's spirit.
+##   portals: [[source, destination]]: what falls out of the source cell drops in at the
+##            destination (the robot too: fall through to reach the other chamber)
+##   spawn_top: new gems only enter runs that reach the top of the board (pockets under a rock
+##            shelf drain and open up, and the robot can drop into them)
+##   collect: a crystal or cell is collected when it reaches the bottom of its run
+const PROTO_FALL_EXTRA := [
+	{"name": "Twin chambers", "special": "drill", "energy": 26, "goals": [{"type": "crystal", "n": 2}],
+		"portals": [[Vector2i(1, 2), Vector2i(1, 4)], [Vector2i(5, 2), Vector2i(5, 4)]],
+		"rows": [". . . . . . .", ". . . @ . . .", ". . . . . . .", "# # # # # # #",
+			". . . . . . .", ". 1c . . . 1c .", ". . . . . . .", "# . . . . . #"]},
+	{"name": "Funnel", "special": "geode", "energy": 22, "goals": [{"type": "chunks", "n": 45}],
+		"rows": [". . . . . . .", ". . . . . . .", "# . . . . . #", "# . . @ . . #",
+			"# # . . . # #", "# # . . . # #", "# # # . # # #", "# # # . # # #"]},
+	{"name": "Side stream", "special": "prism", "energy": 24, "goals": [{"type": "rock", "n": 6}],
+		"portals": [[Vector2i(0, 7), Vector2i(4, 0)], [Vector2i(1, 7), Vector2i(5, 0)], [Vector2i(2, 7), Vector2i(6, 0)]],
+		"rows": [". . . # . . .", ". . . # 1 . 1", ". . . # . . .", ". @ . # 1 . 1",
+			". . . # . . .", ". . . # 1 . 1", ". . . # . . .", ". . . # . . ."]},
+	{"name": "Hollow pockets", "special": "quake", "energy": 24, "spawn_top": true,
+		"goals": [{"type": "rock", "n": 6}, {"type": "chunks", "n": 20}],
+		"rows": [". . . . . . .", ". . . @ . . .", ". . . . . . .", "1 1 . 1 . 1 1",
+			". . . . . . .", ". . . . . . .", "1 1 1 . 1 1 1", ". . . . . . ."]},
+	{"name": "Crystal drop", "special": "drill", "energy": 22, "collect": true,
+		"goals": [{"type": "crystal", "n": 3}],
+		"rows": [". 1c . . . 1c .", ". . . . . . .", ". . . 1c . . .", ". . . @ . . .",
+			". . . . . . .", ". . . . . . .", ". . . . . . .", "# . . . . . #"]},
+	{"name": "Chain lake", "special": "geode", "energy": 20, "goals": [{"type": "ore", "ore": 2, "n": 30}],
+		"rows": ["# . . . . . #", ". . . . . . .", ". . . . . . .", ". . . @ . . .",
+			". . . . . . .", ". . . . . . .", ". . . . . . .", "# # . . . # #"]},
+]
+
+## Budgets per mode and board, tuned with tools/tune_proto.gd (SLOPPY bot, ~82%).
+const PROTO_ENERGY := {"robot": [40, 21, 24, 23, 17], "fall": [23, 30, 22, 20, 17], "classic": [16, 23, 16, 13, 15],
+		"fall_extra": [16, 20, 24, 15, 27, 44]}
+
+## What each special does, for the prototype's goal card.
+const SPECIAL_TIPS := {
+	"blast": "Line of 4: a Blast charge. Step on it: it blows up the 3x3 around it.",
+	"drill": "Line of 4: a Drill Core. Move it: it bores on the way it moved until rock.",
+	"prism": "Line of 4: a Prism. Move it: four diagonal beams cut through everything.",
+	"geode": "Line of 4: a Geode. Move it: the 8 gems around it turn its colour.",
+	"quake": "Line of 4: a Quake. Move it: it shakes the ring two cells out.",
+}
+
+static var _protos: Array = []
+
+
+static func protos() -> Array:
+	if _protos.is_empty():
+		for m in PROTO_MODES:
+			for k in PROTO_BOARDS.size():
+				var site: Dictionary = PROTO_BOARDS[k].duplicate(true)
+				site.id = "proto_%s%d" % [m[0], k + 1]
+				site.proto = true
+				site.mode = m[1]
+				site.title = "%s%d %s" % [m[0], k + 1, site.name]
+				if m[1] != "robot":
+					# falling gems cascade by themselves: with 3 colours a board plays itself (B1 took
+					# 5 moves for 18 Ferrite against the robot's 21), so they get one colour more
+					site.colours = 4
+				var budgets: Array = PROTO_ENERGY.get(m[1], [])
+				if k < budgets.size():
+					site.energy = budgets[k]
+				if m[1] == "classic":
+					# a swap anywhere plus cascades clears far more per move than the robot does:
+					# bigger ore goals and tougher rock keep a classic board as long as the others
+					var rows := []
+					for r in site.rows:
+						var codes := []
+						for code in String(r).replace("@", ".").split(" ", false):
+							if code.length() >= 1 and code[0] in ["1", "2"]:
+								code = "3" + code.substr(1)
+							codes.append(code)
+						rows.append(" ".join(codes))
+					site.rows = rows
+					for g in site.goals:
+						if g.type == "ore" or g.type == "chunks":
+							g.n = int(g.n * 3)
+				_protos.append(site)
+		for k in PROTO_FALL_EXTRA.size():
+			var site: Dictionary = PROTO_FALL_EXTRA[k].duplicate(true)
+			var n := PROTO_BOARDS.size() + k + 1
+			site.id = "proto_B%d" % n
+			site.proto = true
+			site.mode = "fall"
+			site.colours = 4
+			site.title = "B%d %s" % [n, site.name]
+			var budgets: Array = PROTO_ENERGY.get("fall_extra", [])
+			if k < budgets.size():
+				site.energy = budgets[k]
+			_protos.append(site)
+	return _protos
+
+
+## Campaign index of prototype k of mode m (0..2).
+static func proto_index(m: int, k: int) -> int:
+	return LIST.size() + m * PROTO_BOARDS.size() + k
+
+
+## The prototype picker's rows: [label, [[button text, campaign index], ...]] per mode.
+static func proto_rows() -> Array:
+	var rows := []
+	for m in PROTO_MODES.size():
+		var buttons := []
+		for i in protos().size():
+			var site: Dictionary = protos()[i]
+			if String(site.title).begins_with(PROTO_MODES[m][0]):
+				buttons.append([String(site.title).split(" ")[0].substr(1), LIST.size() + i])
+		rows.append(["%s: %s" % [PROTO_MODES[m][0], PROTO_MODES[m][2]], buttons])
+	return rows
 
 
 static func goal_text(g: Dictionary) -> String:
@@ -644,7 +839,7 @@ static func goal_text(g: Dictionary) -> String:
 ## The number a dig is known by (gold rush bonus digs sit between digs and have none, so
 ## inserting one does not renumber the campaign); 0 for a gold rush.
 static func dig_number(i: int) -> int:
-	if LIST[clampi(i, 0, LIST.size() - 1)].get("gold_rush", false):
+	if i >= LIST.size() or LIST[clampi(i, 0, LIST.size() - 1)].get("gold_rush", false):
 		return 0
 	var n := 0
 	for j in mini(i + 1, LIST.size()):

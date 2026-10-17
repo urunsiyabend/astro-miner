@@ -12,7 +12,7 @@ extends RefCounted
 const MILESTONES := [
 	{"deco": "pad"},
 	{"building": 0},
-	{"deco": "greenhouse"},
+	{"building": 3},
 	{"building": 1},
 	{"building": 2},
 ]
@@ -20,7 +20,8 @@ const MILESTONES := [
 ## Layout (after the col3 mockup): a 2:1 isometric grid of build sites joined by paths, painted
 ## as one ground layer (assets/colony/ground.png). The habitat dome stands on the big hub site
 ## at cell (0, 0); every plot is a site at its "cell" (i, j), one grid step along each axis:
-## the four buildings on the hub's neighbours, the pad above them.
+## the four buildings on the hub's neighbours, the pad above them. (The greenhouse that stood
+## on the Teleporter's plot is out of the colony for now: GDD v4 §1.)
 const HUB := Vector2(0, 0)
 
 const PLOTS := [
@@ -28,7 +29,7 @@ const PLOTS := [
 	{"id": "workshop", "building": 1, "cell": Vector2(0, -1)},
 	{"id": "lab", "building": 2, "cell": Vector2(1, 0)},
 	{"id": "pad", "cell": Vector2(-1, -1)},
-	{"id": "greenhouse", "cell": Vector2(0, 1)},
+	{"id": "teleporter", "building": 3, "cell": Vector2(0, 1)},
 ]
 
 

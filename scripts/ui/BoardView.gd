@@ -8,7 +8,10 @@ signal move_requested(dir: Vector2i)
 signal snap_changed(snap: Dictionary)
 signal fx(kind: String, data: Dictionary)
 signal settled
+signal booster_target(target: int)
+signal swap_requested(cell: int, dir: Vector2i)  # classic prototype: swap a gem with a neighbour  # a cell (the Laser: a DIRS index) picked for the armed booster
 
+const WARP_COL := Color("ff6bd8")
 const T := Board.Terrain
 const K := Board.Token
 const MAX_PIT := 4          # deepest level drawn; deeper pits look the same
@@ -33,6 +36,15 @@ var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
 var glow: Array = []
 var _glow_t := 0.0
 var input_enabled := true
+var armed := -1   # Economy.Booster waiting for its target, or -1
+var classic := false  # the classic prototype: no robot, a swipe on a gem swaps it
+var portals: Array = []  # [[source, destination]] cells: drawn as a glowing pair of rings
+var _sel := -1        # classic: the gem tapped first (tap it, then a neighbour)
+var _touch_cell := -1
+var _fall_from := {}  # during a fall step: cell -> the cell its gem fell from
+var _fall_drop := {}  # during a fall step: new cell -> rows it drops in from above
+var _reject := {"a": -1, "b": -1, "t": 0.0}  # a swap that made no line wobbles back
+var _armed_t := 0.0
 
 var _queue: Array = []
 var _cur: Dictionary = {}
@@ -195,9 +207,69 @@ func _next_step() -> void:
 			fx.emit("blast", {"pos": cell_global(_cur.center)})
 		"pulse":
 			_dur = 0.3
-			_rings.append({"c": cell_center(snap.robot), "r0": cell * 0.5, "r1": cell * 6.0,
+			var pc := cell_center(snap.robot) if snap.robot >= 0 else origin + Vector2(cell * Board.W, pitch * Board.H) * 0.5
+			_rings.append({"c": pc, "r0": cell * 0.5, "r1": cell * 6.0,
 					"t": 0.0, "dur": 0.45, "color": Pal.ACCENT})
 			Sfx.play("pulse")
+		"fall":
+			_fall_from.clear()
+			_fall_drop.clear()
+			var far := 1
+			for m in _cur.moves:
+				_fall_from[m[1]] = m[0]
+				far = maxi(far, Board.pos(m[1]).y - Board.pos(m[0]).y)
+			for sp in _cur.spawns:
+				_fall_drop[sp[0]] = sp[1]
+				far = maxi(far, sp[1])
+			for wp in _cur.get("warps", []):
+				_fall_drop[wp[1]] = 1  # out of the portal: it drops in from just above
+			if not _cur.robot.is_empty():
+				far = maxi(far, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
+			if not _cur.get("warps", []).is_empty():
+				Sfx.play("pulse", 1.6)
+			_dur = 0.08 + 0.04 * far
+		"swap":
+			_dur = 0.14
+			Sfx.play("swap", randf_range(0.95, 1.05))
+		"special":
+			_dur = 0.42
+			_shake = 0.6
+			for c in _cur.hit:
+				_flash[c] = 1.0
+			for c in _cur.turned:
+				_flash[c] = 1.0
+			var col: Color = SPECIAL_COL[_cur.kind]
+			match _cur.kind:
+				Board.Special.QUAKE:
+					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.3, "r1": cell * 2.6, "t": 0.0, "dur": 0.45, "color": col})
+					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 2.2, "t": -0.08, "dur": 0.45, "color": col})
+					Sfx.play("blast", 0.8)
+				Board.Special.GEODE:
+					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 1.6, "t": 0.0, "dur": 0.4, "color": Pal.ORE[_cur.ore]})
+					Sfx.play("pulse", 1.4)
+				_:
+					Sfx.play("blast", 1.3)
+		"bomb":
+			_dur = 0.3  # the bomb drops onto its cell; the blast step that follows does the rest
+			Sfx.play("swap", 0.7)
+		"warp":
+			_dur = 0.2  # phase 0: the robot spins away; phase 1: it pops out at the target
+			_rings.append({"c": cell_center(_cur.from), "r0": cell * 0.7, "r1": cell * 0.1,
+					"t": 0.0, "dur": 0.2, "color": WARP_COL})
+			Sfx.play("pulse", 1.3)
+		"laser":
+			_dur = 0.42
+			_shake = 0.5
+			for c in _cur.hit:
+				_flash[c] = 1.0
+			Sfx.play("blast", 1.4)
+		"magnet":
+			_dur = 0.5
+			for c in _cur.cells:
+				_flash[c] = 1.0
+			_rings.append({"c": cell_center(snap.robot), "r0": cell * 3.0, "r1": cell * 0.4,
+					"t": 0.0, "dur": 0.5, "color": Color("7fe8ff")})
+			Sfx.play("pulse", 0.8)
 		_:
 			_dur = 0.01
 
@@ -207,7 +279,7 @@ func _finish_phase() -> void:
 		"move":
 			if _cur.pickup == K.CRYSTAL:
 				Sfx.play("pickup")
-				fx.emit("pickup", {"pos": cell_global(_cur.to), "res": 3})
+				fx.emit("pickup", {"pos": cell_global(_cur.to), "res": Board.RES_CRYSTAL})
 			elif _cur.pickup == K.CELL:
 				Sfx.play("pickup", 0.8)
 				fx.emit("energy", {"pos": cell_global(_cur.to), "amount": 0})
@@ -254,9 +326,80 @@ func _finish_phase() -> void:
 			fx.emit("blast_done", {"cells": _cur.cells.map(func(c): return cell_global(c))})
 			_apply(_cur.snap)
 			_next_step()
+		"special":
+			_emit_extract(_cur.hit)
+			for r in _cur.cracked:
+				_jolt[r] = 1.0
+				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
+			_reveal_fx(_cur.revealed)
+			fx.emit("blast_done", {"cells": [cell_global(_cur.at)]})
+			_flash.clear()
+			_apply(_cur.snap)
+			_next_step()
+		"fall":
+			for c in _cur.collected:
+				var res: int = Board.RES_CRYSTAL if snap.token[c] == K.CRYSTAL else -1
+				if res >= 0:
+					Sfx.play("pickup")
+					fx.emit("pickup", {"pos": cell_global(c), "res": res})
+				else:
+					Sfx.play("pickup", 0.8)
+					fx.emit("energy", {"pos": cell_global(c), "amount": 0})
+			_fall_from.clear()
+			_fall_drop.clear()
+			_apply(_cur.snap)
+			_next_step()
+		"warp":
+			if _phase == 0:
+				_apply(_cur.snap)
+				_rings.append({"c": cell_center(_cur.to), "r0": cell * 0.2, "r1": cell * 1.3,
+						"t": 0.0, "dur": 0.35, "color": WARP_COL})
+				fx.emit("blast_done", {"cells": [cell_global(_cur.to)]})
+				if _cur.pickup == K.CRYSTAL:
+					Sfx.play("pickup")
+					fx.emit("pickup", {"pos": cell_global(_cur.to), "res": Board.RES_CRYSTAL})
+				_phase = 1
+				_t = 0.0
+				_dur = 0.22
+			else:
+				_next_step()
+		"laser":
+			_emit_extract(_cur.hit)
+			for r in _cur.cracked:
+				_jolt[r] = 1.0
+				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
+			_reveal_fx(_cur.revealed)
+			for c in _cur.surfaced:
+				_rise[c] = 0.0
+			_apply(_cur.snap)
+			_next_step()
+		"magnet":
+			_emit_extract(_cur.cells, snap.robot)
+			for c in _cur.surfaced:
+				_rise[c] = 0.0
+			_flash.clear()
+			_apply(_cur.snap)
+			_next_step()
 		_:
 			_apply(_cur.snap)
 			_next_step()
+
+
+## Ore taken by a booster flies to the HUD like a match's, grouped by kind (read off the
+## board as it was before the step). `from`: start them all at one cell instead (the Magnet).
+func _emit_extract(cells: Array, from := -1) -> void:
+	var by := {}
+	for c in cells:
+		if snap.token[c] != K.ORE:
+			if snap.token[c] == K.CRYSTAL:
+				fx.emit("pickup", {"pos": cell_global(c), "res": Board.RES_CRYSTAL})
+			continue
+		var k: int = snap.ore[c]
+		if not by.has(k):
+			by[k] = []
+		by[k].append(cell_global(c if from < 0 else from))
+	for k in by:
+		fx.emit("extract", {"points": by[k], "ore": k})
 
 
 ## A treasure chest sits where a rock would: it bobs a little and glints now and then; a
@@ -337,15 +480,24 @@ func _process(delta: float) -> void:
 		r.t += delta
 	_rings = _rings.filter(func(r): return r.t < r.dur)
 	_shake = maxf(0.0, _shake - delta * 4.0)
+	_armed_t += delta
 	_glow_t += delta
 	if _bump.t > 0.0:
 		_bump.t = maxf(0.0, _bump.t - delta / 0.18)
+	if _reject.t > 0.0:
+		_reject.t = maxf(0.0, _reject.t - delta / 0.3)
 	queue_redraw()
 
 
 # --- input -----------------------------------------------------------------
 
 func _gui_input(event: InputEvent) -> void:
+	if armed >= 0:
+		_armed_input(event)
+		return
+	if classic:
+		_classic_input(event)
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
 			_touching = true
@@ -375,6 +527,85 @@ func _tap(p: Vector2) -> void:
 	var d := c - r
 	if absi(d.x) + absi(d.y) == 1:
 		_request(d)
+
+
+## While a booster is armed the board picks its target instead of moving the robot: a tap
+## names a cell; the Laser takes a swipe (or a tap in line with the robot) as its direction.
+func _armed_input(event: InputEvent) -> void:
+	accept_event()
+	if not input_enabled or snap.is_empty():
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touching = true
+			_swiped = false
+			_touch_start = event.position
+		elif _touching:
+			_touching = false
+			if not _swiped:
+				var c := _cell_at(event.position)
+				if not Board.inside(c):
+					return
+				if armed == Economy.Booster.LASER:
+					var d := c - Board.pos(snap.robot)
+					if d != Vector2i.ZERO and (d.x == 0 or d.y == 0):
+						booster_target.emit(Board.DIRS.find(Vector2i(signi(d.x), signi(d.y))))
+				else:
+					booster_target.emit(Board.idx(c))
+	elif event is InputEventScreenDrag and _touching and not _swiped and armed == Economy.Booster.LASER:
+		var d: Vector2 = event.position - _touch_start
+		if d.length() > maxf(36.0, cell * 0.28):
+			_swiped = true
+			var v := Vector2i(signi(int(d.x)), 0) if absf(d.x) > absf(d.y) else Vector2i(0, signi(int(d.y)))
+			booster_target.emit(Board.DIRS.find(v))
+
+
+## Classic: swipe a gem toward a neighbour to swap them, or tap one gem and then a neighbour.
+func _classic_input(event: InputEvent) -> void:
+	accept_event()
+	if snap.is_empty() or not input_enabled:
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed:
+			_touching = true
+			_swiped = false
+			_touch_start = event.position
+			var c0 := _cell_at(event.position)
+			_touch_cell = Board.idx(c0) if Board.inside(c0) else -1
+		elif _touching:
+			_touching = false
+			if _swiped:
+				return
+			var c := _cell_at(event.position)
+			if not Board.inside(c):
+				_sel = -1
+				return
+			var ci := Board.idx(c)
+			if _sel >= 0 and ci != _sel:
+				var d := c - Board.pos(_sel)
+				if absi(d.x) + absi(d.y) == 1:
+					var from := _sel
+					_sel = -1
+					swap_requested.emit(from, d)
+					return
+			_sel = -1 if _sel == ci else ci
+	elif event is InputEventScreenDrag and _touching and not _swiped and _touch_cell >= 0:
+		var dv: Vector2 = event.position - _touch_start
+		if dv.length() > maxf(36.0, cell * 0.28):
+			_swiped = true
+			_sel = -1
+			var d2 := Vector2i(signi(int(dv.x)), 0) if absf(dv.x) > absf(dv.y) else Vector2i(0, signi(int(dv.y)))
+			swap_requested.emit(_touch_cell, d2)
+
+
+## A classic swap that made no line: the two gems lean in and back.
+func reject_swap(a: int, b: int) -> void:
+	_reject = {"a": a, "b": b, "t": 1.0}
+	Sfx.play("bump")
+
+
+func _cell_at(p: Vector2) -> Vector2i:
+	return Vector2i(floori((p.x - origin.x) / cell), floori((p.y - origin.y) / pitch))
 
 
 func _request(dir: Vector2i) -> void:
@@ -409,14 +640,31 @@ func _draw() -> void:
 	if glowing:
 		for k in glow.size():
 			_draw_glow_halo(glow[k], k)
+	var falling: bool = not _cur.is_empty() and _cur.type == "fall"
+	var swapping: bool = not _cur.is_empty() and _cur.type == "swap"
+	var tok: PackedInt32Array = _cur.snap.token if falling else snap.token
+	var kinds: PackedInt32Array = _cur.snap.ore if falling else snap.ore
+	var specs: PackedInt32Array = (_cur.snap if falling else snap).get("spec", PackedInt32Array())
+	if specs.is_empty():
+		specs.resize(Board.W * Board.H)
 	for i in Board.W * Board.H:
 		if snap.terrain[i] != T.GROUND:
+			continue
+		if falling and (_fall_from.has(i) or _fall_drop.has(i)):
+			# gems drop with gravity: ease in, so they gather speed
+			var e := _t * _t
+			var fp: Vector2 = cell_center(_fall_from[i]) if _fall_from.has(i) else cell_center(i) - Vector2(0, pitch * _fall_drop[i])
+			_draw_token(fp.lerp(cell_center(i), e), tok[i], kinds[i], _depth_scale(i), 0.0, specs[i])
+			continue
+		if swapping and (i == _cur.a or i == _cur.b):
+			var other: int = _cur.b if i == _cur.a else _cur.a
+			_draw_token(cell_center(i).lerp(cell_center(other), _ease(_t)), tok[i], kinds[i], _depth_scale(i) * (1.0 + 0.12 * sin(PI * _t)), 0.0, specs[i])
 			continue
 		if i == moving_to:
 			if _cur.swap:
 				var from_p := cell_center(moving_to).lerp(cell_center(moving_from), mt)
 				var dsc := lerpf(_depth_scale(moving_to), _depth_scale(moving_from), mt)
-				_draw_token(from_p, snap.token[i], snap.ore[i], dsc, 0.0)
+				_draw_token(from_p, snap.token[i], snap.ore[i], dsc, 0.0, specs[i])
 			else:
 				_draw_token(cell_center(i), snap.token[i], snap.ore[i], (1.0 - mt) * _depth_scale(i), 0.0)
 			continue
@@ -427,15 +675,33 @@ func _draw() -> void:
 		if fl > 0.0 and not _cur.is_empty() and _cur.type == "match" and _phase == 0:
 			sc *= 1.0 + 0.18 * _t
 		var at := cell_center(i)
+		if not _cur.is_empty() and _cur.type == "magnet" and _cur.cells.has(i):
+			var k := _ease(clampf(_t * 1.25, 0.0, 1.0))
+			at = at.lerp(cell_center(snap.robot), k)
+			sc *= 1.0 - 0.45 * k
 		if glowing and glow.has(i):
 			var hop := _glow_hop(glow.find(i))
 			at.y -= cell * 0.1 * hop
 			sc *= 1.0 + 0.12 * hop
-		_draw_token(at, snap.token[i], snap.ore[i], sc, fl)
+		if _reject.t > 0.0 and (i == _reject.a or i == _reject.b):
+			var other2: int = _reject.b if i == _reject.a else _reject.a
+			at = at.lerp(cell_center(other2), 0.35 * sin(PI * (1.0 - _reject.t)))
+		if i == _sel:
+			sc *= 1.08 + 0.04 * sin(_time * 10.0)
+		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
+	if snap.robot < 0:
+		_draw_booster_fx()
+		_draw_overlays(glowing)
+		draw_set_transform(Vector2.ZERO)
+		return
 	# robot
 	var rp := cell_center(snap.robot)
 	var rsc := _depth_scale(snap.robot)
-	if moving_to != -1:
+	if moving_to != -1 and _cur.get("portal", false):
+		# through a portal: the robot pops out of the far end
+		rp = cell_center(moving_to)
+		rsc = _depth_scale(moving_to) * _back_out(mt)
+	elif moving_to != -1:
 		rp = cell_center(moving_from).lerp(cell_center(moving_to), mt)
 		# the robot visibly steps down into a pit or climbs out of it
 		rsc = lerpf(_depth_scale(moving_from), _depth_scale(moving_to), mt)
@@ -444,7 +710,24 @@ func _draw() -> void:
 		rp = rp.lerp(tgt, 0.28 * sin(PI * _t))
 	if _bump.t > 0.0:
 		rp += _bump.dir * cell * 0.12 * sin(PI * _bump.t)
+	if not _cur.is_empty() and _cur.type == "warp":
+		rsc *= (1.0 - _ease(_t)) if _phase == 0 else _back_out(_t)
+	if not _cur.is_empty() and _cur.type == "fall" and not _cur.robot.is_empty():
+		# the robot drops with the gems when what was under it is cleared (through a portal it
+		# drops out of the other end)
+		var from_c: Vector2 = cell_center(_cur.robot[0])
+		if _cur.get("warps", []).has(_cur.robot):
+			from_c = cell_center(_cur.robot[1]) - Vector2(0, pitch)
+		rp = from_c.lerp(cell_center(_cur.robot[1]), _t * _t)
 	_draw_robot(rp, rsc)
+	_draw_booster_fx()
+	_draw_overlays(glowing)
+	draw_set_transform(Vector2.ZERO)
+
+
+## Over everything on the board: the idle-hint sparks, Mira's focus frames, the pulse rings.
+func _draw_overlays(glowing: bool) -> void:
+	_draw_portals()
 	if glowing:
 		for k in glow.size():
 			_draw_glow_sparks(glow[k], k)
@@ -453,12 +736,34 @@ func _draw() -> void:
 		if not Board.inside(fc):
 			continue
 		_tile_outline(Board.idx(fc), Color(Pal.WARN, 0.9), cell * 0.012 + cell * 0.018 * (0.5 + 0.5 * sin(_time * 6.0)))
+	if _sel >= 0:
+		_tile_outline(_sel, Color(1, 1, 1, 0.85), cell * 0.03)
 	for r in _rings:
+		if r.t < 0.0:
+			continue
 		var k: float = r.t / r.dur
 		var col: Color = r.color
 		col.a = 1.0 - k
 		draw_arc(r.c, lerpf(r.r0, r.r1, _ease(k)), 0, TAU, 48, col, 8.0 * (1.0 - k) + 2.0, true)
-	draw_set_transform(Vector2.ZERO)
+
+
+## A portal: a magenta mouth under its source cell, a cyan one over its destination, both
+## swirling; what falls into the first drops out of the second.
+func _draw_portals() -> void:
+	for pp in portals:
+		for end in 2:
+			var i: int = pp[end]
+			var r := _rect(i, 0)
+			var c := Vector2(r.get_center().x, r.end.y if end == 0 else r.position.y)
+			var col := Color("ff6bd8") if end == 0 else Color("7fe8ff")
+			var w := r.size.x * 0.42
+			draw_set_transform(c, 0.0, Vector2(1.0, 0.32))
+			draw_circle(Vector2.ZERO, w * 1.1, Color(col, 0.22), true, -1.0, true)
+			for k in 3:
+				var ph := fmod(_time * 0.9 + k / 3.0, 1.0)
+				draw_arc(Vector2.ZERO, w * (0.35 + 0.75 * ph), 0, TAU, 36, Color(col, 0.9 * (1.0 - ph)), 5.0, true)
+			draw_arc(Vector2.ZERO, w, 0, TAU, 40, col, 6.0, true)
+			draw_set_transform(Vector2.ZERO)
 
 
 func set_glow(cells: Array) -> void:
@@ -508,6 +813,69 @@ func _draw_glow_sparks(i: int, k: int) -> void:
 			var rr := s if m % 2 == 0 else s * 0.28
 			pts.append(p + Vector2(cos(a), sin(a)) * rr)
 		draw_colored_polygon(pts, col)
+
+
+## The armed booster's targets, and the booster steps' own drawing (the falling bomb, the beam).
+func _draw_booster_fx() -> void:
+	if armed >= 0 and _cur.is_empty():
+		var pulse := 0.5 + 0.5 * sin(_armed_t * 7.0)
+		if armed == Economy.Booster.LASER:
+			var rp := cell_center(snap.robot)
+			for d in Board.DIRS:
+				var q: Vector2i = Board.pos(snap.robot) + d
+				if Board.inside(q) and snap.terrain[Board.idx(q)] != T.BEDROCK:
+					var c := cell_center(Board.idx(q))
+					_chevron(c + Vector2(d) * cell * 0.12 * pulse, Vector2(d), Color(Color("7fe8ff"), 0.6 + 0.4 * pulse))
+			draw_arc(rp, cell * (0.55 + 0.06 * pulse), 0, TAU, 40, Color(Color("7fe8ff"), 0.8), 4.0, true)
+		else:
+			for i in Board.W * Board.H:
+				var ok := false
+				match armed:
+					Economy.Booster.BOMB: ok = snap.terrain[i] != T.BEDROCK
+					Economy.Booster.WARP: ok = snap.terrain[i] == T.GROUND and i != snap.robot
+					Economy.Booster.MAGNET: ok = snap.terrain[i] == T.GROUND and snap.token[i] == K.ORE
+				if ok:
+					_tile_outline(i, Color(1, 1, 1, 0.12 + 0.18 * pulse), cell * 0.02)
+	if _cur.is_empty():
+		return
+	match _cur.type:
+		"special":
+			var col2: Color = SPECIAL_COL[_cur.kind]
+			var k2 := sin(PI * _t)
+			for ray in _cur.rays:
+				var a2 := cell_center(ray[0])
+				var b2 := cell_center(ray[1])
+				if ray[1] == ray[0]:
+					continue
+				draw_line(a2, b2, Color(col2, 0.35 * k2), cell * 0.5 * k2, true)
+				draw_line(a2, b2, Color(col2, 0.9 * k2), cell * 0.22 * k2, true)
+				draw_line(a2, b2, Color(1, 1, 1, k2), cell * 0.07 * k2, true)
+			if _cur.kind == Board.Special.GEODE:
+				for c3 in _cur.turned:
+					var p3 := cell_center(c3)
+					draw_line(cell_center(_cur.at), p3, Color(Pal.ORE[_cur.ore], 0.8 * k2), cell * 0.08, true)
+		"bomb":
+			var tex := Art.tex("res://assets/ui/boosters/bomb.png")
+			var k := _ease(_t)
+			var c := cell_center(_cur.center) - Vector2(0, cell * 2.2 * (1.0 - k))
+			var w := cell * lerpf(1.6, 0.95, k)
+			draw_texture_rect(tex, Rect2(c - Vector2(w, w) * 0.5, Vector2(w, w)), false)
+		"laser":
+			if _cur.cells.is_empty():
+				return
+			var a := cell_center(_cur.from)
+			var b := cell_center(_cur.cells[-1]) + Vector2(Board.DIRS[_cur.dir]) * cell * 0.5
+			var k := sin(PI * _t)
+			var col := Color("7fe8ff")
+			draw_line(a, b, Color(col, 0.35 * k), cell * 0.62 * k, true)
+			draw_line(a, b, Color(col, 0.9 * k), cell * 0.3 * k, true)
+			draw_line(a, b, Color(1, 1, 1, k), cell * 0.1 * k, true)
+			draw_circle(a, cell * 0.32 * k, Color(1, 1, 1, 0.9 * k), true, -1.0, true)
+		"magnet":
+			var tex := Art.tex("res://assets/ui/boosters/magnet.png")
+			var w := cell * (1.0 + 0.15 * sin(_t * 20.0))
+			var c := cell_center(snap.robot) - Vector2(0, cell * 0.9)
+			draw_texture_rect(tex, Rect2(c - Vector2(w, w) * 0.5, Vector2(w, w)), false)
 
 
 func _rect(i: int, inset := 3.0) -> Rect2:
@@ -723,7 +1091,7 @@ func _draw_buried(c: Vector2, b: int) -> void:
 	var s := cell * 0.2
 	match b:
 		Board.Buried.CRYSTAL:
-			var gem := Art.ore(3) if _art else null
+			var gem := Art.ore(Board.RES_CRYSTAL) if _art else null
 			if gem != null:
 				draw_texture_rect(gem, Rect2(c + Vector2(0, 6) - Vector2(s, s) * 1.3, Vector2(s, s) * 2.6), false, Color(1, 1, 1, 0.85))
 			else:
@@ -737,7 +1105,7 @@ func _draw_buried(c: Vector2, b: int) -> void:
 
 
 func _draw_move_hints(moving_to: int) -> void:
-	if moving_to != -1 or is_busy():
+	if moving_to != -1 or is_busy() or snap.robot < 0:
 		return
 	var rp := Board.pos(snap.robot)
 	for di in 4:
@@ -766,8 +1134,13 @@ func _chevron(c: Vector2, d: Vector2, col: Color) -> void:
 	draw_polyline(PackedVector2Array([tip - d * 14 + side * 14, tip, tip - d * 14 - side * 14]), col, 6.0, true)
 
 
-func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> void:
+func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float, sp := 0) -> void:
 	if tk == K.NONE or sc <= 0.01:
+		return
+	if tk == K.CHARGE and (sp != Board.Special.BLAST or Art.tex("res://assets/ui/specials/blast.png") != null):
+		_draw_special(c, sp, kind, sc)
+		if flash > 0.0:
+			draw_circle(c, cell * 0.43 * sc, Color(1, 1, 1, 0.55 * flash))
 		return
 	var s := cell * 0.33 * sc
 	var art := Art.ore(kind) if tk == K.ORE and _art else null
@@ -800,7 +1173,7 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> voi
 		K.CRYSTAL:
 			var glow := 0.5 + 0.5 * sin(_time * 4.0 + c.x)
 			draw_circle(c, s * 1.5, Color(Pal.CRYSTAL, 0.18 + 0.12 * glow))
-			var gem := Art.ore(3) if _art else null
+			var gem := Art.ore(Board.RES_CRYSTAL) if _art else null
 			if gem != null:
 				draw_texture_rect(gem, Rect2(c - Vector2(s, s) * 1.6, Vector2(s, s) * 3.2), false)
 			else:
@@ -816,6 +1189,61 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float) -> voi
 	if flash > 0.0:
 		draw_circle(c, s * 1.3, Color(1, 1, 1, 0.55 * flash))
 
+
+## A moved-special gem: its own colour's gem, a halo in the special's colour and an emblem
+## that says what it does (a drill bit, an X of light, a cracked geode, rings).
+const SPECIAL_COL := [Color("ff4f6d"), Color("ffb347"), Color("e8f6ff"), Color("c88bff"), Color("7fe8ff")]
+const SPECIAL_ART := ["blast", "drill", "prism", "geode", "quake"]
+
+
+func _draw_special(c: Vector2, sp: int, kind: int, sc: float) -> void:
+	var s := cell * 0.33 * sc
+	var col: Color = SPECIAL_COL[sp]
+	if sp == Board.Special.GEODE:
+		col = Pal.ORE[kind]  # a geode glows in the colour it will turn its neighbours
+	var pul := 0.5 + 0.5 * sin(_time * 7.0 + c.x * 0.05)
+	draw_circle(c, s * 1.45, Color(col, 0.18 + 0.16 * pul), true, -1.0, true)
+	# a special is an object of its own, never drawn on a gem: a coloured gem would ask to be
+	# matched, and specials go off when MOVED (Royal Match's power-ups read the same way)
+	var tex := Art.tex("res://assets/ui/specials/%s.png" % SPECIAL_ART[sp])
+	if tex != null:
+		var size := cell * 0.86 * sc * (1.0 + 0.05 * pul)
+		_draw_lifted(tex, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
+		return
+	var w := maxf(3.0, s * 0.15)
+	var dark := Color(0.08, 0.02, 0.16, 0.9)
+	# no art yet: an emblem disc, dark face with the special's colour as its rim
+	var r := s * 1.0
+	draw_circle(c + Vector2(0, s * 0.06), r * 1.12, Color(0, 0, 0, 0.35), true, -1.0, true)
+	draw_circle(c, r * 1.12, col, true, -1.0, true)
+	draw_circle(c, r, dark, true, -1.0, true)
+	match sp:
+		Board.Special.DRILL:
+			# a drill bit pointing up: a cone with two grooves
+			var tip := c + Vector2(0, -r * 0.8)
+			var bl := c + Vector2(-r * 0.5, r * 0.45)
+			var br := c + Vector2(r * 0.5, r * 0.45)
+			draw_colored_polygon(PackedVector2Array([tip, br, bl]), col)
+			draw_line(c + Vector2(-r * 0.36, r * 0.05), c + Vector2(r * 0.2, -r * 0.22), dark, w * 0.7, true)
+			draw_line(c + Vector2(-r * 0.2, r * 0.32), c + Vector2(r * 0.36, r * 0.05), dark, w * 0.7, true)
+			draw_rect(Rect2(c + Vector2(-r * 0.22, r * 0.45), Vector2(r * 0.44, r * 0.3)), col.darkened(0.25))
+		Board.Special.PRISM:
+			for k in 4:
+				var a2 := PI * 0.25 + k * PI * 0.5
+				draw_line(c, c + Vector2(cos(a2), sin(a2)) * r * (0.82 + 0.12 * pul), col, w * 1.2, true)
+			draw_circle(c, r * 0.24, Color.WHITE, true, -1.0, true)
+		Board.Special.GEODE:
+			# a cracked gem: a small diamond of its colour with light breaking out
+			var gc: Color = Pal.ORE[kind].lightened(0.2)
+			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r * 0.7), c + Vector2(r * 0.6, 0), c + Vector2(0, r * 0.7), c + Vector2(-r * 0.6, 0)]), gc)
+			draw_line(c + Vector2(-r * 0.15, -r * 0.5), c + Vector2(r * 0.1, 0), dark, w * 0.6, true)
+			draw_line(c + Vector2(r * 0.1, 0), c + Vector2(-r * 0.1, r * 0.45), dark, w * 0.6, true)
+			draw_arc(c, r * 0.95, 0, TAU, 32, Color(gc, 0.5 + 0.5 * pul), w * 0.6, true)
+		Board.Special.QUAKE:
+			for k in 2:
+				var ph := fmod(_time * 1.2 + k * 0.5, 1.0)
+				draw_arc(c, r * (0.25 + 0.7 * ph), 0, TAU, 32, Color(col, 1.0 - ph), w * 0.9, true)
+			draw_circle(c, r * 0.22, col, true, -1.0, true)
 
 func _gem(c: Vector2, s: float, col: Color) -> void:
 	var p := PackedVector2Array([c + Vector2(0, -s), c + Vector2(s * 0.8, -s * 0.2), c + Vector2(0, s), c + Vector2(-s * 0.8, -s * 0.2)])

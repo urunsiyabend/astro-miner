@@ -20,9 +20,8 @@ signal landed(i: int)
 ## How wide a sprite's base is drawn against its site's width.
 const FIT := 1.04
 ## Where each building's level badge sits (fraction of its sprite canvas): low and to the side.
-const BADGE := {"power": Vector2(0.3, 0.86), "workshop": Vector2(0.7, 0.88), "lab": Vector2(0.66, 0.9)}
 
-var levels := [0, 0, 0]
+var levels := [0, 0, 0, 0]
 var star := 0
 var debug_sites := false   # dev: draw every site centre (DevShot ASTRO_SITES)
 var _time := 0.0
@@ -35,6 +34,10 @@ var _smoke_t := 0.0
 var _badges := []    # level badges collected while drawing, drawn last over everything
 var _build := {}     # plot index -> seconds since its build / upgrade animation started
 var _build_new := {} # plot index -> true for a first build (drop in), false for an upgrade
+var _bubble_tops := {}  # plot index -> top-centre of its drawn sprite (bubbles float over it)
+var _poke := {}      # plot index -> 1..0 after a tap on a built building (a happy squash-hop)
+var made := [0, 0, 0, 0]  # boosters waiting on each building (Game.made): a bubble over it
+var _bubble_pop := {}  # plot index -> 0..1 while its bubble bursts (collected)
 const BUILD_T := 1.15
 const LAND_AT := 0.42   # seconds into a build when the building hits the ground
 
@@ -56,15 +59,31 @@ func _ready() -> void:
 	resized.connect(_layout)
 
 
-func set_state(l: Array, s: int) -> void:
+func set_state(l: Array, s: int, m: Array = [0, 0, 0, 0]) -> void:
 	levels = l.duplicate()
 	star = s
+	made = m.duplicate()
 	queue_redraw()
 
 
 ## A locked plot was tapped: it shakes, bounces and flashes.
 func nudge(i: int) -> void:
 	_nudge[i] = 1.0
+
+
+## A built building was tapped: it squashes down and springs up (before its card opens).
+func poke(i: int) -> void:
+	_poke[i] = 1.0
+
+
+## The booster bubble over plot i bursts (its boosters were collected).
+func pop_bubble(i: int) -> void:
+	_bubble_pop[i] = 0.0
+
+
+## Where the bubble over plot i floats (global), for the collect fx.
+func bubble_global(i: int) -> Vector2:
+	return get_global_transform() * _bubble_at(i)
 
 
 func celebrate(i: int) -> void:
@@ -194,6 +213,14 @@ func _process(delta: float) -> void:
 		_nudge[k] -= delta / 0.5
 		if _nudge[k] <= 0.0:
 			_nudge.erase(k)
+	for k in _poke.keys():
+		_poke[k] -= delta / 0.45
+		if _poke[k] <= 0.0:
+			_poke.erase(k)
+	for k in _bubble_pop.keys():
+		_bubble_pop[k] += delta / 0.3
+		if _bubble_pop[k] >= 1.0:
+			_bubble_pop.erase(k)
 	# chimney smoke from the workshop, a puff every ~0.7 s while it stands
 	var wi := Colony.building_plot(1)
 	if wi >= 0 and plot_state(wi) == "built":
@@ -239,6 +266,10 @@ func _draw() -> void:
 			_plot(o[1])
 	for b in _badges:
 		_badge(b[0], b[1], b[2])
+	for i in Colony.PLOTS.size():
+		var plot: Dictionary = Colony.PLOTS[i]
+		if plot.has("building") and plot_state(i) == "built" and (made[plot.building] > 0 or _bubble_pop.has(i)):
+			_bubble(i, plot.building)
 	var s := _plot_size()
 	for p in _smoke:
 		var k: float = p.t / 2.2
@@ -325,7 +356,15 @@ func _plot(i: int) -> void:
 			lift = half * 0.35 * sin(minf(u / 0.3, 1.0) * PI)
 			var w := exp(-u * 5.0) * sin(u * 18.0)
 			sq = Vector2(1.0 + 0.12 * w, 1.0 + 0.12 * w) * (1.0 + 0.08 * sin(minf(u / 0.3, 1.0) * PI))
+	elif _poke.has(i):
+		# squash on the tap, spring up with a little hop, wobble to rest
+		var u: float = 1.0 - _poke[i]
+		var w := exp(-u * 5.5) * cos(u * 20.0)
+		sq = Vector2(1.0 + 0.14 * w, 1.0 - 0.14 * w)
+		lift = half * 0.22 * maxf(0.0, sin(minf(u / 0.45, 1.0) * PI))
+		draw_circle(c, half * (0.55 + 0.5 * u), Color(1.0, 0.96, 0.7, 0.22 * (1.0 - u)), true, -1.0, true)
 	var r := _sprite(plot.id, c, half, i * 1.3, lift, sq, alpha)
+	_bubble_tops[i] = Vector2(r.get_center().x, r.position.y + r.size.y * 0.12)
 	match plot.id:
 		"power": _battery_glow(r)
 		"antenna": _beacon(r)
@@ -337,15 +376,45 @@ func _plot(i: int) -> void:
 			var bt: float = _build[i] - hit - 0.15
 			bk = 0.0 if bt < 0.0 else Widgets.back_out(bt / 0.3, 3.5)
 		if bk > 0.0:
-			_badges.append([r.position + r.size * BADGE.get(plot.id, Vector2(0.5, 0.88)), half * 0.2 * bk, levels[plot.building]])
+			# every building wears its level in the same place: the outer corner of its plot (the
+			# paths join the inner corners, and nothing floats over the outer ones)
+			var side := -1.0 if c.x < _site_center("hub").x else 1.0
+			var tip := c + Vector2(side * half * 0.8, 0)
+			_badges.append([tip, half * 0.25 * bk, levels[plot.building]])
+
+
+func _bubble_at(i: int) -> Vector2:
+	var top: Vector2 = _bubble_tops.get(i, plot_center(i))
+	return top - Vector2(0, _plot_size() * 0.26 - _plot_size() * 0.03 * sin(_time * 3.0 + i))
+
+
+## A booster is ready on this building: a glossy speech-bubble over it with the booster's icon
+## (and the count when it holds more than one); it bobs, and bursts when collected.
+func _bubble(i: int, b: int) -> void:
+	var s := _plot_size()
+	var c := _bubble_at(i)
+	var r := s * 0.27
+	var pop: float = _bubble_pop.get(i, -1.0)
+	var sc := 1.0 + 0.06 * sin(_time * 5.0 + i)
+	var a := 1.0
+	if pop >= 0.0:
+		sc = 1.0 + 0.6 * pop
+		a = 1.0 - pop
+	r *= sc
+	# the bubble art is a disc of 0.88 of its width with the tail below: centre the disc on c
+	var bw := r * 2.0 / 0.88
+	var bh := bw * 300.0 / 256.0
+	draw_texture_rect(Art.tex("res://assets/ui/bubble_round.png"), Rect2(c - Vector2(bw * 0.5, bw * 0.5), Vector2(bw, bh)), false, Color(1, 1, 1, a))
+	var tex := Art.tex("res://assets/ui/boosters/%s.png" % Widgets.BoosterBar.ICONS[Economy.BUILDINGS[b].booster])
+	var w := r * 1.6
+	draw_texture_rect(tex, Rect2(c - Vector2(w, w) * 0.5, Vector2(w, w)), false, Color(1, 1, 1, a))
 
 
 ## Numbered round level badge, as in the mockup.
 func _badge(c: Vector2, rad: float, n: int) -> void:
-	draw_circle(c + Vector2(0, 3), rad * 1.08, Color(0, 0, 0, 0.35), true, -1.0, true)
-	draw_circle(c, rad * 1.08, Color("e9e3ff"), true, -1.0, true)
-	draw_circle(c, rad * 0.86, Color("3a2468"), true, -1.0, true)
-	Widgets.shadow_text(self, _font, c, str(n), int(rad * 1.25), Color.WHITE)
+	var w := rad * 2.4
+	draw_texture_rect(Art.tex("res://assets/ui/badge_level.png"), Rect2(c - Vector2(w, w) * 0.5, Vector2(w, w)), false)
+	Widgets.ink_text(self, _font, c, str(n), int(rad * 1.3), Color.WHITE)
 
 
 ## The four battery cells breathe orange light.

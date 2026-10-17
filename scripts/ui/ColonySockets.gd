@@ -10,7 +10,7 @@ const SITES := {
 	"power": Vector3(252.0, 104.0, 228.0),
 	"workshop": Vector3(731.0, 109.0, 242.0),
 	"lab": Vector3(746.0, 477.0, 268.0),
-	"greenhouse": Vector3(238.0, 481.0, 260.0),
+	"teleporter": Vector3(238.0, 481.0, 260.0),
 	"pad": Vector3(491.0, -7.5, 262.2),
 }
 
@@ -25,7 +25,7 @@ const FOOT := {
 	"workshop": Vector2(0.4980, 0.7314),
 	"lab": Vector2(0.4980, 0.7451),
 	"pad": Vector2(0.4990, 0.6089),
-	"greenhouse": Vector2(0.4980, 0.5967),
+	"teleporter": Vector2(0.4990, 0.7056),
 }
 const BASE_W := {
 	"dome": 0.9570,
@@ -33,5 +33,5 @@ const BASE_W := {
 	"workshop": 0.9570,
 	"lab": 0.9336,
 	"pad": 0.9551,
-	"greenhouse": 0.9570,
+	"teleporter": 0.9590,
 }

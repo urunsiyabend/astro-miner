@@ -29,6 +29,8 @@ func _initialize() -> void:
 	_test_rock_crack_reveal_pickup()
 	_test_drill()
 	_test_charge_and_blast()
+	_test_boosters()
+	_test_campaign_shape()
 	_test_goals_end_dig()
 	_test_determinism()
 	_test_generator_all_sites()
@@ -190,10 +192,6 @@ func _test_energy() -> void:
 	b = Board.new()
 	b.setup_site(site, 1)
 	_ok(b.energy == 30 and b.cfg.capacity == 30, "a dig's energy is its move budget; the battery grows to hold it")
-	var site2 := {"rows": OPEN, "goals": [{"type": "chunks", "n": 99}], "energy": 26}
-	b = Board.new()
-	b.setup_site(site2, 1, Economy.rules([2, 0, 0]))
-	_ok(b.cfg.capacity == 32 and b.energy == 32, "Power Station Lv2 adds +6 to the dig budget (26+6)")
 
 
 func _test_rock_crack_reveal_pickup() -> void:
@@ -208,7 +206,7 @@ func _test_rock_crack_reveal_pickup() -> void:
 			"broken rock reveals its buried crystal")
 	# robot now at (2,2); crystal at (1,2) is to the left
 	var r := b.try_move(Vector2i(-1, 0))
-	_ok(r.ok and b.haul[3] == 1 and b.stats.crystals == 1, "walking onto a crystal collects it")
+	_ok(r.ok and b.haul[Board.RES_CRYSTAL] == 1 and b.stats.crystals == 1, "walking onto a crystal collects it")
 	# 2-layer rock loses only one layer per match
 	rows = [". . . . . . .", ". . . . . . .", "2 . . . . . .", ". . . . . . .",
 			". . . . . . .", ". . . . . . .", ". . . . . . .", ". . . . . . ."]
@@ -225,19 +223,86 @@ func _test_drill() -> void:
 	var b := _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}))
 	var r := b.try_move(Vector2i(-1, 0))
 	_ok(not r.ok and r.reason == "rock", "no drill before the Workshop")
-	b = _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}), Economy.rules([0, 1, 0]))
+	b = _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}), Economy.rules([0, 1, 0, 0]))
 	var e := b.energy
 	r = b.try_move(Vector2i(-1, 0))
 	_ok(r.ok and b.hp[Board.idx(Vector2i(1, 1))] == 1 and b.energy == e - 2, "Workshop Lv1 drill: -1 layer for 2 energy")
 	_ok(b.robot == Board.idx(Vector2i(2, 1)), "drilling does not move the robot")
-	b = _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}), Economy.rules([0, 2, 0]))
-	b.try_move(Vector2i(-1, 0))
-	_ok(b.terrain[Board.idx(Vector2i(1, 1))] == Board.Terrain.GROUND, "Workshop Lv2 drill breaks 2 layers at once")
-	b = _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}), Economy.rules([0, 3, 0]))
+	b = _board(rows, _with(EMPTY, {Vector2i(2, 1): "R"}), Economy.rules([0, 3, 0, 0]))
 	e = b.energy
 	b.try_move(Vector2i(-1, 0))
-	_ok(b.energy <= e - 1 + 0 or b.stats.groups > 0, "Workshop Lv3 drill costs 1")
-	_ok(b.cfg.crack_power == 2, "Workshop Lv3 matches crack 2 layers")
+	_ok(b.hp[Board.idx(Vector2i(1, 1))] == 1 and b.energy == e - 2, "a Workshop upgrade does not change the drill (v4: no permanent power)")
+
+
+func _test_boosters() -> void:
+	var B := Economy.Booster
+	var robot := Vector2i(3, 6)
+	var b := _board(OPEN, _with(DIAG, {robot: "R"}))
+	var e := b.energy
+	var r := b.use_booster(B.BOMB, Board.idx(Vector2i(3, 2)))
+	_ok(r.ok and b.stats.chunks == 9 and b.energy == e, "Bomb: blasts the 3x3 around the cell, for no move")
+	b = _board(OPEN, _with(DIAG, {robot: "R"}))
+	var held: int = b.ore[Board.idx(Vector2i(0, 0))]
+	r = b.use_booster(B.WARP, Board.idx(Vector2i(0, 0)))
+	_ok(r.ok and b.robot == Board.idx(Vector2i(0, 0)) and b.token[Board.idx(robot)] == Board.Token.ORE
+			and b.ore[Board.idx(robot)] == held, "Warp: the robot jumps and swaps with the ore it lands on")
+	_ok(not b.booster_ok(B.WARP, b.robot), "Warp: not onto the robot's own cell")
+	var rows := OPEN.duplicate()
+	rows[2] = ". . . 2 . . ."
+	b = _board(rows, _with(DIAG, {robot: "R"}))
+	r = b.use_booster(B.LASER, Board.DIRS.find(Vector2i(0, -1)))
+	_ok(r.ok and b.stats.chunks == 5 and b.hp[Board.idx(Vector2i(3, 2))] == 1,
+			"Laser: a beam up from the robot takes every ore on it and wears the rock in its way")
+	b = _board(OPEN, _with(DIAG, {robot: "R"}))
+	var kind: int = b.ore[0]
+	var n := 0
+	for i in Board.W * Board.H:
+		if b.token[i] == Board.Token.ORE and b.ore[i] == kind:
+			n += 1
+	r = b.use_booster(B.MAGNET, 0)
+	_ok(r.ok and b.extracted[kind] >= n and b.stats.boosters == 1, "Magnet: every gem of the tapped colour is taken")
+	_ok(not b.booster_ok(B.MAGNET, b.robot), "Magnet: needs a gem to aim at")
+	var game = load("res://autoload/Game.gd").new()
+	game.save_path = "user://test_boost.json"  # collect/use save: never touch the real save
+	game.reset()
+	game.levels[0] = 1
+	for k in Economy.PRODUCE_EVERY[1] + 3:
+		game._produce()
+	_ok(game.made[0] == Economy.HOLD[1], "a building makes boosters as digs are cleared, up to what it holds")
+	_ok(game.collect(0) == 1 and game.boosters[B.BOMB] == 1 and game.made[0] == 0, "collecting moves them to the inventory")
+	_ok(game.use_booster(B.BOMB) and not game.use_booster(B.BOMB), "a booster is spent once")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_boost.json"))
+	game.free()
+
+
+## GDD v4 §3: every random dig has a tier; the first ten are gentle; each later chapter has a
+## hard dig, a super-hard one, and a breather or reward after it; a 4th ore colour is met in a
+## normal dig before any hard dig uses it.
+func _test_campaign_shape() -> void:
+	var tiers := ["intro", "normal", "breather", "hard", "superhard", "reward"]
+	var met_four := false
+	var hard_seen := 0
+	for i in Sites.count():
+		var site := Sites.get_site(i)
+		var tier: String = site.get("tier", "")
+		if site.has("ore") or site.get("gold_rush", false):
+			continue
+		_ok(tiers.has(tier), "%s has a tier" % site.id)
+		if Sites.dig_number(i) <= 10:
+			_ok(tier != "hard" and tier != "superhard", "%s: no hard dig in the first ten" % site.id)
+		var four: bool = int(site.get("colours", 3)) == 4
+		if four and (tier == "hard" or tier == "superhard"):
+			_ok(met_four, "%s: Ruby is met in an easier dig first" % site.id)
+		if four and not (tier == "hard" or tier == "superhard"):
+			met_four = true
+		if tier == "superhard":
+			var nxt := Sites.get_site(i + 1)
+			while nxt.has("ore") or nxt.get("gold_rush", false):
+				nxt = Sites.get_site(Sites.index_of(nxt.id) + 1)
+			_ok(["breather", "reward", "intro"].has(nxt.get("tier", "")), "a breather follows the super-hard %s" % site.id)
+		if tier == "hard" or tier == "superhard":
+			hard_seen += 1
+	_ok(hard_seen >= 4, "chapters 2 and 3 each have a hard and a super-hard dig")
 
 
 func _test_charge_and_blast() -> void:
@@ -250,13 +315,13 @@ func _test_charge_and_blast() -> void:
 	var chunks_before: int = b.stats.chunks
 	b.try_move(Vector2i(0, -1))
 	_ok(b.stats.blasts >= 1 and b.stats.chunks >= chunks_before + 7, "stepping on a charge blasts the 3x3 around it")
-	_ok(Economy.rules([3, 3, 3]).get("blast_radius", 1) == 1, "no building enlarges blasts (5x5 broke the game)")
-	var rich := _board(OPEN, EMPTY, Economy.rules([0, 0, 2]))
-	rich.terrain[0] = Board.Terrain.ROCK
-	rich.hp[0] = 1
-	rich.buried[0] = Board.Buried.ORE
-	rich._damage_rock(0, 1, [])
-	_ok(rich.reserve[0] == 3, "Research Lab Lv2: broken rock opens a 3-layer vein")
+	_ok(Economy.rules([3, 3, 3, 3]).get("blast_radius", 1) == 1, "no building enlarges blasts (5x5 broke the game)")
+	var vein := _board(OPEN, EMPTY, Economy.rules([0, 0, 3, 0]))
+	vein.terrain[0] = Board.Terrain.ROCK
+	vein.hp[0] = 1
+	vein.buried[0] = Board.Buried.ORE
+	vein._damage_rock(0, 1, [])
+	_ok(vein.reserve[0] == 2, "broken rock opens a 2-layer vein, whatever the Lab's level")
 
 
 func _test_goals_end_dig() -> void:
@@ -338,45 +403,55 @@ func _ore_count(b: Board) -> int:
 
 
 func _test_economy_rules() -> void:
-	var r0 := Economy.rules([0, 0, 0])
-	_ok(r0.budget_bonus == 0 and not r0.drill and not r0.scanner and r0.reveal_reserve == 2, "base rules")
-	var r3 := Economy.rules([3, 3, 3])
-	_ok(r3.budget_bonus == 10 and r3.drill and r3.drill_cost == 1 and r3.drill_power == 2 and r3.scanner
-			and r3.reveal_reserve == 3 and r3.refund_bonus == 1 and r3.crack_power == 2, "max rules")
+	var r0 := Economy.rules([0, 0, 0, 0])
+	_ok(not r0.drill and not r0.scanner, "base rules")
+	var r3 := Economy.rules([3, 3, 3, 3])
+	_ok(r3.drill and r3.scanner and r3.size() == 2, "max rules: only the mechanics, no stat bonus")
+	var site := Sites.get_site(0)
+	var lo := Board.new()
+	lo.setup_site(site, 1, r0)
+	var hi := Board.new()
+	hi.setup_site(site, 1, r3)
+	_ok(lo.energy == hi.energy, "buildings never change a dig's move budget")
 	_ok(Economy.cost(0, 3) == -1, "no cost past max level")
 	_ok(Economy.can_afford(0, Economy.cost(0, 0)), "the first level of a building is free")
 	_ok(not Economy.can_afford(0, Economy.cost(0, 1)), "upgrades cannot be afforded with no Coin")
 	for b in Economy.BUILDINGS.size():
-		_ok(Economy.BUILDINGS[b].effects.size() == Economy.MAX_LEVEL + 1, "effects text per level")
+		_ok(Economy.effect(b, 1) != Economy.effect(b, 2), "building %d's levels read differently" % b)
+		_ok(Economy.BOOSTERS[Economy.BUILDINGS[b].booster].building == b, "building %d makes its own booster" % b)
 
 
 func _test_save_roundtrip() -> void:
 	var game = load("res://autoload/Game.gd").new()
 	game.save_path = "user://test_save.json"
 	game.reset()
-	game.star = 16  # reaching 16 stars unlocks the Power Station (Economy.STAR_UNLOCK[0])
+	game.star = Economy.STAR_UNLOCK[0]  # its star milestone unlocks the Power Station
 	game.coin = 100
 	_ok(game.buy(0), "Power Station Lv1 is free once star-unlocked")
 	_ok(game.levels[0] == 1 and game.coin == 100, "the free level costs no Coin")
+	_ok(game.boosters[Economy.Booster.BOMB] == 1, "a new building hands out its first booster")
 	_ok(game.buy(0) and game.coin == 25, "Lv2 deducts its 75 Coin")
 	_ok(not game.buy(0), "Lv3 (135 Coin) cannot be afforded with 25")
 	var site := Sites.get_site(0)
 	var b := Board.new()
 	b.record = false
 	b.setup(site.rows, 9, game.rules(), site.goals)
-	b.haul = PackedInt32Array([5, 6, 7, 1])  # 18 ore -> Coin, 1 crystal -> Star
+	b.haul = PackedInt32Array([5, 6, 7, 0, 1])  # a crystal pays no Star (v4)
 	b.energy = 0
+	var star0: int = game.star
 	var res: Dictionary = game.finish_dig(0, b, "energy")
-	_ok(game.coin == 25 and game.star == 17 and not res.first_clear, "a failed dig earns no Coin but keeps its crystal Star")
+	_ok(game.coin == 25 and game.star == star0 and not res.first_clear, "a failed dig earns no Coin and no Star")
 	b.complete = true
 	b.energy = 6
 	res = game.finish_dig(0, b, "complete")
 	_ok(res.coin == 8 + 6 and game.coin == 25 + 14, "a clear pays the fixed reward plus 1 per move left")
-	_ok(res.first_clear and res.star == 2 and game.unlocked == 2 and game.cleared[0], "first clear banks crystal + first-clear Star and opens the next site")
+	_ok(res.first_clear and res.star == 1 and game.unlocked == 2 and game.cleared[0], "first clear banks one Star and opens the next site")
 	var other = load("res://autoload/Game.gd").new()
 	other.save_path = "user://test_save.json"
 	other.load_save()
-	_ok(other.coin == game.coin and other.star == game.star and other.levels == game.levels and other.cleared == game.cleared, "save/load round trip")
+	_ok(other.coin == game.coin and other.levels == game.levels and other.cleared == game.cleared
+			and other.boosters == game.boosters, "save/load round trip")
+	_ok(other.star == 1, "Star is rebuilt from the cleared digs on load")
 	_ok(other.totals.digs == 2, "totals persisted")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://test_save.json"))
 	game.free()
@@ -387,7 +462,7 @@ func _test_bot_smoke() -> void:
 	var site := Sites.get_site(Sites.index_of("landing"))
 	var wins := 0
 	for s in 20:
-		var m := Bots.play(site, Economy.rules([0, 0, 0]), 500 + s, Bots.Kind.GREEDY)
+		var m := Bots.play(site, Economy.rules([0, 0, 0, 0]), 500 + s, Bots.Kind.GREEDY)
 		if m.complete:
 			wins += 1
 	_ok(wins >= 16, "greedy bot clears the first open site in >=80%% of seeds (%d/20)" % wins)
@@ -434,8 +509,9 @@ func _test_tutorial_sites() -> void:
 		var nxt := Sites.get_site(i + 1)
 		_ok(nxt.get("building_level", false) and nxt.get("needs", {}).get("building", -1) == u,
 				"dig after %s is the hand-made level for building %d" % [Sites.get_site(i).id, u])
-		if u == 2:
-			continue  # the scanner shows information; it changes no rule a replay could check
+		if u != 1:
+			continue  # only the Workshop's drill changes a rule a replay can check (the scanner
+			# shows information; the Power Station and Teleporter make boosters)
 		var lv := _campaign_levels(i + 1)
 		lv[u] = 0
 		var nb2 := Board.new()
@@ -476,11 +552,12 @@ func _test_campaign_flow() -> void:
 	_ok(game.next_dig() == 0, "a new colony starts at the first dig")
 	var core := Sites.index_of("core")
 	_ok(not game.can_start(core), "the basalt-shell dig waits for the Mining Workshop")
-	for b in 3:
+	for b in Economy.BUILDINGS.size():
 		_ok(not game.building_unlocked(b) and not game.buy(b), "building %d starts locked" % b)
 	game.star = Economy.STAR_UNLOCK[1]  # reaching the Workshop's star milestone unlocks it (and the Power Station)
-	game.buy(0)  # the Power Station unlocked earlier; build it so the Workshop is the one now due
-	game.reminders.clear()  # drop the Power Station reminder; the Workshop's is tested below
+	game.buy(0)  # the Power Station and Teleporter unlocked earlier; build them so the Workshop is due
+	game.buy(3)
+	game.reminders.clear()  # drop their reminders; the Workshop's is tested below
 	_ok(game.building_unlocked(1) and game.pending_build() == 1, "reaching its star milestone unlocks the Workshop, which is now due")
 	var drill := Sites.index_of("vaults")
 	_ok(drill == Sites.index_of("garden") + 1 and not game.can_start(drill), "the drill level comes next and waits for the build")
@@ -490,6 +567,10 @@ func _test_campaign_flow() -> void:
 	var lines: Array = game.take_reminders()
 	_ok(lines.size() == 1 and String(lines[0]).contains("drill"), "Mira reminds about the drill at the next dig")
 	_ok(game.take_reminders().is_empty(), "a reminder is said once")
+	game.reminders = [[1, 1], [0, 1]]
+	var told: Array = game.take_reminders(1)
+	_ok(told.size() == 2 and String(told[0]).contains("Laser") and not String(told[0]).contains("drill")
+			and String(told[1]).contains("Bomb"), "the drill's lesson dig still announces the Laser, and the Bomb in full")
 	for i in Sites.count():
 		game.cleared[i] = true
 	_ok(game.next_dig() == -1, "after the last dig there is no next dig")
@@ -534,6 +615,9 @@ func _test_colony_map() -> void:
 	_ok(game.new_milestones().is_empty(), "a milestone is celebrated once")
 	game.star = Economy.STAR_MILESTONES[2]
 	_ok(game.new_milestones() == [2], "the next milestone comes on its own")
+	for i in Economy.STAR_MILESTONES[2]:  # Star is rebuilt from the cleared digs on load
+		game.cleared[i] = true
+	game.save()
 	var other = load("res://autoload/Game.gd").new()
 	other.save_path = "user://test_colony.json"
 	other.load_save()
@@ -559,7 +643,7 @@ func _test_scripts_compile() -> void:
 
 ## Building levels a player has at campaign dig i: every building unlocked earlier, at level 1.
 func _campaign_levels(i: int) -> Array:
-	var lv := [0, 0, 0]
+	var lv := [0, 0, 0, 0]
 	for j in i:
 		var u: int = Sites.get_site(j).get("unlock", -1)
 		if u >= 0:

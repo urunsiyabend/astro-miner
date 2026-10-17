@@ -22,6 +22,13 @@ func fly(from: Vector2, res, color: Color, delay := 0.0, dur := -1.0, arc := Vec
 			"arc": arc if arc != Vector2.INF else Vector2(randf_range(-160, 160), randf_range(-220, -80))})
 
 
+## A picture (a booster icon) flies from `from` to target `res`, growing on the way, `size` px.
+func fly_icon(from: Vector2, res, tex: Texture2D, size := 110.0, delay := 0.0) -> void:
+	fly(from, res, Color.WHITE, delay, 0.7, Vector2(randf_range(-60, 60), -260))
+	_parts[-1]["tex"] = tex
+	_parts[-1]["size"] = size
+
+
 func burst(at: Vector2, color: Color, n := 8, speed := 420.0) -> void:
 	for i in n:
 		var a := randf() * TAU
@@ -90,6 +97,10 @@ func _draw() -> void:
 			var a: Vector2 = p.from.lerp(mid, e)
 			var b: Vector2 = mid.lerp(to, e)
 			var pos := a.lerp(b, e)
+			if p.has("tex"):
+				var w: float = p.size * (1.0 + 0.35 * sin(PI * k)) * (1.0 - 0.35 * k * k)
+				draw_texture_rect(p.tex, Rect2(pos - Vector2(w, w) * 0.5, Vector2(w, w)), false)
+				continue
 			if p.res is String and p.res == "coin":
 				Widgets.draw_currency_icon(self, pos, 30.0 * (1.0 + 0.25 * sin(PI * k)), false)
 				continue

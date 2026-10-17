@@ -4,7 +4,9 @@ extends RefCounted
 ## Scripted players used by tests and the balance simulation. They are proxies for
 ## "careless", "reasonable" and "planning" humans, not models of real players.
 
-enum Kind { RANDOM, GREEDY, PLANNER }
+## SLOPPY: the planner wasting a move now and then (12% random), the human proxy for tuning.
+enum Kind { RANDOM, GREEDY, PLANNER, SLOPPY }
+const SLOPPY_RATE := 0.12
 
 
 static func choose(b: Board, kind: int, rng: RandomNumberGenerator) -> Vector2i:
@@ -13,8 +15,10 @@ static func choose(b: Board, kind: int, rng: RandomNumberGenerator) -> Vector2i:
 			return _random_dir(b, rng)
 		Kind.GREEDY:
 			return _best(b, rng, false)
+		Kind.SLOPPY:
+			return _random_dir(b, rng) if rng.randf() < SLOPPY_RATE else _plan(b, rng)
 		_:
-			return _best(b, rng, true)
+			return _plan(b, rng)
 
 
 static func _random_dir(b: Board, rng: RandomNumberGenerator) -> Vector2i:
@@ -27,10 +31,10 @@ static func _random_dir(b: Board, rng: RandomNumberGenerator) -> Vector2i:
 static func _legal(b: Board) -> Array:
 	var out := []
 	for d in Board.DIRS:
-		var t: Vector2i = Board.pos(b.robot) + d
-		if not Board.inside(t):
+		var ti := b.step_to(b.robot, d)
+		if ti < 0:
 			continue
-		var tt := b.terrain[Board.idx(t)]
+		var tt := b.terrain[ti]
 		if tt == Board.Terrain.GROUND or (tt == Board.Terrain.ROCK and b.cfg.drill and b.energy >= b.cfg.drill_cost):
 			out.append(d)
 	return out
@@ -64,18 +68,146 @@ static func _best(b: Board, rng: RandomNumberGenerator, plan: bool) -> Vector2i:
 	return best_d
 
 
+## PLANNER: thinks in short plans, as a player does, not single steps. Candidates are every
+## line within reach, the walk to an open pickup, and (with the Drill) the walk to a rock worth
+## opening plus the bumps to open it. Each plan is played out on a clone (fresh surfacing RNG,
+## no peeking) and scored by value gained per move spent; the first step of the best is taken
+## and the bot plans again next turn.
+const PLAN_DEPTH := 4
+const PLAN_MATCHES := 14
+
+
+static func _plan(b: Board, rng: RandomNumberGenerator) -> Vector2i:
+	var plans: Array = b.paths_to_matches(PLAN_DEPTH, PLAN_MATCHES)
+	var pick := b.path_to_pickup(14)
+	if not pick.is_empty():
+		plans.append(pick)
+	if b.cfg.drill:
+		plans.append_array(_drill_plans(b))
+	if plans.is_empty():
+		return _best(b, rng, true)
+	var base := _value(b, true)
+	var best: Array = plans[0]
+	var best_s := -INF
+	var seed := rng.randi()
+	for p in plans:
+		var c := b.clone()
+		c.rng.seed = seed
+		var spent := 0
+		for di in p:
+			if c.over:
+				break
+			var e0 := c.energy
+			if not c.try_move(Board.DIRS[di]).ok:
+				break
+			spent += maxi(1, e0 - c.energy)
+		var s := (_value(c, true) - base) / maxf(1.0, spent)
+		if c.complete:
+			s += 1000.0
+		s += rng.randf() * 0.01
+		if s > best_s:
+			best_s = s
+			best = p
+	return Board.DIRS[best[0]]
+
+
+## With the Drill: for the nearest rocks worth opening (buried crystal, cell or chest, or any
+## rock while a rock goal is open), walk to a side of it and bump until it breaks.
+static func _drill_plans(b: Board) -> Array:
+	var wants_rock := false
+	for g in b.goals:
+		if g.type == "rock" and b.goal_progress(g) < g.n:
+			wants_rock = true
+	var routes := b.walk_routes(14)
+	var found := []
+	for i in Board.W * Board.H:
+		if b.terrain[i] != Board.Terrain.ROCK:
+			continue
+		var worth := wants_rock or b.buried[i] == Board.Buried.CRYSTAL \
+				or b.buried[i] == Board.Buried.CELL or b.buried[i] == Board.Buried.TREASURE
+		if not worth:
+			continue
+		var best_route: Array = []
+		var best_dir := -1
+		for di in 4:
+			var side: Vector2i = Board.pos(i) - Board.DIRS[di]
+			if not Board.inside(side) or not routes.has(Board.idx(side)):
+				continue
+			var r: Array = routes[Board.idx(side)]
+			if best_dir == -1 or r.size() < best_route.size():
+				best_route = r
+				best_dir = di
+		if best_dir == -1:
+			continue
+		var plan: Array = best_route.duplicate()
+		for k in b.hp[i] + 1:  # the bumps, then the step in (picks up what it hid)
+			plan.append(best_dir)
+		found.append([best_route.size(), plan])
+	found.sort_custom(func(x, y): return x[0] < y[0])
+	var out := []
+	for k in mini(5, found.size()):
+		if not found[k][1].is_empty():
+			out.append(found[k][1])
+	return out
+
+
+## Classic prototype: every swap that makes a line, played out on a clone (fresh surfacing
+## RNG) and scored by the planner's value; RANDOM and the SLOPPY share pick a random one.
+static func classic_choice(b: Board, kind: int, rng: RandomNumberGenerator) -> Array:
+	var swaps := []
+	for i in Board.W * Board.H:
+		if not b._swappable(i):
+			continue
+		for di in [1, 2]:
+			var p: Vector2i = Board.pos(i) + Board.DIRS[di]
+			if not Board.inside(p) or not b._swappable(Board.idx(p)):
+				continue
+			var j := Board.idx(p)
+			b._swap_cells(i, j)
+			var ok := b.token[i] == Board.Token.CHARGE or b.token[j] == Board.Token.CHARGE \
+					or b._line_through(b.token, b.ore, i) or b._line_through(b.token, b.ore, j)
+			b._swap_cells(i, j)
+			if ok:
+				swaps.append([i, di])
+	if swaps.is_empty():
+		return []
+	if kind == Kind.RANDOM or (kind == Kind.SLOPPY and rng.randf() < SLOPPY_RATE):
+		return swaps[rng.randi_range(0, swaps.size() - 1)]
+	var base := _value(b, true)
+	var best: Array = swaps[0]
+	var best_s := -INF
+	var seed := rng.randi()
+	for mv in swaps:
+		var c := b.clone()
+		c.rng.seed = seed
+		c.try_swap(mv[0], Board.DIRS[mv[1]])
+		var sc := _value(c, true) - base + (1000.0 if c.complete else 0.0) + rng.randf() * 0.01
+		if sc > best_s:
+			best_s = sc
+			best = mv
+	return best
+
+
 static func _value(b: Board, plan: bool) -> float:
 	var v := 0.0
 	for g in b.goals:
 		var need: int = g.n
 		var have := mini(b.goal_progress(g), need)
-		v += have * 6.0
-	v += b.stats.chunks * 0.5
+		# a big goal item (crystal, rock, chest) must outweigh the walk to the next one, or picking
+		# it up looks like a loss to the planner (the nearest target jumps further away)
+		v += have * (6.0 if not plan or g.type == "ore" or g.type == "chunks" else 40.0)
 	v += b.energy * 1.0
-	# a match is worth making for its own sake (it digs, cracks rock, surfaces new ore); this
-	# used to come from the energy a match refunded, before energy became a move budget
-	v += b.stats.groups * 2.0
-	v += b.stats.crystals * 8.0
+	if plan:
+		# the planner plays for the goal: a stray match is worth little on its own (it digs and
+		# surfaces new ore), the goal counters above carry what matters
+		v += b.stats.chunks * 0.2
+		v += b.stats.groups * 0.5
+		v += b.stats.crystals * 2.0
+	else:
+		v += b.stats.chunks * 0.5
+		# a match is worth making for its own sake (it digs, cracks rock, surfaces new ore)
+		v += b.stats.groups * 2.0
+		v += b.stats.crystals * 8.0
 	if b.complete:
 		v += 200.0
 	if plan:
@@ -86,6 +218,8 @@ static func _value(b: Board, plan: bool) -> float:
 				wants_rock = true
 		var dmg := 0
 		var nearest := 99
+		if b.robot < 0:
+			return v  # the classic prototype has no robot to route
 		var dist := _walk_dist(b)
 		for i in Board.W * Board.H:
 			if b.terrain[i] == Board.Terrain.ROCK:
@@ -98,17 +232,26 @@ static func _value(b: Board, plan: bool) -> float:
 				nearest = mini(nearest, dist[i])
 		v += dmg * (1.5 if wants_rock else 0.3)
 		if nearest < 99:
-			v -= nearest * 1.2
+			# a crystal still owed to the goal is worth heading for: each step closer must beat the
+			# move it costs, or the bot spends the budget on stray matches and stalls in sight of it
+			var owed := false
+			for g in b.goals:
+				if g.type == "crystal" and b.goal_progress(g) < g.n:
+					owed = true
+			v -= nearest * (3.0 if owed else 1.2)
 	return v
 
 
-## Steps from the robot to every cell (rock costs 3: it has to be cracked first; bedrock is a
-## wall); -1 where unreachable.
+## Cost from the robot to every cell, in moves; -1 where unreachable. Bedrock is a wall. Rock
+## costs what opening it takes: each layer is a drill bump (drill cost) once the Drill is
+## built, else about 3 moves of matching beside it. Cost falls as the rock is worn down, so
+## drilling or cracking toward a buried target is progress the bot can see.
 static func _walk_dist(b: Board) -> PackedInt32Array:
 	var d := PackedInt32Array()
 	d.resize(Board.W * Board.H)
 	d.fill(-1)
 	d[b.robot] = 0
+	var layer: int = int(b.cfg.drill_cost) if b.cfg.drill else 3
 	var open := [b.robot]
 	while not open.is_empty():
 		# tiny board: pick the closest open cell by scan (Dijkstra without a heap)
@@ -119,13 +262,10 @@ static func _walk_dist(b: Board) -> PackedInt32Array:
 		var c: int = open[bi]
 		open.remove_at(bi)
 		for dir in Board.DIRS:
-			var p: Vector2i = Board.pos(c) + dir
-			if not b.inside(p):
+			var n := b.step_to(c, dir)
+			if n < 0:
 				continue
-			var n := Board.idx(p)
-			if b.terrain[n] == Board.Terrain.BEDROCK:
-				continue
-			var nd := d[c] + (3 if b.terrain[n] == Board.Terrain.ROCK else 1)
+			var nd := d[c] + 1 + (b.hp[n] * layer if b.terrain[n] == Board.Terrain.ROCK else 0)
 			if d[n] == -1 or nd < d[n]:
 				d[n] = nd
 				open.append(n)
@@ -143,6 +283,21 @@ static func play(site: Dictionary, rules: Dictionary, seed_value: int, kind: int
 	var stuck_turns := 0
 	var rejected := 0
 	while not b.over and turns < max_turns:
+		if b.cfg.classic:
+			var mv := classic_choice(b, kind, rng)
+			if mv.is_empty():
+				stuck_turns += 1
+				if stuck_turns > 20:
+					break
+				b.shuffle_classic()
+				continue
+			if b.try_swap(mv[0], Board.DIRS[mv[1]]).ok:
+				turns += 1
+			else:
+				rejected += 1
+				if rejected > 20:
+					break
+			continue
 		if b.first_step_to_match(5) == -1:
 			stuck_turns += 1
 			if kind != Kind.RANDOM and b.can_pulse():

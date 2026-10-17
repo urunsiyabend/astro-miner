@@ -6,8 +6,8 @@ extends RefCounted
 ## (UiMetrics), so alignment never depends on eyeballed offsets.
 ## When a texture is missing the callers fall back to the code-drawn look.
 
-## Resource index (board ore type 0-2, then 3 = crystal) -> assets/ore/<name>.png
-const ORE := ["ferrite", "cryo", "lumen", "crystal"]
+## Resource index (board ore type 0-3, then 4 = crystal) -> assets/ore/<name>.png
+const ORE := ["ferrite", "cryo", "lumen", "ruby", "crystal"]
 const ROCK := ["boulder", "stone", "basalt"]  # starting layers 1, 2, 3
 ## Visible share of the earth band under each row: rows sit this much further apart than
 ## columns, so every block shows a strip of its thickness (the floating-island look).

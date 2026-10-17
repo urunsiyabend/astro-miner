@@ -6,8 +6,8 @@ extends SceneTree
 ## prints aggregate metrics. Results are deterministic for a given run count.
 
 const CONFIGS := [
-	{"name": "no upgrades", "levels": [0, 0, 0]},
-	{"name": "first upgrades (P1 W1 L1)", "levels": [1, 1, 1]},
+	{"name": "no upgrades", "levels": [0, 0, 0, 0]},
+	{"name": "first upgrades", "levels": [1, 1, 1, 1]},
 	{"name": "mid (P2 W2 L1)", "levels": [2, 2, 1]},
 	{"name": "maxed (P3 W3 L3)", "levels": [3, 3, 3]},
 ]
@@ -117,7 +117,7 @@ func _campaign(n: int) -> void:
 	for c in n:
 		var coin := 0
 		var star := 0
-		var levels := [0, 0, 0]
+		var levels := [0, 0, 0, 0]
 		var digs := 0
 		var moves := 0
 		var first_up := -1
@@ -126,13 +126,12 @@ func _campaign(n: int) -> void:
 			var m := Bots.play(Sites.get_site(site), Economy.rules(levels), 9000 + c * 101 + digs, Bots.Kind.PLANNER)
 			digs += 1
 			moves += m.moves
-			star += m.haul[3]
 			if m.complete:
 				coin += Economy.clear_coin(site) + Economy.move_coin(m.energy_left)
 				star += Economy.FIRST_CLEAR_STARS
 				acc[site].digs += digs
 				acc[site].moves += moves
-				acc[site].ups += levels[0] + levels[1] + levels[2]
+				acc[site].ups += levels[0] + levels[1] + levels[2] + levels[3]
 				acc[site].done += 1
 				site += 1
 			# Build/upgrade: a building unlocks at its star milestone (level 1 free), then Coin
@@ -142,7 +141,7 @@ func _campaign(n: int) -> void:
 				bought = false
 				var best := -1
 				var best_cost := 1 << 30
-				for b in 3:
+				for b in Economy.BUILDINGS.size():
 					if star < Economy.STAR_UNLOCK[b] or levels[b] >= Economy.MAX_LEVEL:
 						continue
 					var cost := Economy.cost(b, levels[b])
