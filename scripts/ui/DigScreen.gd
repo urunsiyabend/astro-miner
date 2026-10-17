@@ -227,6 +227,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 		_title.text = "Prototype " + String(site.title)
 	view.classic = board.cfg.classic
 	view.portals = board.cfg.portals
+	view.gravity = board.cfg.gravity
 	_boosters.visible = not proto  # prototypes compare the core loops alone
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
@@ -584,16 +585,26 @@ func _on_settled() -> void:
 ## One-line notes for things that can turn up before their own lesson (a random line of 4
 ## leaves a charge long before the charge dig). Each is said once per colony.
 func _first_encounters() -> void:
-	if supply or _waiting != "" or String(Sites.get_site(site_index).get("special", "blast")) != "blast":
+	if supply or _waiting != "" or Sites.get_site(site_index).has("special"):
+		return  # a prototype says what its special does on its goal card
+	if not _events.has("charge"):
 		return
-	var notes := {"charge": "A line of 4 leaves a blast charge. Step onto it to blow up everything around it."}
-	for ev in notes:
-		var key: String = "first_" + ev
-		if _events.has(ev) and not Game.tips_seen.has(key):
+	# the first time each kind of special turns up, one line says what it does
+	var notes := {
+		Board.Special.BLAST: "A line of 4 leaves a blast charge. Step onto it to blow up everything around it.",
+		Board.Special.DRILL: "4 in a row made a Drill Core! Move it (swap it with the robot) and it bores on that way, up to the first rock.",
+		Board.Special.QUAKE: "An L or T match made a Quake! Move it and it shakes the ring two cells out.",
+		Board.Special.PRISM: "5 in a row made a Prism! Move it and four diagonal beams cut through everything, rock too.",
+	}
+	for i in Board.W * Board.H:
+		if board.token[i] != Board.Token.CHARGE:
+			continue
+		var kind: int = board.spec[i]
+		var key := "first_special_%d" % kind
+		if notes.has(kind) and not Game.tips_seen.has(key):
 			Game.tips_seen[key] = true
-			_coach.say(notes[ev], 5.0)
+			_coach.say(notes[kind], 6.0)
 			return
-
 
 func _refresh_reach() -> void:
 	if board.cfg.classic:

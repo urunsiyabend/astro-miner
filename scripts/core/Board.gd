@@ -75,7 +75,7 @@ var cfg := {
 	# surfacing in place; "classic" also drops the robot: swap two neighbouring gems
 	"gravity": false,
 	"classic": false,
-	"special": 0,  # Special left by a line of 4
+	"special": -1,  # Special a line of 4 leaves; -1: by the shape of the match (_special_for)
 	"portals": [],         # [[source cell, destination cell]]: what falls out of one drops into the other
 	"spawn_top": false,    # new gems only enter runs that reach the top of the board
 	"collect_bottom": false,  # crystals and cells are collected at the bottom of their run
@@ -108,7 +108,9 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 	var mode: String = site.get("mode", "robot")
 	r.gravity = mode != "robot"
 	r.classic = mode == "classic"
-	r.special = SPECIAL_IDS.get(String(site.get("special", "blast")), Special.BLAST)
+	# a site may pin one special (prototypes); otherwise falling-gem digs pick it by the match's
+	# shape, and robot digs keep the original step-on blast charge
+	r.special = SPECIAL_IDS.get(String(site.get("special", "")), Special.BLAST if mode == "robot" else -1)
 	var portals := []
 	for pp in site.get("portals", []):
 		portals.append([idx(pp[0]), idx(pp[1])])
@@ -593,7 +595,7 @@ func _resolve(steps: Array, pivot: int) -> void:
 			for c in cells:
 				if c == charge_at:
 					token[c] = Token.CHARGE
-					spec[c] = cfg.special
+					spec[c] = cfg.special if cfg.special >= 0 else _special_for(cells)
 					step.charges.append(c)
 				else:
 					to_dig.append(c)
@@ -618,7 +620,20 @@ func _resolve(steps: Array, pivot: int) -> void:
 		pass_no += 1
 
 
-# --- moved specials (prototypes) ------------------------------------------------------
+# --- moved specials --------------------------------------------------------------------
+
+## Which special a match leaves by its shape (the default, cfg.special == -1): 4 in a row a
+## Drill core, an L or T a Quake, 5 or more in a row a Prism (the rarest, the strongest).
+func _special_for(cells: Array) -> int:
+	var xs := {}
+	var ys := {}
+	for c in cells:
+		xs[pos(c).x] = true
+		ys[pos(c).y] = true
+	var straight := xs.size() == 1 or ys.size() == 1
+	if not straight:
+		return Special.QUAKE
+	return Special.PRISM if cells.size() >= 5 else Special.DRILL
 
 ## The special at cell c was just moved in direction d: it goes off there (see Special).
 func _special(c: int, d: Vector2i, steps: Array) -> void:

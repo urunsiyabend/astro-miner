@@ -31,6 +31,7 @@ func _initialize() -> void:
 	_test_charge_and_blast()
 	_test_boosters()
 	_test_campaign_shape()
+	_test_moved_specials()
 	_test_goals_end_dig()
 	_test_determinism()
 	_test_generator_all_sites()
@@ -305,6 +306,40 @@ func _test_campaign_shape() -> void:
 	_ok(hard_seen >= 4, "chapters 2 and 3 each have a hard and a super-hard dig")
 
 
+## Moved specials (Board.Special) with a crystal next to them: the ones that take what they hit
+## collect it (it counts toward the goal), the Geode leaves it alone (it only recolours gems).
+func _test_moved_specials() -> void:
+	var S := Board.Special
+	var at := Board.idx(Vector2i(3, 4))
+	var crystal := Board.idx(Vector2i(4, 5))  # diagonal: in the Geode's 8 and the Prism's rays
+	for kind in [S.GEODE, S.PRISM]:
+		var b := _board(OPEN, _with(DIAG, {Vector2i(3, 6): "R"}))
+		b.token[at] = Board.Token.CHARGE
+		b.spec[at] = kind
+		b.ore[at] = 1
+		b.token[crystal] = Board.Token.CRYSTAL
+		var steps := []
+		b._special(at, Vector2i(0, -1), steps)
+		if kind == S.GEODE:
+			_ok(b.token[crystal] == Board.Token.CRYSTAL and b.stats.crystals == 0, "Geode: a crystal next to it is left alone")
+			var turned := 0
+			for d in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1)]:
+				var c := Board.idx(Vector2i(3, 4) + d)
+				if b.token[c] == Board.Token.ORE and b.ore[c] == 1:
+					turned += 1
+			_ok(turned == 7 and b.token[at] == Board.Token.ORE and b.ore[at] == 1, "Geode: the gems around it take its colour, and it becomes one")
+		else:
+			_ok(b.stats.crystals == 1 and b.haul[Board.RES_CRYSTAL] == 1, "Prism: a crystal on a beam is collected and counts")
+	var b2 := _board(OPEN, _with(DIAG, {Vector2i(3, 7): "R"}))
+	b2.token[at] = Board.Token.CHARGE
+	b2.spec[at] = S.DRILL
+	b2.token[Board.idx(Vector2i(3, 1))] = Board.Token.CRYSTAL
+	b2._special(at, Vector2i(0, -1), [])
+	_ok(b2.stats.crystals == 1, "Drill: a crystal in its path is collected")
+	_ok(b2._special_for([0, 1, 2, 3]) == S.DRILL and b2._special_for([0, 1, 2, 3, 4]) == S.PRISM
+			and b2._special_for([0, 1, 2, 7, 14]) == S.QUAKE, "a special by shape: 4 in a row, 5 in a row, an L")
+
+
 func _test_charge_and_blast() -> void:
 	# 4+ in a row -> charge on the pivot (the cell the robot moved ore into)
 	var ores := _with(DIAG, {Vector2i(0, 1): "L", Vector2i(1, 1): "L", Vector2i(2, 1): "L", Vector2i(3, 1): "R", Vector2i(3, 2): "L"})
@@ -471,7 +506,7 @@ func _test_bot_smoke() -> void:
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
 # its last move; if a layout edit breaks one, this fails before a player meets it.
 const TUTORIAL_SOLUTIONS := {
-	"first": "ULURRDU", "zigzag": "UULUU", "battery": "LURRDDDLURDLUD", "charge": "UDLDDUDU",
+	"first": "UDLLURUL", "battery": "DDDUUURUULLUL", "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
@@ -522,7 +557,7 @@ func _test_tutorial_sites() -> void:
 			nb2.try_move(map2[sol[k]])
 		_ok(not nb2.complete, "%s cannot be done without building %d" % [nxt.id, u])
 	# each lesson's solution starts with the move Mira asks for and uses what she teaches
-	var opening := {"first": "U", "battery": "L", "charge": "U"}
+	var opening := {"first": "U", "charge": "U"}  # battery asks for any match by the rock
 	for id in opening:
 		_ok(String(TUTORIAL_SOLUTIONS[id]).begins_with(opening[id]), "%s: the solution starts with Mira's move" % id)
 	var bat := Board.new()

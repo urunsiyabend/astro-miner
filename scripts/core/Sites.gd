@@ -24,7 +24,7 @@ extends RefCounted
 
 const LIST := [
 	{
-		"id": "first", "guide": true, "seed": 42,
+		"id": "first", "mode": "fall", "colours": 4, "guide": true, "seed": 42,
 		"goals": [{"type": "ore", "ore": 0, "n": 6}],
 		"rows": [
 			"# # # # # # #",
@@ -49,11 +49,11 @@ const LIST := [
 		"script": [
 			{"say": "Hi, I'm Mira, chief of the Corvo IV colony. You drive our mining robot, and the colony runs on the ore you bring home."},
 			{"say": "Swipe up: the robot swaps places with the Ferrite above it, and three Ferrite line up.", "until": "match", "focus": [Vector2i(3, 3), Vector2i(3, 4), Vector2i(2, 4), Vector2i(4, 4)]},
-			{"say": "Extracted! New ore rises from below. Line up 6 Ferrite in all."},
+			{"say": "Extracted! New gems drop in from above. Line up 6 Ferrite in all."},
 		],
 	},
 	{
-		"id": "drag", "tier": "intro", "energy": 24,
+		"id": "drag", "mode": "fall", "colours": 4, "tier": "intro", "energy": 18,
 		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"# # # # # # #",
@@ -67,24 +67,25 @@ const LIST := [
 		],
 	},
 	{
-		"id": "vein", "tier": "intro", "energy": 18,
-		"goals": [{"type": "chunks", "n": 21}],
+		"id": "vein", "mode": "fall", "colours": 4, "tier": "intro", "energy": 22,
+		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
 		"rows": [
-			"# # # # # # #",
-			"# : . o . : #",
-			"# : . o . : #",
-			"# : . o . : #",
-			"# : . @ . : #",
-			"# : . o . : #",
-			"# : . o . : #",
-			"# # # # # # #",
+			". . . @ . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . 1c . . .",
+			"# . . . . . #",
 		],
 		"script": [
-			{"say": "The yellow pips under a chunk show how much ore is left below it. The middle vein runs deep, the edges dry up fast.", "focus": [Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 5), Vector2i(3, 6)]},
+			{"say": "Gems fall into the gaps, and so does the robot! Clear the gems right under it and it drops down for free."},
+			{"say": "That crystal is at the bottom. Match under the robot to ride down to it."},
 		],
 	},
 	{
-		"id": "landing", "tier": "intro", "energy": 32,
+		"id": "landing", "mode": "fall", "colours": 4, "tier": "intro", "energy": 30,
 		"goals": [{"type": "ore", "ore": 2, "n": 15}],
 		"rows": [
 			"# . . . . . #",
@@ -98,25 +99,25 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rocks", "tier": "intro", "energy": 24,
+		"id": "rocks", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
 		"goals": [{"type": "rock", "n": 5}],
 		"rows": [
 			"# # # # # # #",
+			"# . . . . . #",
+			"# . . . . . #",
 			"# 1 1 1 1 1 #",
-			"# o o o o o #",
+			"# . . . . . #",
 			"# . . @ . . #",
-			"# . . . . . #",
-			"# . . . . . #",
 			"# . . . . . #",
 			"# # # # # # #",
 		],
 		"script": [
-			{"say": "Rock! The robot can't drive through it, but a match right next to it cracks it. Make a line just under the rocks.", "until": "reveal", "focus": [Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1), Vector2i(5, 1)]},
-			{"say": "Broken rock turns into ground with fresh ore in it. Break 4."},
+			{"say": "Rock! The robot can't drive through it, but a match right next to it cracks it. Make a line just above or below the rocks.", "until": "reveal", "focus": [Vector2i(1, 3), Vector2i(2, 3), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
+			{"say": "Broken rock opens up, and gems fall into the gap. Break 5."},
 		],
 	},
 	{
-		"id": "ring", "tier": "normal", "energy": 29,
+		"id": "ring", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
 		"goals": [{"type": "rock", "n": 8}, {"type": "chunks", "n": 42}],
 		"rows": [
 			"# : : : : : #",
@@ -130,7 +131,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "glint", "tier": "intro", "energy": 30,
+		"id": "glint", "mode": "fall", "colours": 4, "tier": "intro", "energy": 17,
 		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
 		"rows": [
 			"# # # # # # #",
@@ -148,7 +149,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "nearby", "tier": "normal", "energy": 18,
+		"id": "nearby", "mode": "fall", "colours": 4, "tier": "normal", "energy": 16,
 		"goals": [{"type": "crystal", "n": 3}, {"type": "chunks", "n": 18}],
 		"rows": [
 			". . . . . . .",
@@ -162,7 +163,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "rooms", "tier": "normal", "energy": 34,
+		"id": "rooms", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
 		"goals": [{"type": "chunks", "n": 36}],
 		"rows": [
 			"# # # # # # #",
@@ -176,7 +177,7 @@ const LIST := [
 		],
 	},
 	{
-		"id": "lode", "tier": "reward", "energy": 20,
+		"id": "lode", "mode": "fall", "colours": 4, "tier": "reward", "energy": 12,
 		"goals": [{"type": "chunks", "n": 30}],
 		"rows": [
 			"o o . o . o o",
@@ -193,7 +194,7 @@ const LIST := [
 		# the Bomb lesson (GDD v4, iteration 1): the Power Station has just handed out a free Bomb.
 		# Rubble clumps 2x2 are slow to crack with matches (only their outer cells touch open
 		# ground), a Bomb on a clump breaks all four at once
-		"id": "quarry", "tier": "normal", "energy": 24,
+		"id": "quarry", "mode": "fall", "colours": 4, "tier": "normal", "energy": 36,
 		"goals": [{"type": "rock", "n": 10}],
 		"rows": [
 			". . . . . . .",
@@ -209,7 +210,7 @@ const LIST := [
 	{
 		# gold rush: a bonus dig with no fail. Chests everywhere; open as many as the moves
 		# allow, every chest is Coin. Announced by its own card and banner (DigScreen).
-		"id": "rush1", "gold_rush": true, "energy": 14,
+		"id": "rush1", "mode": "fall", "colours": 4, "gold_rush": true, "energy": 14,
 		"goals": [{"type": "treasure", "n": 10}],
 		"rows": [
 			". . . . . . .",
@@ -223,11 +224,9 @@ const LIST := [
 		],
 	},
 	{
-		# hand-made (seed 71, picked by tools/handmade_probe.gd): with a random fill it was a
-		# coin flip whether the last rocks could be reached in time. This opening sets off a
-		# chain that breaks most of the zig-zag in a handful of moves (the solution takes 5): a
-		# short, showy end to chapter 1. Budget 10 (v4): the sloppy bot clears it 90%
-		"id": "zigzag", "energy": 10, "seed": 71,
+		# a rubble zig-zag on scarce ground; with falling gems (iteration 1) its old hand-made
+		# opening no longer applies, so it rolls fresh gems like any other dig
+		"id": "zigzag", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
 		"goals": [{"type": "rock", "n": 11}],
 		"rows": [
 			"# # # # # # #",
@@ -239,23 +238,13 @@ const LIST := [
 			"# : : _ : : #",
 			"# # # # # # #",
 		],
-		"ore": [
-			"- - - - - - -",
-			"F - L - L - F",
-			"- - F - F - -",
-			"L - F L F - L",
-			"L - - F - - L",
-			"- L - @ - L -",
-			"- C C - C F -",
-			"- - - - - - -",
-		],
 	},
 	{
-		# the cell lesson: 12 moves for 12 Ferrite is not enough, the buried cell's 6 more
-		# moves are (the route takes 14, so 4 to spare). It starts on a full budget: opening
+		# the cell lesson (falling gems): 9 moves for 20 Ferrite is not enough, the buried cell's 6
+		# more moves are (the solver's route takes 13). It starts on a full budget: opening
 		# on a half-empty one read as moves taken away.
-		"id": "battery", "guide": true, "seed": 5, "energy": 9,
-		"goals": [{"type": "ore", "ore": 0, "n": 12}],
+		"id": "battery", "mode": "fall", "colours": 4, "guide": true, "seed": 5, "energy": 9,
+		"goals": [{"type": "ore", "ore": 0, "n": 20}],
 		"rows": [
 			"# # # # # # #",
 			"# # # # # # #",
@@ -277,16 +266,16 @@ const LIST := [
 			"- - - - - - -",
 		],
 		"script": [
-			{"say": "12 Ferrite in 12 moves is too tight. But there's an energy cell buried in that rock: it's worth 6 more moves."},
-			{"say": "Swipe left: three Ferrite line up right under that rock and crack it.", "until": "reveal", "focus": [Vector2i(2, 3), Vector2i(3, 2)]},
-			{"say": "There's the cell. Drive onto it for 6 more moves.", "until": "cell", "focus": [Vector2i(3, 2)]},
+			{"say": "20 Ferrite in 9 moves is too tight. But there's an energy cell buried in that rock: it's worth 6 more moves."},
+			{"say": "Make a match right next to that rock to crack it open.", "until": "reveal", "focus": [Vector2i(3, 2)]},
+			{"say": "There's the cell! Drive onto it for 6 more moves.", "until": "cell"},
 		],
 	},
 	{
 		# energy cells, practised: shallow ground runs dry fast, and the cells sit under rubble, so
 		# cracking the right rock first buys the moves to finish
-		"id": "cellar", "tier": "normal", "energy": 22,
-		"goals": [{"type": "chunks", "n": 32}],
+		"id": "cellar", "mode": "fall", "colours": 4, "tier": "normal", "energy": 14,
+		"goals": [{"type": "chunks", "n": 48}],
 		"rows": [
 			": : : : : : :",
 			": 1e : 1 : 1e :",
@@ -300,7 +289,7 @@ const LIST := [
 	},
 	{
 		# a variation, not a new mechanic: 2-layer rock (a match cracks one layer, so each needs two)
-		"id": "boulders", "tier": "normal", "energy": 29,
+		"id": "boulders", "mode": "fall", "colours": 4, "tier": "normal", "energy": 21,
 		"goals": [{"type": "rock", "n": 5}, {"type": "chunks", "n": 18}],
 		"rows": [
 			". . . . . . .",
@@ -540,9 +529,6 @@ const LIST := [
 			". . . . . . .",
 			": : : : : : :",
 			"# . . . . . #",
-		],
-		"script": [
-			{"say": "A new gem down here: Ruby! Four colours means lines are rarer, so look before you move."},
 		],
 	},
 	{

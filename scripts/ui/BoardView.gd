@@ -38,6 +38,7 @@ var _glow_t := 0.0
 var input_enabled := true
 var armed := -1   # Economy.Booster waiting for its target, or -1
 var classic := false  # the classic prototype: no robot, a swipe on a gem swaps it
+var gravity := false  # falling gems: no veins, so no vein pips
 var portals: Array = []  # [[source, destination]] cells: drawn as a glowing pair of rings
 var _sel := -1        # classic: the gem tapped first (tap it, then a neighbour)
 var _touch_cell := -1
@@ -955,7 +956,7 @@ func _draw_ground(i: int) -> void:
 	# grid seam so cells stay readable inside a merged pit
 	draw_rect(r.grow(-1), Color(0, 0, 0, 0.16), false, 2.0)
 	# ore layers left under the floor: warm pips on a dark pill (same language as rock)
-	if res > 0:
+	if res > 0 and not gravity:
 		var n := mini(res, 5)
 		var pill := Rect2(Vector2(r.get_center().x - (n * 16 + 10) * 0.5, r.end.y - 22), Vector2(n * 16 + 10, 18))
 		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
@@ -1062,7 +1063,7 @@ func _draw_tile(i: int, r: Rect2) -> void:
 	if _sink.has(i):  # the floor just dropped a layer: a quick dip
 		top.position.y += 4.0 * sin(PI * _ease(_sink[i]))
 	draw_texture_rect(tex, Rect2(top.position, Vector2(w, w * (1.0 + _band))), false)
-	if t == T.GROUND and res > 0:
+	if t == T.GROUND and res > 0 and not gravity:
 		var n := mini(res, 5)
 		# vein pips: a small row inside the cell's lower edge, under the ore
 		var step := cell * 0.085

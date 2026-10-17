@@ -64,6 +64,11 @@ Doğrudan `main` üzerinde çalışılıyor, PR yok. Sürüm `0.9.7`. Main'e pus
   düşer), C klasik swap. 5 ortak tahta, her biri farklı bir "hareket ettirilince çalışan" özel taş
   dener (drill, prism, geode, quake, blast). Ayrıntı: `docs/design/level-plan.md` en üstte. Bütçeler:
   `tools/tune_proto.gd`, `Sites.PROTO_ENERGY`. Kullanıcı hangisinin eğlenceli olduğuna karar verecek.
+- **İterasyon 1b:** ilk 15 dig düşen gem modunda (prototip B kazandı). Power-up şekle göre: 4 düz →
+  Matkap, L/T → Sarsıntı, 5+ düz → Prizma. **Zorluk kataloğu:** `tools/catalog.gd` →
+  `docs/design/level-catalog.md` + `data/level_catalog.json`. Her değişiklikten sonra yeniden üret.
+  Kalan dig'ler (16+) hâlâ robot modunda; oynanınca aynı kalıpla çevrilecek.
+- **Sırada:** kombo juice (`docs/research/match3-combo-juice.md` kontrol listesi), Geode animasyonu.
 - **Sırada (GDD v4 §5):**
   - `longhaul` Bomba öğreticisine dönüşecek. El yapımı dersler playtest edilmeli.
   - 6) Coin ile devam (+5 hamle, fiyatı artarak).
