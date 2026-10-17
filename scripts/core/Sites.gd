@@ -681,9 +681,8 @@ static func get_site(i: int) -> Dictionary:
 ##   pads:     [[pad, target]]: a special, crystal or cell resting on the pad flies to the
 ##             target (a special goes off there); the dotted arc shows where
 ##   belts:    [[cell, ...]]: after every move it runs one step, plus one per gem matched on it
-##             (Board._turn_end). Ends touching: a loop. Otherwise a one-way line and a shelf
-##             (nothing falls through it): what reaches its end drops into the column below if
-##             that is open (a spout), else off the board
+##             (Board._turn_end); what leaves the last cell comes back on the first. A belt
+##             whose ends do not touch is also a shelf (nothing falls through it)
 ##   teleports: [[a, b]]: a move or path that ends on one puts the robot on the twin; a special
 ##             pushed or dropped onto one goes off at the twin
 ##   specials: [[cell, kind]]: gems that start out carrying a special
@@ -741,7 +740,7 @@ const PROTOS := [
 			". . . . # . . . .",
 		]},
 	{"name": "Express belt", "energy": 20, "collect": true,
-		"idea": "The belt runs into the launch pad. It moves a step after every move, and every gem you match on it pushes it one step more. Speed the Quake to the pad.",
+		"idea": "The belt runs into the launch pad: a step after every move, one more for every gem you match on it. What leaves the end comes back at the start. Speed the Quake to the pad.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
 		"pads": [[Vector2i(8, 9), Vector2i(4, 1)]],
 		"belts": [[Vector2i(0, 9), Vector2i(1, 9), Vector2i(2, 9), Vector2i(3, 9), Vector2i(4, 9), Vector2i(5, 9),
@@ -760,9 +759,9 @@ const PROTOS := [
 			". . . . . . . . .",
 		]},
 	{"name": "Shelf belt", "energy": 30, "collect": true,
-		"idea": "A belt runs across the middle. What lands on it rides to the end and drops down. Match under the Quake to drop it on the belt, then match the gem on the pad below the end to let it fall in.",
+		"idea": "A belt runs across the middle into a launch pad. Match under the Quake to drop it onto the belt, then speed it to the pad with matches on the belt.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
-		"pads": [[Vector2i(5, 7), Vector2i(4, 1)]],
+		"pads": [[Vector2i(5, 6), Vector2i(4, 1)]],
 		"belts": [[Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6)]],
 		"specials": [[Vector2i(2, 5), "quake"]],
 		"rows": [
@@ -774,7 +773,7 @@ const PROTOS := [
 			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . . . . . .",
-			". . . @ . # . . .",
+			". . . @ . . . . .",
 			"# . . . . . . . #",
 		]},
 	{"name": "Big dig", "energy": 20, "collect": true,
