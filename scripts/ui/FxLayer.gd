@@ -36,6 +36,22 @@ func burst(at: Vector2, color: Color, n := 8, speed := 420.0) -> void:
 				"color": color, "t": 0.0, "dur": randf_range(0.3, 0.55), "size": randf_range(5, 11)})
 
 
+## Sparkles: four-point stars with a soft glow, spinning out from `at` and fading (match pops).
+func sparks(at: Vector2, color: Color, n := 8, speed := 520.0, size := 22.0) -> void:
+	for i in n:
+		var a := randf() * TAU
+		_parts.append({"kind": "spark", "p": at - global_position, "v": Vector2(cos(a), sin(a)) * speed * randf_range(0.35, 1.0),
+				"color": color, "t": 0.0, "dur": randf_range(0.35, 0.6), "size": size * randf_range(0.6, 1.2),
+				"rot": randf() * TAU, "spin": randf_range(-8, 8)})
+
+
+## A big word over the board when a cascade climbs (Nice! Stellar! Cosmic! Supernova!): it pops
+## in large with an overshoot and a tilt, holds, rises and fades.
+func callout(at: Vector2, s: String, color: Color, size := 110) -> void:
+	_texts.append({"p": at - global_position, "s": s, "color": color, "t": 0.0, "dur": 1.25, "size": size,
+			"tilt": randf_range(-0.18, 0.18)})
+
+
 ## Celebration: paper bits shot up from `at`, spinning and fluttering down.
 func confetti(at: Vector2, n := 60) -> void:
 	var cols := [Pal.COIN, Pal.GOOD, Pal.ACCENT, Color("ff6fb5"), Color("c88bff"), Color.WHITE]
@@ -59,6 +75,10 @@ func _process(delta: float) -> void:
 			p.p += p.v * delta
 			p.v *= 0.9
 			p.v.y += 900.0 * delta
+		elif p.kind == "spark":
+			p.p += p.v * delta
+			p.v *= 0.88
+			p.rot += p.spin * delta
 		elif p.kind == "conf":
 			p.p += p.v * delta
 			p.v *= 0.965
@@ -106,6 +126,18 @@ func _draw() -> void:
 				continue
 			draw_circle(pos, 18.0 * (1.0 - 0.4 * k), p.color)
 			draw_circle(pos, 9.0 * (1.0 - 0.4 * k), p.color.lightened(0.5))
+		elif p.kind == "spark":
+			var a2 := 1.0 - k * k
+			var r: float = p.size * (1.0 - 0.5 * k)
+			draw_circle(p.p, r * 0.9, Color(p.color, 0.22 * a2))
+			draw_set_transform(p.p, p.rot)
+			var star := PackedVector2Array()
+			for j in 8:
+				var rr: float = r if j % 2 == 0 else r * 0.3
+				var an := j * PI / 4.0
+				star.append(Vector2(cos(an), sin(an)) * rr)
+			draw_colored_polygon(star, Color(p.color.lightened(0.45), a2))
+			draw_set_transform(Vector2.ZERO)
 		elif p.kind == "conf":
 			var col: Color = p.color
 			col.a = 1.0 - smoothstep(0.7, 1.0, k)

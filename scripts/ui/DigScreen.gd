@@ -492,6 +492,7 @@ func _on_swap(cell: int, dir: Vector2i) -> void:
 	if board == null or board.over or _result != null or _busy_talking() or view.is_busy():
 		return
 	_idle = 0.0
+	view.new_turn()
 	var before := board.stats.duplicate()
 	var r := board.try_swap(cell, dir)
 	if not r.ok:
@@ -508,6 +509,7 @@ func _on_swap(cell: int, dir: Vector2i) -> void:
 
 func _do_move(dir: Vector2i) -> void:
 	_idle = 0.0
+	view.new_turn()
 	var before := board.stats.duplicate()
 	var r := board.try_move(dir)
 	if not r.ok:
@@ -691,6 +693,7 @@ func _use_booster(target: int) -> void:
 	var k := view.armed
 	if k < 0 or board == null or board.over or view.is_busy() or _busy_talking():
 		return
+	view.new_turn()
 	var before := board.stats.duplicate()
 	var r := board.use_booster(k, target)
 	if not r.ok:
@@ -725,11 +728,19 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 	match kind:
 		"extract":
 			var k := 0
+			# longer cascades throw more sparkle (x1.15 per step, capped)
+			var more := minf(2.5, 1.0 + 0.15 * float(d.get("chain", 1) - 1))
 			for p in d.points:
 				if fxl.targets.has(d.ore):
 					fxl.fly(p, d.ore, Pal.ORE[d.ore], k * 0.03)
-				fxl.burst(p, Pal.ORE[d.ore], 5, 300.0)
+				if not d.get("pop", false):
+					fxl.burst(p, Pal.ORE[d.ore], 5, 300.0)
 				k += 1
+			if d.get("pop", false):
+				# the gems pulled together: one bright pop where they met
+				var at: Vector2 = d.points[0]
+				fxl.sparks(at, Pal.ORE[d.ore], int(7 * more), 560.0 * minf(1.6, more), 24.0)
+				fxl.burst(at, Pal.ORE[d.ore], int(6 * more), 420.0)
 			var mid: Vector2 = d.points[d.points.size() / 2]
 			fxl.text(mid, "+%d" % (d.points.size() + board.cfg.yield_bonus), Pal.ORE[d.ore], 76)
 		"energy":
@@ -754,10 +765,24 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 			Sfx.play("pickup")
 		"debris":
 			fxl.burst(d.pos, d.color, 7, 380.0)
+		"chain":
+			# a cascade climbing: the bigger the chain, the bigger the word
+			var tiers := {3: ["Nice!", Color("7fe8ff"), 96], 5: ["Stellar!", Color("ffe27a"), 112],
+					7: ["Cosmic!", Color("ff8ef0"), 128], 9: ["Supernova!", Color("ffb347"), 144]}
+			var tier: Array = tiers.get(int(d.n), [])
+			if not tier.is_empty():
+				var r := view.get_global_rect()
+				var at := Vector2(r.get_center().x, r.position.y + r.size.y * 0.42)
+				fxl.callout(at, tier[0], tier[1], tier[2])
+				fxl.sparks(at, tier[1], 10 + int(d.n) * 2, 700.0, 30.0)
+				Sfx.play("reveal", 1.0 + 0.05 * int(d.n))
+				if int(d.n) >= 9:
+					fxl.confetti(at, 70)
 		"reveal":
 			fxl.burst(d.pos, Pal.TEXT, 10, 460.0)
 		"blast":
 			fxl.burst(d.pos, Pal.CHARGE, 22, 700.0)
+			fxl.sparks(d.pos, Color("ffd27a"), 14, 820.0, 30.0)
 
 
 func _on_arrived(res) -> void:
