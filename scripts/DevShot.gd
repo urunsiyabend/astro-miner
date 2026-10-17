@@ -67,6 +67,8 @@ func _run() -> void:
 			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
 			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
 		var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+		if OS.has_environment("ASTRO_CALLOUT"):  # ASTRO_CALLOUT=n: the cascade callout for chain n
+			main.dig._on_fx("chain", {"n": int(OS.get_environment("ASTRO_CALLOUT")), "pos": Vector2.ZERO})
 		if OS.has_environment("ASTRO_CRYSTAL"):  # ASTRO_CRYSTAL=cell: an open crystal there
 			main.dig.board.token[int(OS.get_environment("ASTRO_CRYSTAL"))] = Board.Token.CRYSTAL
 			main.dig.view.show_snap(main.dig.board.snapshot())
@@ -80,6 +82,31 @@ func _run() -> void:
 			var cd := e.split(":")
 			main.dig._on_swap(int(cd[0]), map[cd[1]])
 			await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
+		if OS.has_environment("ASTRO_AUTOMOVE"):  # ASTRO_AUTOMOVE=n: the planner plays n moves
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 7
+			for k in int(OS.get_environment("ASTRO_AUTOMOVE")):
+				while main.dig.view.is_busy():
+					await get_tree().process_frame
+				if main.dig.board.over:
+					break
+				main.dig._on_move(Bots.choose(main.dig.board, Bots.Kind.PLANNER, rng))
+				if k < int(OS.get_environment("ASTRO_AUTOMOVE")) - 1:
+					while main.dig.view.is_busy():
+						await get_tree().process_frame
+			if OS.has_environment("ASTRO_FRAMES"):  # "0.05,0.1,...": shots that far after the last move
+				var t0 := Time.get_ticks_msec()
+				var base := OS.get_environment("ASTRO_SHOT").get_basename()
+				var n := 0
+				for f in OS.get_environment("ASTRO_FRAMES").split(","):
+					while Time.get_ticks_msec() - t0 < float(f) * 1000.0:
+						await get_tree().process_frame
+					await RenderingServer.frame_post_draw
+					get_viewport().get_texture().get_image().save_png("%s_%d.png" % [base, n])
+					n += 1
+				get_tree().quit()
+				return
+			await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.1).timeout
 		for ch in OS.get_environment("ASTRO_MOVES"):
 			if map.has(ch):
 				main.dig._on_move(map[ch])

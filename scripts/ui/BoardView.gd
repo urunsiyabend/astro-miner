@@ -45,6 +45,19 @@ var _touch_cell := -1
 var _fall_from := {}  # during a fall step: cell -> the cell its gem fell from
 var _fall_drop := {}  # during a fall step: new cell -> rows it drops in from above
 var _reject := {"a": -1, "b": -1, "t": 0.0}  # a swap that made no line wobbles back
+# --- juice (docs/research/match3-combo-juice.md) ---
+const FALL_G := 85.0          # gravity in rows/s²: pieces gather speed as they drop
+const FALL_STAGGER := 0.022   # s between pieces starting to fall, bottom first, up a column
+const CHAIN_NOTES := [0, 4, 7, 12, 16, 19, 24]  # semitones: each cascade climbs a major chord
+var _match_to := {}   # matched cell -> where its group pulls together (centre of the group)
+var _fall_delay := {} # falling cell -> s before it starts to fall
+var _fall_time := {}  # falling cell -> s its drop takes
+var _land := {}       # cell -> 1..0 landing squash after a drop
+var _tok_squash := Vector2.ONE  # non-uniform scale for the next gem drawn (landing squash)
+var _chain := 0       # cascades in the current turn
+var _trauma := 0.0    # screen shake: added by blasts, shake = trauma²
+var _whiteout := 0.0  # a full-board flash after a big blast
+var _hold := 0.0      # hit-stop: the step clock waits this long
 var _armed_t := 0.0
 
 var _queue: Array = []
@@ -138,6 +151,15 @@ func play_steps(steps: Array) -> void:
 		_next_step()
 
 
+## A new player turn: the cascade count starts over (the chord climbs again from the root).
+func new_turn() -> void:
+	_chain = 0
+
+
+func add_trauma(t: float) -> void:
+	_trauma = minf(1.0, _trauma + t)
+
+
 func bump(dir: Vector2i) -> void:
 	if snap.is_empty():
 		return
@@ -192,15 +214,28 @@ func _next_step() -> void:
 			_face = Vector2(Board.pos(_cur.cell) - Board.pos(snap.robot))
 			Sfx.play("drill")
 		"match":
-			_dur = 0.16 * fast
+			# the gems swell, then pull together into the middle of their line and pop there
+			_dur = 0.24 * fast
+			_match_to.clear()
 			for g in _cur.groups:
+				var mid := Vector2.ZERO
 				for c in g.cells:
+					mid += cell_center(c)
 					_flash[c] = 1.0
-			var pitch: float = 1.0 + 0.12 * (1 if _cur.cascade else 0) + 0.06 * _cur.groups.size()
-			Sfx.play("match", pitch)
+				mid /= float(g.cells.size())
+				for c in g.cells:
+					_match_to[c] = mid
+			_chain += 1
+			var note: int = CHAIN_NOTES[mini(_chain - 1, CHAIN_NOTES.size() - 1)]
+			Sfx.play("match", pow(2.0, note / 12.0))
+			if _chain in [3, 5, 7, 9]:
+				fx.emit("chain", {"n": _chain, "pos": cell_global(_cur.groups[0].cells[0])})
 		"blast":
 			_dur = 0.24
-			_shake = 1.0
+			_shake = 0.4
+			add_trauma(0.45)
+			_whiteout = 0.6
+			_hold = 0.05
 			var r: float = (_cur.radius + 0.5) * cell
 			_rings.append({"c": cell_center(_cur.center), "r0": cell * 0.3, "r1": r * 1.3,
 					"t": 0.0, "dur": 0.35, "color": Pal.CHARGE})
@@ -228,13 +263,38 @@ func _next_step() -> void:
 				far = maxi(far, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
 			if not _cur.get("warps", []).is_empty():
 				Sfx.play("pulse", 1.6)
-			_dur = 0.08 + 0.04 * far
+			_fall_delay.clear()
+			_fall_time.clear()
+			var cols := {}  # x -> [[dest y, cell, rows]]
+			for m in _cur.moves:
+				var dd: int = Board.pos(m[1]).y - Board.pos(m[0]).y
+				cols[Board.pos(m[1]).x] = cols.get(Board.pos(m[1]).x, []) + [[Board.pos(m[1]).y, m[1], maxi(1, dd)]]
+			for sp in _cur.spawns:
+				cols[Board.pos(sp[0]).x] = cols.get(Board.pos(sp[0]).x, []) + [[Board.pos(sp[0]).y, sp[0], maxi(1, sp[1])]]
+			for wp in _cur.get("warps", []):
+				cols[Board.pos(wp[1]).x] = cols.get(Board.pos(wp[1]).x, []) + [[Board.pos(wp[1]).y, wp[1], 1]]
+			var end := 0.05
+			for x in cols:
+				var list: Array = cols[x]
+				list.sort_custom(func(a, b): return a[0] > b[0])  # bottom first
+				for k in list.size():
+					var cc: int = list[k][1]
+					_fall_delay[cc] = k * FALL_STAGGER
+					_fall_time[cc] = sqrt(2.0 * float(list[k][2]) / FALL_G)
+					end = maxf(end, _fall_delay[cc] + _fall_time[cc])
+			if not _cur.robot.is_empty():
+				var rd: int = maxi(1, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
+				end = maxf(end, sqrt(2.0 * float(rd) / FALL_G))
+			_dur = end
 		"swap":
 			_dur = 0.14
 			Sfx.play("swap", randf_range(0.95, 1.05))
 		"special":
 			_dur = 0.42
-			_shake = 0.6
+			_shake = 0.3
+			add_trauma(0.5)
+			_whiteout = 0.7
+			_hold = 0.06
 			for c in _cur.hit:
 				_flash[c] = 1.0
 			for c in _cur.turned:
@@ -296,9 +356,11 @@ func _finish_phase() -> void:
 			if _phase == 0:
 				for g in _cur.groups:
 					var pts := []
+					var mid: Vector2 = _match_to.get(g.cells[0], cell_center(g.cells[0]))
 					for c in g.cells:
-						pts.append(cell_global(c))
-					fx.emit("extract", {"points": pts, "ore": g.ore})
+						pts.append(get_global_transform_with_canvas() * mid)
+					fx.emit("extract", {"points": pts, "ore": g.ore, "chain": _chain, "pop": true})
+				_match_to.clear()
 				if _cur.energy > 0:
 					fx.emit("energy", {"pos": cell_global(snap.robot), "amount": _cur.energy})
 				for r in _cur.cracked:
@@ -456,7 +518,9 @@ func _apply(s: Dictionary) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
-	if not _cur.is_empty():
+	if _hold > 0.0:
+		_hold -= delta  # hit-stop: the board holds its breath, the rest of the screen runs on
+	elif not _cur.is_empty():
 		_t += delta / maxf(0.001, _dur)
 		if _t >= 1.0:
 			_t = 1.0
@@ -482,6 +546,17 @@ func _process(delta: float) -> void:
 		r.t += delta
 	_rings = _rings.filter(func(r): return r.t < r.dur)
 	_shake = maxf(0.0, _shake - delta * 4.0)
+	_trauma = maxf(0.0, _trauma - delta * 1.6)
+	_whiteout = maxf(0.0, _whiteout - delta / 0.14)
+	var landed_any := false
+	for k in _land.keys():
+		if _land[k] >= 1.0:
+			landed_any = true
+		_land[k] -= delta / 0.26
+		if _land[k] <= 0.0:
+			_land.erase(k)
+	if landed_any:
+		Sfx.play("step", randf_range(0.8, 1.0))
 	_armed_t += delta
 	_glow_t += delta
 	if _bump.t > 0.0:
@@ -620,7 +695,7 @@ func _request(dir: Vector2i) -> void:
 func _draw() -> void:
 	if snap.is_empty() or cell < 16.0:
 		return
-	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * 10.0
+	var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * (_shake * 10.0 + _trauma * _trauma * 16.0)
 	draw_set_transform(off)
 	if not _art:
 		draw_rect(Rect2(origin - Vector2(10, 10), Vector2(cell * Board.W, cell * Board.H) + Vector2(20, 20)), Pal.BEDROCK)
@@ -653,10 +728,24 @@ func _draw() -> void:
 		if snap.terrain[i] != T.GROUND:
 			continue
 		if falling and (_fall_from.has(i) or _fall_drop.has(i)):
-			# gems drop with gravity: ease in, so they gather speed
-			var e := _t * _t
+			# gems drop with gravity, each on its own clock (bottom first, a beat apart), and
+			# squash when they land
+			var lt := clampf((_t * _dur - float(_fall_delay.get(i, 0.0))) / maxf(0.01, float(_fall_time.get(i, 0.1))), 0.0, 1.0)
+			if lt >= 1.0 and not _land.has(i):
+				_land[i] = 1.0
 			var fp: Vector2 = cell_center(_fall_from[i]) if _fall_from.has(i) else cell_center(i) - Vector2(0, pitch * _fall_drop[i])
-			_draw_token(fp.lerp(cell_center(i), e), tok[i], kinds[i], _depth_scale(i), 0.0, specs[i])
+			var at2 := fp.lerp(cell_center(i), lt * lt)
+			var grow := 1.0
+			if not _fall_from.has(i):
+				# a new gem enters through the top of its run: it grows in as it crosses the edge
+				# (there is nothing above the board to fall from)
+				var edge: float = cell_center(i).y - pitch * (float(_fall_drop[i]) - 0.5)
+				grow = clampf((at2.y - edge + pitch * 0.5) / pitch, 0.0, 1.0)
+				if grow <= 0.0:
+					continue
+			_tok_squash = _squash_of(i)
+			_draw_token(at2, tok[i], kinds[i], _depth_scale(i) * (0.5 + 0.5 * grow), 0.0, specs[i])
+			_tok_squash = Vector2.ONE
 			continue
 		if swapping and (i == _cur.a or i == _cur.b):
 			var other: int = _cur.b if i == _cur.a else _cur.a
@@ -674,9 +763,15 @@ func _draw() -> void:
 		if _rise.has(i):
 			sc = _back_out(_rise[i])
 		var fl: float = _flash.get(i, 0.0)
-		if fl > 0.0 and not _cur.is_empty() and _cur.type == "match" and _phase == 0:
-			sc *= 1.0 + 0.18 * _t
 		var at := cell_center(i)
+		if not _cur.is_empty() and _cur.type == "match" and _phase == 0 and _match_to.has(i):
+			# swell for the first third, then rush into the group's middle, shrinking
+			var sw := clampf(_t / 0.35, 0.0, 1.0)
+			var pull := clampf((_t - 0.3) / 0.7, 0.0, 1.0)
+			pull = pull * pull
+			at = at.lerp(_match_to[i], pull * 0.9)
+			sc *= (1.0 + 0.16 * sin(PI * 0.5 * sw)) * (1.0 - 0.6 * pull)
+			fl = 0.35 + 0.65 * pull
 		if not _cur.is_empty() and _cur.type == "magnet" and _cur.cells.has(i):
 			var k := _ease(clampf(_t * 1.25, 0.0, 1.0))
 			at = at.lerp(cell_center(snap.robot), k)
@@ -690,7 +785,9 @@ func _draw() -> void:
 			at = at.lerp(cell_center(other2), 0.35 * sin(PI * (1.0 - _reject.t)))
 		if i == _sel:
 			sc *= 1.08 + 0.04 * sin(_time * 10.0)
+		_tok_squash = _squash_of(i)
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
+		_tok_squash = Vector2.ONE
 	if snap.robot < 0:
 		_draw_booster_fx()
 		_draw_overlays(glowing)
@@ -730,6 +827,10 @@ func _draw() -> void:
 ## Over everything on the board: the idle-hint sparks, Mira's focus frames, the pulse rings.
 func _draw_overlays(glowing: bool) -> void:
 	_draw_portals()
+	if _whiteout > 0.0:
+		# a big blast washes the board white for a blink
+		draw_rect(Rect2(origin - Vector2(cell, cell) * 0.2, Vector2(cell * Board.W, pitch * Board.H) + Vector2(cell, cell) * 0.4),
+				Color(1.0, 0.97, 0.9, 0.42 * _whiteout))
 	if glowing:
 		for k in glow.size():
 			_draw_glow_sparks(glow[k], k)
@@ -1148,9 +1249,14 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float, sp := 
 	var art := Art.ore(kind) if tk == K.ORE and _art else null
 	if art != null:
 		var size := cell * ORE_SIZE * sc
-		_draw_lifted(art, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
+		var sz := Vector2(size, size) * _tok_squash
 		if flash > 0.0:
-			draw_circle(c, s * 1.3, Color(1, 1, 1, 0.55 * flash))
+			# a match lights the gem from behind: a soft halo, the gem itself stays crisp
+			var hc: Color = Pal.ORE[kind].lightened(0.5)
+			draw_circle(c, s * 1.55, Color(hc, 0.18 * flash), true, -1.0, true)
+			draw_circle(c, s * 1.25, Color(1, 1, 1, 0.32 * flash), true, -1.0, true)
+		# squash from the bottom: a landing gem flattens onto its cell, it doesn't shrink upward
+		_draw_lifted(art, Rect2(c + Vector2(-sz.x * 0.5, size * 0.5 - sz.y), sz))
 		return
 	match tk:
 		K.ORE:
@@ -1246,6 +1352,15 @@ func _draw_special(c: Vector2, sp: int, kind: int, sc: float) -> void:
 				var ph := fmod(_time * 1.2 + k * 0.5, 1.0)
 				draw_arc(c, r * (0.25 + 0.7 * ph), 0, TAU, 32, Color(col, 1.0 - ph), w * 0.9, true)
 			draw_circle(c, r * 0.22, col, true, -1.0, true)
+
+## A landed gem's squash: flat and wide on impact, springing back tall, settling (~0.25 s).
+func _squash_of(i: int) -> Vector2:
+	if not _land.has(i):
+		return Vector2.ONE
+	var u: float = 1.0 - _land[i]
+	var w := exp(-u * 6.0) * cos(u * 17.0)
+	return Vector2(1.0 + 0.13 * w, 1.0 - 0.13 * w)
+
 
 func _gem(c: Vector2, s: float, col: Color) -> void:
 	var p := PackedVector2Array([c + Vector2(0, -s), c + Vector2(s * 0.8, -s * 0.2), c + Vector2(0, s), c + Vector2(-s * 0.8, -s * 0.2)])
