@@ -250,8 +250,17 @@ class DigHud extends Control:
 			if v != shown[i]:
 				_pop[i] = 1.0
 			shown[i] = v
-		else:
-			_wait = 1.2
+		elif _wait <= 0.0:
+			_wait = 0.9  # catch up anyway if no particle lands (counted from the first miss)
+		_top.queue_redraw()
+
+	## Every counter to its real value at once (the dig is over: nothing may still read 1/2).
+	func sync() -> void:
+		for i in shown.size():
+			if shown[i] != have[i]:
+				shown[i] = have[i]
+				_pop[i] = 1.0
+		_wait = 0.0
 		_top.queue_redraw()
 
 	func target_global() -> Vector2:

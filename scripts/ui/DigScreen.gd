@@ -554,6 +554,7 @@ func _on_snap(s: Dictionary) -> void:
 
 func _on_settled() -> void:
 	if board.over:
+		_hud.sync()
 		view.input_enabled = false
 		view.focus = []
 		view.set_glow([])
@@ -727,8 +728,8 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 				fxl.text(d.pos, "+%d energy" % board.cfg.cell_energy, Pal.GOOD, 48)
 				fxl.burst(d.pos, Pal.CELL, 12)
 		"pickup":
-			if fxl.targets.has(3):
-				fxl.fly(d.pos, 3, Pal.CRYSTAL)
+			if fxl.targets.has(Board.RES_CRYSTAL):
+				fxl.fly(d.pos, Board.RES_CRYSTAL, Pal.CRYSTAL)
 			fxl.burst(d.pos, Pal.CRYSTAL, 14, 520.0)
 			fxl.text(d.pos, "Crystal!", Pal.CRYSTAL, 56)
 		"treasure":

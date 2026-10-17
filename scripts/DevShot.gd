@@ -67,6 +67,9 @@ func _run() -> void:
 			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
 			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
 		var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+		if OS.has_environment("ASTRO_CRYSTAL"):  # ASTRO_CRYSTAL=cell: an open crystal there
+			main.dig.board.token[int(OS.get_environment("ASTRO_CRYSTAL"))] = Board.Token.CRYSTAL
+			main.dig.view.show_snap(main.dig.board.snapshot())
 		if OS.has_environment("ASTRO_SPECIAL"):  # ASTRO_SPECIAL="cell:kind;...": place moved-specials
 			for e in OS.get_environment("ASTRO_SPECIAL").split(";", false):
 				var ck := e.split(":")
