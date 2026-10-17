@@ -1,5 +1,9 @@
 # Astro Miner — GDD v3
 
+> **Partly superseded by `gdd-v4.md` (2026-10-17):** buildings no longer give permanent board
+> power (no Power budget bonus, no Workshop/Lab upgrade effects); they make boosters. Level
+> length and difficulty targets are in v4 §3.
+
 > Status: **approved 2026-10-15** (user sign-off). This supersedes the direction in
 > `prototype-gdd.md` (v0.1). The turn/board rules in v0.1 §3–§4 and §8 still hold and are
 > not repeated here; v3 changes the **audience framing, energy model, economy, meta and

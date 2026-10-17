@@ -17,7 +17,7 @@ from PIL import Image
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 COL = os.path.join(ROOT, "assets", "colony")
 OUT = os.path.join(ROOT, "scripts", "ui", "ColonySockets.gd")
-SPRITES = ["dome", "power", "workshop", "lab", "pad", "greenhouse"]
+SPRITES = ["dome", "power", "workshop", "lab", "pad", "teleporter"]
 
 PATHS = os.path.join(COL, "paths.png")
 
@@ -76,7 +76,7 @@ def sites():
 	PLOT_ASPECT = float(np.mean([(c[2] - c[0]) / max(1, c[3] - c[1]) for c in blobs[1:5]]))
 	for c in blobs[1:5]:
 		x, y, w = grow(c)
-		name = ("power" if x < hub[0] else "workshop") if y < hub[1] else ("greenhouse" if x < hub[0] else "lab")
+		name = ("power" if x < hub[0] else "workshop") if y < hub[1] else ("teleporter" if x < hub[0] else "lab")
 		out[name] = (x, y, w)
 	# the robot's landing pad stands on the plain ground above the colony, centred over the
 	# two upper plots; the bottom stays clear
@@ -103,7 +103,7 @@ def main():
 		"## assets/colony/paths.png (%dx%d): each site's centre and width, in its pixels: the dirt" % (bw_, bh_),
 		"## plots found in the art (the hub is the round middle), the decorations' free spots.",
 		"const SITES := {"]
-	for k in ["hub", "power", "workshop", "lab", "greenhouse", "pad"]:
+	for k in ["hub", "power", "workshop", "lab", "teleporter", "pad"]:
 		x, y, wd = found[k]
 		lines.append('\t"%s": Vector3(%.1f, %.1f, %.1f),' % (k, x, y, wd))
 	lines += ["}", "", "## A plot's diamond is this many times wider than tall (measured on the art).",

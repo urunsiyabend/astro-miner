@@ -1,5 +1,152 @@
 # Level plan (master sheet), v3: as built
 
+## Core-loop prototypes (2026-10-17): Settings > Prototypes
+
+Before building more content, three core loops are played side by side on the same five
+boards (`Sites.PROTO_BOARDS`, `Sites.protos()`), so the loop is the only difference:
+
+| | control | refill | colours | notes |
+|---|---|---|---|---|
+| **A Robot** | walk the robot; each step drags one gem | surfaces in place (veins) | 3 | the current game |
+| **B Robot + falling** | the same robot | gems drop from above; **the robot falls too** when what is under it is cleared (matching under it is a free move down) | 4 | |
+| **C Classic** | swap any two neighbouring gems (swipe, or tap one then a neighbour); a swap that makes no line wobbles back | drop from above; crystals and cells are collected at the bottom of their column | 4 | ore goals x3, rock 3 layers |
+
+Measured with the SLOPPY bot at ~82%: falling gems cascade so much that with 3 colours B1
+took 5 moves for 18 Ferrite (A1: 21), and C cleared every board in 4–6 moves; so B and C get
+4 colours and C bigger goals. After that each mode plays ~10–20 moves per board.
+
+**Falling-gem extras (B6–B11)**, odd maps in Royal Match's spirit (`Sites.PROTO_FALL_EXTRA`):
+- **Portals** (`portals: [[source, destination]]`): what falls out of the source cell drops in at
+  the destination, the robot too; and the robot can *walk* through one (down out of the source,
+  up out of the destination; `Board.step_to`). B6 Twin chambers (crystals in the other room),
+  B8 Side stream (the left room feeds the right one).
+- **spawn_top**: new gems only enter runs that reach the top of the board, so pockets under a
+  rock shelf drain and open up (B9 Hollow pockets).
+- **collect**: a crystal is collected when it reaches the bottom of its run (B10 Crystal drop).
+- B7 Funnel (a V-shaped board), B11 Chain lake (an open field for big cascades, Geode).
+
+**Moved specials.** A line of 4 no longer always leaves the blast charge: each board tries a
+different special, and a special goes off when it is MOVED (the robot drags it, a classic
+swap moves it), at the cell it lands on, aimed by the way it moved (`Board.Special`):
+Drill core (bores on the way it moved until rock, 2 layers off), Prism (four diagonal beams
+through rock), Geode (turns the 8 gems around it into its colour), Quake (hits the ring two
+cells out). Board 5 keeps the original blast for comparison. Specials are drawn as objects
+(`assets/ui/specials/`), never on a gem: a coloured gem asks to be matched (Candy Crush's
+specials are matched; Royal Match's colourless power-ups are tapped or swapped, which is
+what ours are).
+
+## Iteration 1 (2026-10-17): the first 15 digs, paced like the big games
+
+We work in small playable slices: make the first 15 digs good, play them on a phone; if they
+are fun, build the rest the same way, if not, question the core loop before adding content.
+Pacing follows `docs/research/match3-mechanic-pacing.md`: a new mechanic every few digs,
+always on an easy dig, then practice, then a variation; no hard dig before ~dig 25–40
+(Royal Match's first Hard is level 39, first Super Hard 59); a reward dig closes a chapter.
+Planet length is decided after this slice is played (the research points at ~60 digs for
+Planet 1 instead of 30, because 11 new things in 31 digs is ~3x Royal Match's density).
+
+| dig | id | role | goal | budget | sloppy | used |
+|---|---|---|---|---|---|---|
+| 1 | first | **new**: swap + match (lesson) | 6 Ferrite | 20 | 96% | 12 |
+| 2 | drag | practice, a plus-shaped room | 30 chunks | 24 | 86% | 15 |
+| 3 | vein | **new**: veins (pips) | 21 chunks | 18 | 91% | 10 |
+| 4 | landing | variation: one-colour goal | 15 Lumen | 32 | 91% | 19 |
+| 5 | rocks | **new**: rubble | break 5 | 24 | 83% | 13 |
+| 6 | ring | practice: rock + ore | break 8 + 42 chunks | 29 | 83% | 20 |
+| 7 | glint | **new**: crystal in rock | 1 crystal + 15 chunks | 30 | 96% | 12 |
+| 8 | nearby | practice: crystals | 3 crystals + 18 chunks | 18 | 75%→ | 12 |
+| 9 | rooms | twist: walled rooms | 36 chunks | 34 | 95% | 22 |
+| 10 | lode | reward; then the Power Station (Star 10) | 30 chunks | 20 | 96% | 11 |
+| 11 | quarry | **new**: the Bomb (free one in hand; rubble clumps) | break 10 | 24 | 73%→ (no Bomb) | 15 |
+| – | rush1 | gold rush: a breather | chests | 14 | – | – |
+| 12 | zigzag | show: a chain reaction | break 11 | 10 | 90% | 7 |
+| 13 | battery | **new**: energy cell (lesson) | 12 Ferrite | 9 | hand | – |
+| 14 | cellar | practice: cells under rubble on shallow ground | 32 chunks | 22 | 90% | 18 |
+| 15 | boulders | variation: 2-layer rock | break 5 + 18 chunks | 29 | 83% | 19 |
+
+(→: budget raised by one after this measurement.) Ruby moved out of this slice (it is met
+in seam, later). Digs after 15 are the v4 campaign below, unchanged for now.
+
+## v4 (2026-10-17): length, a sawtooth, Ruby. Read this first; the v3 tables below are history.
+
+Why: by dig 20 digs ended with 30+ moves left and some took a few seconds (GDD v4 §0). v4
+makes digs longer (20–30 moves from chapter 2), gives each chapter a hard and a super-hard
+dig with a breather after, adds a 4th ore colour as a difficulty lever, and tunes every
+budget to a target clear rate instead of by hand.
+
+**Method.** Every random-ore dig has a `tier` in `Sites.gd`; `tools/tune_v4.gd` finds the
+smallest budget at which the SLOPPY bot (the planner wasting 12% of its moves: the human
+proxy) reaches the tier's first-attempt clear rate:
+
+| tier | target | where |
+|---|---|---|
+| intro | 92% | digs 1–6: one idea each |
+| normal | 82% | most digs |
+| hard | 55% | X5 of chapters 2 and 3; the goal card says "Hard Dig" (orange rim) |
+| superhard | 35% | X9; "Super Hard!" (red rim); shorter, not longer (King) |
+| breather | 88% | right after a super-hard dig |
+| reward | 95% | the chapter's last dig |
+
+Hand-made digs (`ore` layouts) keep a budget from their recorded solution plus slack; the
+bots cannot read Mira's hints, so their bot rates are low by design (people are told what
+to do). **Watch them in playtests:** longhaul, battery, charge, vaults.
+
+**What the tuning taught (keep):**
+- A goal for one specific colour has a wide spread of "moves needed" (it depends on which
+  colours surface), so a budget that clears 82% leaves ~20 moves on most wins. Any-colour
+  chunks, crystals and rock depend on the route and spread far less (6–11 left). Normal digs
+  use those; one-colour goals stay in lessons and short digs.
+- 4 colours (Ruby) crush match goals and barely touch routing goals (crystal/rock). Used on
+  nearby (Ruby's intro: crystals, low stakes, Mira explains), seam and the super-hard shale.
+- Crystals sealed in 2-layer rock (checker, pockets) lengthen a dig without luck.
+
+**Campaign v4** (budget = moves; sloppy = SLOPPY bot, 40 seeds; used/left = median win):
+
+| # | id | tier | col | goal | budget | sloppy | used | left |
+|---|---|---|---|---|---|---|---|---|
+| 1 | first | hand | 3 | 6 Ferrite | 20 | 97% | 12 | 9 |
+| 2 | drag | intro | 3 | 30 chunks | 24 | 85% | 15 | 9 |
+| 3 | vein | intro | 3 | 21 chunks | 18 | 87% | 9 | 10 |
+| 4 | landing | intro | 3 | 15 Lumen | 32 | 90% | 18 | 14 |
+| 5 | rocks | intro | 3 | break 5 | 24 | 82% | 13 | 11 |
+| 6 | glint | intro | 3 | 1 crystal + 15 chunks | 30 | 95% | 11 | 19 |
+| – | rush1 | gold rush | 3 | chests | 14 | – | – | – |
+| 7 | ring | normal | 3 | break 8 + 42 chunks | 29 | 90% | 20 | 9 |
+| 8 | rooms | normal | 3 | 36 chunks | 34 | 95% | 23 | 10 |
+| 9 | zigzag | hand | 3 | break 11 | 10 | 87% | 7 | 3 |
+| 10 | lode | reward | 3 | 30 chunks | 20 | 97% | 11 | 9 |
+| 11 | longhaul | hand (Power: Bomb) | 3 | 1 crystal | 25 | bot 5% | – | – |
+| 12 | nearby | normal | **4** | 3 crystals + 10 chunks | 26 | 97% | 16 | 11 |
+| 13 | battery | hand | 3 | 12 Ferrite | 9 | bot 5% | – | – |
+| 14 | charge | hand | 3 | 2 blasts | 14 | bot 17% | – | – |
+| 15 | checker | **hard** | 3 | 2 crystals (2-layer) | 21 | 62% | 18 | 9 |
+| 16 | route | normal | 3 | 2 crystals + 27 chunks | 37 | 85% | 23 | 14 |
+| 17 | deep | normal | 3 | 1 crystal + 42 chunks | 31 | 72% | 23 | 8 |
+| – | rush2 | gold rush | 3 | chests | 16 | – | – | – |
+| 18 | shallows | **superhard** | 3 | 3 crystals | 19 | 27% | 33 | 6 |
+| 19 | well | breather | 3 | 1 crystal + 12 chunks | 24 | 82% | 16 | 9 |
+| 20 | garden | reward | 3 | 4 crystals | 41 | 97% | 24 | 16 |
+| 21 | vaults | hand (Workshop: drill) | 3 | 2 crystals | 42 | bot 32% | – | – |
+| 22 | stone | normal | 3 | break 6 | 34 | 92% | 21 | 11 |
+| 23 | seam | normal | **4** | 30 chunks | 26 | 90% | 18 | 8 |
+| 24 | rubble | **hard** | 3 | break 14 | 18 | 70% | 23 | 7 |
+| 25 | strata | normal | 3 | break 10 | 48 | 72% | 33 | 12 |
+| 26 | pockets | normal | 3 | 4 crystals (2-layer) | 36 | 92% | 28 | 6 |
+| 27 | maze | normal | 3 | 3 crystals | 24 | 97% | 19 | 7 |
+| 28 | shale | **superhard** | **4** | 8 Cryo + 1 crystal | 28 | 57% | 26 | 8 |
+| 29 | core | breather | 3 | 2 crystals + 15 chunks | 23 | 97% | 12 | 12 |
+| 30 | openseam | reward | 3 | 30 chunks | 28 | 95% | 15 | 13 |
+| 31 | readings | hand (Lab: scanner) | 3 | 2 crystals | 34 | 100% | 19 | 10 |
+
+The SLOPPY rates over 40 seeds wobble ±10% against the tuner's 30; re-run
+`tools/tune_v4.gd -- 60 <id>` before trusting one number. Whole campaign
+(`tools/balance_probe.gd -- sloppy`, upgrades bought when affordable, retries): ~600 moves
+and ~560–600 Coin against 1005 Coin of upgrades, so a player chooses what to upgrade.
+
+**Next:** turn longhaul into the Bomb lesson; playtest the hand-made lessons; once real
+play data exists, re-tune the targets (the bot is only a proxy).
+
+
 Built from `docs/research/match3-level-design.md` and implemented in `scripts/core/Sites.gd`.
 Every dig has one idea, at most 3 elements (at most 1 new), a place on its chapter's ramp
 and a board shape that differs from its neighbours.
@@ -49,7 +196,7 @@ and a board shape that differs from its neighbours.
 - **First-encounter notes:** a random line of 4 can leave a charge long before the charge
   lesson. The first time that happens, one short note explains it.
 
-## Campaign
+## Campaign (v3, superseded by v4 above)
 
 Bot clear rate = PLANNER bot over 30 seeds with the buildings a player has at that dig
 (`tools/levels.gd`). Bots don't plan routes, so people should do better. The rate is a sanity

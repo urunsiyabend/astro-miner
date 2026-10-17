@@ -6,13 +6,14 @@ extends Node
 
 func _ready() -> void:
 	Game.save_path = "user://shot_save.json"
+	Game.show_fps = OS.has_environment("ASTRO_FPS")
 	if OS.has_environment("ASTRO_CLEARED"):
 		for i in int(OS.get_environment("ASTRO_CLEARED")):
 			Game.cleared[i] = true
 	if OS.has_environment("ASTRO_BANK"):
 		Game.coin = 9999
 		Game.star = 999
-		Game.levels = [1, 1, 1]
+		Game.levels = [1, 1, 1, 1]
 		Game.unlocked = Sites.count()
 	# colony states: ASTRO_STAR=<stars>, ASTRO_LEVELS=<p,w,l>; milestones count as celebrated
 	# unless ASTRO_FRESH is set (then the colony plays its milestone/unlock walkthrough)
@@ -21,11 +22,21 @@ func _ready() -> void:
 		Game.coin = maxi(Game.coin, 200)
 		if not OS.has_environment("ASTRO_FRESH"):
 			Game.milestones_seen = Game.milestones_reached()
-			for b in 3:
+			for b in Economy.BUILDINGS.size():
 				Game.tips_seen["unlock_%d" % b] = true
+	if OS.has_environment("ASTRO_BOOST"):  # ASTRO_BOOST=b,w,l,m: booster counts (-1: still locked)
+		var bc := OS.get_environment("ASTRO_BOOST").split(",")
+		for k in mini(4, bc.size()):
+			var n := int(bc[k])
+			Game.boosters[k] = maxi(0, n)
+			Game.levels[Economy.BOOSTERS[k].building] = 0 if n < 0 else maxi(1, Game.levels[Economy.BOOSTERS[k].building])
+	if OS.has_environment("ASTRO_MADE"):  # ASTRO_MADE=p,w,l,t: boosters waiting on each building
+		var md := OS.get_environment("ASTRO_MADE").split(",")
+		for k in mini(4, md.size()):
+			Game.made[k] = int(md[k])
 	if OS.has_environment("ASTRO_LEVELS"):
 		var lv := OS.get_environment("ASTRO_LEVELS").split(",")
-		for b in mini(3, lv.size()):
+		for b in mini(Economy.BUILDINGS.size(), lv.size()):
 			Game.levels[b] = int(lv[b])
 	_run.call_deferred()
 
@@ -56,10 +67,28 @@ func _run() -> void:
 			main.dig.board.energy = int(OS.get_environment("ASTRO_ENERGY"))
 			main.dig._hud.set_energy(main.dig.board.energy, main.dig.board.cfg.capacity)
 		var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+		if OS.has_environment("ASTRO_SPECIAL"):  # ASTRO_SPECIAL="cell:kind;...": place moved-specials
+			for e in OS.get_environment("ASTRO_SPECIAL").split(";", false):
+				var ck := e.split(":")
+				main.dig.board.token[int(ck[0])] = Board.Token.CHARGE
+				main.dig.board.spec[int(ck[0])] = int(ck[1])
+			main.dig.view.show_snap(main.dig.board.snapshot())
+		for e in OS.get_environment("ASTRO_SWAPS").split(",", false):  # classic: "cell:U,cell:L"
+			var cd := e.split(":")
+			main.dig._on_swap(int(cd[0]), map[cd[1]])
+			await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
 		for ch in OS.get_environment("ASTRO_MOVES"):
 			if map.has(ch):
 				main.dig._on_move(map[ch])
 				await get_tree().create_timer(float(OS.get_environment("ASTRO_MOVEWAIT")) if OS.has_environment("ASTRO_MOVEWAIT") else 0.7).timeout
+		if OS.has_environment("ASTRO_ARM"):  # ASTRO_ARM=k: arm booster k; ASTRO_USE=target: use it
+			main.dig._on_booster(int(OS.get_environment("ASTRO_ARM")))
+			if OS.has_environment("ASTRO_USE"):
+				main.dig._use_booster(int(OS.get_environment("ASTRO_USE")))
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_USEWAIT")) if OS.has_environment("ASTRO_USEWAIT") else 0.15).timeout
+		if OS.has_environment("ASTRO_LOCKTAP"):  # ASTRO_LOCKTAP=k: tap a locked slot
+			main.dig._boosters._on_slot(int(OS.get_environment("ASTRO_LOCKTAP")))
+			await get_tree().create_timer(0.15).timeout
 		if OS.has_environment("ASTRO_HAUL"):
 			main.dig._toggle_haul()
 		if OS.has_environment("ASTRO_HINT"):
@@ -126,9 +155,22 @@ func _run() -> void:
 			await get_tree().create_timer(0.3).timeout
 		if OS.has_environment("ASTRO_TAB"):  # ASTRO_TAB=0..4: open that tab-bar page
 			main.colony._on_tab(int(OS.get_environment("ASTRO_TAB")))
+		if OS.has_environment("ASTRO_PROTOS"):  # the Prototypes picker
+			main.colony._open_protos()
 		if OS.has_environment("ASTRO_CARD"):  # ASTRO_CARD=b: tap building b's plot
+			main.colony.refresh()
 			main.colony._on_plot(Colony.building_plot(int(OS.get_environment("ASTRO_CARD"))))
+			if OS.has_environment("ASTRO_TAPWAIT"):  # shoot this far into the tap's answer
+				await get_tree().create_timer(float(OS.get_environment("ASTRO_TAPWAIT"))).timeout
+				await RenderingServer.frame_post_draw
+				get_viewport().get_texture().get_image().save_png(OS.get_environment("ASTRO_SHOT"))
+				get_tree().quit()
+				return
 		await get_tree().create_timer(0.6).timeout
+	if OS.has_environment("ASTRO_PERF"):  # ASTRO_PERF=s: measure frame times for s seconds
+		await _perf(float(OS.get_environment("ASTRO_PERF")))
+		get_tree().quit()
+		return
 	if OS.has_environment("ASTRO_DUMP"):  # print every visible control's global rect
 		var stack: Array = [main]
 		while not stack.is_empty():
@@ -141,3 +183,61 @@ func _run() -> void:
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(OS.get_environment("ASTRO_SHOT"))
 	get_tree().quit()
+
+
+## Frame cost of what is on screen now: CPU and GPU render time of the main viewport and the
+## script/process time, averaged and at the 95th percentile (vsync off for a clean read).
+func _perf(secs: float) -> void:
+	# ASTRO_HIDE=a,b: hide parts of the dig screen to see what each costs on the GPU
+	var dig = get_parent().dig
+	for part in OS.get_environment("ASTRO_HIDE").split(",", false):
+		match part:
+			"bar": dig._boosters.visible = false
+			"hud": dig._hud.visible = false
+			"board": dig.view.visible = false
+			"sky": dig.get_child(1).visible = false
+			"fx": dig.fxl.visible = false
+	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = 0
+	var vp := get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(vp, true)
+	for k in 30:
+		await get_tree().process_frame
+	var cpu := []
+	var gpu := []
+	var proc := []
+	var wall := []
+	var first := _Stamp.new()
+	first.process_priority = -100000
+	var last := _Stamp.new()
+	last.process_priority = 100000
+	get_tree().root.add_child(first)
+	get_tree().root.add_child(last)
+	var scr := []
+	var t0 := Time.get_ticks_msec()
+	var frames := 0
+	while Time.get_ticks_msec() - t0 < secs * 1000.0:
+		await get_tree().process_frame
+		frames += 1
+		cpu.append(RenderingServer.viewport_get_measured_render_time_cpu(vp))
+		gpu.append(RenderingServer.viewport_get_measured_render_time_gpu(vp))
+		proc.append(Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0)
+		wall.append(get_process_delta_time() * 1000.0)
+		scr.append((last.at - first.at) / 1000.0)
+	var fps := frames / secs
+	print("SCRIPTS (all _process) %s" % _stat(scr))
+	print("PERF fps %.0f | frame %s | gpu %s | render-cpu %s | process %s" % [fps, _stat(wall), _stat(gpu), _stat(cpu), _stat(proc)])
+
+
+func _stat(a: Array) -> String:
+	a.sort()
+	var sum := 0.0
+	for v in a:
+		sum += v
+	return "avg %.2f p95 %.2f ms" % [sum / maxf(1, a.size()), a[int(a.size() * 0.95)] if not a.is_empty() else 0.0]
+
+
+class _Stamp extends Node:
+	var at := 0
+	func _process(_d: float) -> void:
+		at = Time.get_ticks_usec()

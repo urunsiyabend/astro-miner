@@ -7,11 +7,15 @@ const LOG_MAX := 60
 
 var save_path := "user://save.json"
 var coin := 0            # soft currency: every ore chunk merges into Coin; the only spent one
-var star := 0            # scarce progress counter, NEVER spent: +1 per crystal, +1 per first-clear
-var levels := [0, 0, 0]
+var star := 0            # progress counter, NEVER spent: +1 per dig first-clear (= digs cleared)
+var levels := [0, 0, 0, 0]  # by Economy.BUILDINGS index [power, workshop, lab, teleporter]
+var boosters := [0, 0, 0, 0]  # inventory, by Economy.Booster
+var made := [0, 0, 0, 0]      # boosters waiting on each building to be collected
+var made_progress := [0, 0, 0, 0]  # clears toward each building's next booster
 var unlocked := 1
 var cleared := []
 var sfx_on := true
+var show_fps := false  # Settings: a frame-rate readout in the corner (to test on a phone)
 var tips_seen := {}
 var totals := {}
 var dig_log := []  # most recent digs, local instrumentation only
@@ -27,7 +31,10 @@ func _ready() -> void:
 func reset() -> void:
 	coin = 0
 	star = 0
-	levels = [0, 0, 0]
+	levels = [0, 0, 0, 0]
+	boosters = [0, 0, 0, 0]
+	made = [0, 0, 0, 0]
+	made_progress = [0, 0, 0, 0]
 	unlocked = 1
 	cleared = []
 	for i in Sites.count():
@@ -114,8 +121,48 @@ func buy(building: int) -> bool:
 		return false
 	coin -= c
 	levels[building] = lv + 1
+	if lv == 0:  # a new building hands out its first booster at once
+		boosters[Economy.BUILDINGS[building].booster] += 1
 	reminders.append([building, lv + 1])
 	totals.upgrades += 1
+	save()
+	return true
+
+
+## A cleared dig moves every built building toward its next booster (GDD v4 §1).
+func _produce() -> void:
+	for b in Economy.BUILDINGS.size():
+		var lv: int = levels[b]
+		if lv <= 0:
+			continue
+		if made[b] >= Economy.HOLD[lv]:
+			continue  # full: it waits to be collected
+		made_progress[b] += 1
+		if made_progress[b] >= Economy.PRODUCE_EVERY[lv]:
+			made_progress[b] = 0
+			made[b] += 1
+
+
+## Collect what building b has made: into the inventory. Returns how many.
+func collect(b: int) -> int:
+	var n: int = made[b]
+	if n <= 0:
+		return 0
+	boosters[Economy.BUILDINGS[b].booster] += n
+	made[b] = 0
+	save()
+	return n
+
+
+func booster_unlocked(k: int) -> bool:
+	return levels[Economy.BOOSTERS[k].building] >= 1
+
+
+## Spend one booster k (a dig used it). False if none is left.
+func use_booster(k: int) -> bool:
+	if boosters[k] <= 0:
+		return false
+	boosters[k] -= 1
 	save()
 	return true
 
@@ -147,20 +194,30 @@ func supply_site() -> int:
 
 
 ## Mira's reminders about new colony tech, consumed by the next dig.
-func take_reminders() -> Array:
+## `taught`: a building whose lesson dig is about to teach its tool: only its booster is
+## announced (the dig's own script teaches the tool).
+func take_reminders(taught := -1) -> Array:
 	var out := []
 	for r in reminders:
-		out.append(Story.REMIND[r[0]][r[1] - 1])
+		var line: String = Story.REMIND[r[0]][r[1] - 1]
+		if r[0] == taught and r[1] == 1:
+			line = Story.REMIND_BOOSTER[r[0]]
+		if line != "":
+			out.append(line)
 	reminders = []
 	return out
 
 
 ## Bank a finished dig. reason: "complete" | "energy" | "recall".
 func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) -> Dictionary:
-	var haul := [board.haul[0], board.haul[1], board.haul[2], board.haul[3]]
+	if Sites.get_site(site_index).get("proto", false):
+		# a core-loop prototype (Settings > Prototypes): never progress, never pay
+		return {"haul": Array(board.haul), "coin": 0, "star": 0, "clear_coin": 0, "move_coin": 0,
+				"treasure_coin": 0, "first_clear": false, "reason": reason, "next_unlocked": false}
+	var haul := Array(board.haul)
 	var rush: bool = Sites.get_site(site_index).get("gold_rush", false)
 	var coin_gain: int = board.treasure_coin  # chests pay whatever happens next
-	var star_gain: int = haul[3]       # +1 Star per crystal recovered
+	var star_gain := 0
 	var clear_coin := 0
 	var move_coin := 0
 	var first_clear := false
@@ -176,6 +233,7 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 			star_gain += Economy.FIRST_CLEAR_STARS           # +1 Star per dig first-clear
 			unlocked = maxi(unlocked, mini(Sites.count(), site_index + 2))
 		totals.clears += 1
+		_produce()
 	elif reason == "energy":
 		totals.exhausted += 1
 	else:
@@ -209,8 +267,9 @@ func finish_dig(site_index: int, board: Board, reason: String, hints_used := 0) 
 func save() -> void:
 	var data := {
 		"version": SAVE_VERSION, "coin": coin, "star": star, "levels": levels, "unlocked": unlocked,
-		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "tips_seen": tips_seen, "totals": totals,
+		"cleared_ids": cleared_ids(), "reminders": reminders, "sfx_on": sfx_on, "show_fps": show_fps, "tips_seen": tips_seen, "totals": totals,
 		"dig_log": dig_log, "milestones_seen": milestones_seen, "treasure_dry": treasure_dry,
+		"boosters": boosters, "made": made, "made_progress": made_progress,
 	}
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f == null:
@@ -230,9 +289,12 @@ func load_save() -> void:
 	if typeof(data) != TYPE_DICTIONARY:
 		push_warning("save corrupt, starting fresh")
 		return
-	levels = _ints(data.get("levels", levels), 3)
-	for i in 3:
+	levels = _ints(data.get("levels", levels), Economy.BUILDINGS.size())
+	for i in levels.size():
 		levels[i] = clampi(levels[i], 0, Economy.MAX_LEVEL)
+	boosters = _ints(data.get("boosters", boosters), Economy.BOOSTERS.size())
+	made = _ints(data.get("made", made), Economy.BUILDINGS.size())
+	made_progress = _ints(data.get("made_progress", made_progress), Economy.BUILDINGS.size())
 	# Cleared sites are stored by id, so inserting new sites never shifts progress.
 	for id in data.get("cleared_ids", []):
 		var k := Sites.index_of(String(id))
@@ -242,15 +304,17 @@ func load_save() -> void:
 	if data.has("bank") and data.bank is Array and data.bank.size() == 4:
 		var ob: Array = data.bank
 		coin = int(ob[0]) + int(ob[1]) + int(ob[2])
-		star = int(ob[3]) + cleared.count(true)  # crystals held + one star per already-cleared dig
 	else:
 		coin = int(data.get("coin", 0))
-		star = int(data.get("star", 0))
+	# v4: Star is one per cleared dig and nothing else, so it is rebuilt from progress (older
+	# saves also counted crystals)
+	star = cleared.count(true) * Economy.FIRST_CLEAR_STARS
 	unlocked = 1
 	for i in cleared.size():
 		if cleared[i]:
 			unlocked = maxi(unlocked, mini(Sites.count(), i + 2))
 	sfx_on = bool(data.get("sfx_on", true))
+	show_fps = bool(data.get("show_fps", false))
 	tips_seen = data.get("tips_seen", {})
 	treasure_dry = int(data.get("treasure_dry", 0))
 	var t: Dictionary = data.get("totals", {})
@@ -261,7 +325,7 @@ func load_save() -> void:
 	milestones_seen = clampi(int(data.get("milestones_seen", milestones_reached())), 0, milestones_reached())
 	reminders = []
 	for r in data.get("reminders", []):
-		if r is Array and r.size() == 2 and int(r[0]) in [0, 1, 2] and int(r[1]) >= 1 and int(r[1]) <= Economy.MAX_LEVEL:
+		if r is Array and r.size() == 2 and int(r[0]) >= 0 and int(r[0]) < Economy.BUILDINGS.size() and int(r[1]) >= 1 and int(r[1]) <= Economy.MAX_LEVEL:
 			reminders.append([int(r[0]), int(r[1])])
 
 

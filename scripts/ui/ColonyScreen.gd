@@ -129,6 +129,52 @@ func _open_panel(card: Control) -> void:
 	card.create_tween().tween_property(card, "scale", Vector2.ONE, 0.3).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
+## Core-loop prototypes (Sites.protos()): the same five boards played three ways, to find
+## which loop is the most fun. They never count as progress and pay nothing.
+func _open_protos() -> void:
+	_close_panel()
+	var card := Widgets.JellyCard.new(48.0)
+	card.custom_minimum_size.x = 900
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 18)
+	card.add_child(v)
+	v.add_child(Widgets.JuicyText.new("Prototypes", 70, Color.WHITE, 0.1))
+	var intro := Ui.label("The same five boards, three ways to play. Each board also tries a different special for a line of 4. Which feels best?", Pal.FS_SMALL, Color("e7dcff"))
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intro.custom_minimum_size.x = 780
+	v.add_child(intro)
+	var faces := [Color("2f97ea"), Color("37b65a"), Color("c0394f")]
+	var rows: Array = Sites.proto_rows()
+	for m in rows.size():
+		v.add_child(Widgets.JuicyText.new(rows[m][0], 46, Color("fff2b0"), 0.05))
+		var grid := GridContainer.new()
+		grid.columns = 6
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 12)
+		grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		v.add_child(grid)
+		for bt in rows[m][1]:
+			var b := Widgets.JellyButton.new(bt[0], faces[m].lightened(0.35), faces[m], 96.0, 44)
+			b.custom_minimum_size.x = 112
+			var index: int = bt[1]
+			b.pressed.connect(func():
+				_close_panel()
+				launch.emit(index, false))
+			grid.add_child(b)
+	var names := []
+	for k in Sites.PROTO_BOARDS.size():
+		names.append("%d %s (%s)" % [k + 1, Sites.PROTO_BOARDS[k].name, Sites.PROTO_BOARDS[k].special])
+	for k in Sites.PROTO_FALL_EXTRA.size():
+		names.append("B%d %s (%s)" % [Sites.PROTO_BOARDS.size() + k + 1, Sites.PROTO_FALL_EXTRA[k].name, Sites.PROTO_FALL_EXTRA[k].special])
+	var legend := Ui.label("  ·  ".join(names), Pal.FS_TINY, Pal.MUTED)
+	legend.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	legend.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	legend.custom_minimum_size.x = 780
+	v.add_child(legend)
+	_open_panel(card)
+
+
 func _close_panel() -> void:
 	if _panel != null:
 		_panel.queue_free()
@@ -166,6 +212,16 @@ func _open_settings() -> void:
 		_sound_btn.text = "Sound: %s" % ("On" if Game.sfx_on else "Off"))
 	_sound_btn.text = "Sound: %s" % ("On" if Game.sfx_on else "Off")
 	v.add_child(_sound_btn)
+	var fps_btn := Widgets.JellyButton.new("", Color("b8f59a"), Color("4f9a3a"), 120.0, 48)
+	fps_btn.text = "FPS: %s" % ("On" if Game.show_fps else "Off")
+	fps_btn.pressed.connect(func():
+		Game.show_fps = not Game.show_fps
+		Game.save()
+		fps_btn.text = "FPS: %s" % ("On" if Game.show_fps else "Off"))
+	v.add_child(fps_btn)
+	var proto_btn := Widgets.JellyButton.new("Prototypes", Color("ffd27a"), Color("c77a1c"), 120.0, 48)
+	proto_btn.pressed.connect(_open_protos)
+	v.add_child(proto_btn)
 	_reset_btn = Widgets.JellyButton.new("Reset", Color("ff9a9a"), Color("c0394f"), 120.0, 48)
 	_reset_btn.pressed.connect(_on_reset)
 	v.add_child(_reset_btn)
@@ -196,7 +252,7 @@ func refresh(celebrate := -1) -> void:
 		_top.set_values(Game.coin, 1.0, "%d" % Game.star)
 	else:
 		_top.set_values(Game.coin, Game.milestone_progress(), "%d/%d" % [Game.star, nm[1]])
-	_view.set_state(Game.levels, Game.star)
+	_view.set_state(Game.levels, Game.star, Game.made)
 	if celebrate >= 0:
 		_view.celebrate(Colony.building_plot(celebrate))
 	var next := Game.next_dig()
@@ -292,7 +348,33 @@ func _on_plot(i: int) -> void:
 	if Game.levels[b] == 0:
 		_buy(b)
 		return
+	_view.poke(i)
+	if Game.made[b] > 0:
+		_collect(b, i)
+		return
+	# the building answers the tap first (squash-hop, a soft sound), then its card pops up
+	Sfx.play("swap", 0.9)
+	_building = true
+	await get_tree().create_timer(0.16).timeout
+	_building = false
 	_open_card(b)
+
+
+## Collect what building b has made: its bubble bursts and the boosters fly to the DIG button
+## (they are used in digs), with a popped "+1 Bomb".
+func _collect(b: int, i: int) -> void:
+	var at := _view.bubble_global(i)
+	var k: int = Economy.BUILDINGS[b].booster
+	var n := Game.collect(b)
+	_view.pop_bubble(i)
+	_view.set_state(Game.levels, Game.star, Game.made)
+	var tex := Art.tex("res://assets/ui/boosters/%s.png" % Widgets.BoosterBar.ICONS[k])
+	_fx.targets["dig"] = func(): return _go_btn.get_global_rect().get_center()
+	for j in n:
+		_fx.fly_icon(at, "dig", tex, 120.0, j * 0.12)
+	_fx.burst(at, Color("fff2b0"), 14, 520.0)
+	_fx.text(at - Vector2(0, 60), "+%d %s" % [n, Economy.BOOSTERS[k].name], Color("fff2b0"), 56)
+	Sfx.play("pickup")
 
 
 func _open_card(b: int) -> void:
@@ -358,10 +440,10 @@ func _card(b: int) -> Control:
 	stars.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(stars)
 	if lv > 0:
-		v.add_child(Widgets.EffectPlate.new("Now", def.effects[lv], Color("b9a6e8")))
+		v.add_child(Widgets.EffectPlate.new("Now", Economy.effect(b, lv), Color("b9a6e8")))
 	var c := Economy.cost(b, lv)
 	if lv < Economy.MAX_LEVEL:
-		v.add_child(Widgets.EffectPlate.new("Next" if lv > 0 else "Gives", def.effects[lv + 1], Pal.GOOD))
+		v.add_child(Widgets.EffectPlate.new("Next" if lv > 0 else "Gives", Economy.effect(b, lv + 1), Pal.GOOD))
 		var btn := Widgets.CostButton.new("Build" if lv == 0 else "Upgrade", c, Economy.can_afford(Game.coin, c))
 		btn.pressed.connect(func(): _buy(b))
 		v.add_child(btn)

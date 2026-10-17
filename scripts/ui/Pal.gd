@@ -18,13 +18,13 @@ const WARN := Color("ffb347")
 const BAD := Color("ff5c7a")
 const ACCENT := Color("5ad1e6")
 
-const ORE := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d")]
-const ORE_DARK := [Color("9c4517"), Color("1f7896"), Color("a08414")]
+const ORE := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d"), Color("ff4f6a")]
+const ORE_DARK := [Color("9c4517"), Color("1f7896"), Color("a08414"), Color("8a1a2c")]
 const CRYSTAL := Color("c88bff")
 const CRYSTAL_DARK := Color("6d3aa8")
 const CELL := Color("6dff8a")
 const CHARGE := Color("ff4f6d")
-const RES := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d"), Color("c88bff")]
+const RES := [Color("ff8a3d"), Color("4fd8ff"), Color("ffe14d"), Color("ff4f6a"), Color("c88bff")]
 
 # Board (art-v2): the hero B1 board earth, colour-picked. Cells sit on this; dug depth is a
 # darker tint of it; the panel has a lavender rim like the hero.

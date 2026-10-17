@@ -24,6 +24,7 @@ var _dialog: Dialog.Overlay
 var _mission: Control
 var _mission_at := 0  # ticks when the goal card opened; it can't be closed right away
 const MISSION_HOLD_MS := 1500
+var _boosters: Widgets.BoosterBar
 var _hint_btn: Button
 var _recall_btn: Button
 var _recall_armed := 0.0
@@ -72,7 +73,7 @@ func _ready() -> void:
 	for side in ["left", "right"]:
 		margin.add_theme_constant_override("margin_" + side, 44)
 	margin.add_theme_constant_override("margin_top", 110)
-	margin.add_theme_constant_override("margin_bottom", 40)
+	margin.add_theme_constant_override("margin_bottom", 120)
 	add_child(margin)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 12)
@@ -119,7 +120,15 @@ func _ready() -> void:
 	_recall_btn.pressed.connect(_on_recall)
 	bar.add_child(_hint_btn)
 	bar.add_child(_recall_btn)
+	# the Hint and Recall buttons gave way to the booster bar (GDD v4): the idle glow hints, a
+	# stuck board reshuffles by itself; they stay as hidden handlers for the keys and tools
+	bar.visible = false
 	col.add_child(bar)
+	_boosters = Widgets.BoosterBar.new()
+	_boosters.picked.connect(_on_booster)
+	col.add_child(_boosters)
+	view.booster_target.connect(_use_booster)
+	view.swap_requested.connect(_on_swap)
 
 	add_child(_title)
 	fxl = FxLayer.new()
@@ -132,8 +141,24 @@ func _ready() -> void:
 
 
 ## The haul per gem, on a plate under the top bar, for a few seconds.
+## The HUD is sized off the board's cell, and the board gets what the HUD leaves: a feedback
+## loop. It contracts (the HUD takes ~1.8 cells of height out of ~9.6), so it settles, except
+## that the cell is floored to whole pixels and can flip between two values for ever, inside
+## one frame's deferred calls (the game froze). So: ignore changes under 4 px, and never
+## refit more than a few times in one frame.
+var _refit_frame := -1
+var _refits := 0
+
+
 func _refit_hud() -> void:
-	if view.cell > 1.0 and absf(view.cell * 1.25 - _hud.unit) > 1.0:
+	var f := Engine.get_process_frames()
+	if f != _refit_frame:
+		_refit_frame = f
+		_refits = 0
+	if _refits >= 3:
+		return
+	if view.cell > 1.0 and absf(view.cell * 1.25 - _hud.unit) > 4.0:
+		_refits += 1
 		_hud.fit(view.cell, view.cell * Board.W)
 
 
@@ -147,7 +172,9 @@ func _toggle_haul() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 18)
 	_haul_pop.add_child(row)
-	for r in 4:
+	for r in Board.RES_CRYSTAL + 1:
+		if r < Board.RES_CRYSTAL and r >= board.cfg.ore_types:
+			continue  # a colour this dig does not use
 		var c := Widgets.Chip.new(r)
 		c.custom_minimum_size.y = 64
 		c.set_value(_haul.values[r])
@@ -195,11 +222,17 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	force_treasure = false
 	var num := Sites.dig_number(index)
 	_title.text = "Supply run" if supply else ("Gold Rush" if num == 0 else "Dig %d" % num)
+	var proto: bool = site.get("proto", false)
+	if proto:
+		_title.text = "Prototype " + String(site.title)
+	view.classic = board.cfg.classic
+	view.portals = board.cfg.portals
+	_boosters.visible = not proto  # prototypes compare the core loops alone
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
 	# from clearing the dig, not from ore: the goal card shows the reward, the coin slot fills
 	# at the clear)
-	_haul.values = [0, 0, 0, 0]
+	_haul.values = [0, 0, 0, 0, 0]
 	_hide_haul()
 	_hud.set_coin(0)
 	_hud.calm = false
@@ -212,13 +245,15 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 		if g.type == "ore":
 			fxl.targets[g.ore] = _hud.icon_global.bind(i)
 		elif g.type == "crystal":
-			fxl.targets[3] = _hud.icon_global.bind(i)
+			fxl.targets[Board.RES_CRYSTAL] = _hud.icon_global.bind(i)
 	view.scanner = rules.scanner
 	view.drill = rules.drill
 	view.hint_dir = -1
 	view.focus = []
 	view.input_enabled = true
+	view.armed = -1
 	view.show_snap(board.snapshot())
+	_sync_boosters()
 	_hints_used = 0
 	_has_pending = false
 	_idle = 0.0
@@ -236,11 +271,16 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	# Script: Mira says it the first time this dig is played, never again on a retry.
 	var seen: bool = Game.tips_seen.has(site.id)
 	_script = []
-	# new-tool reminders, unless this dig is the hand-made lesson that teaches the tool anyway
-	var reminders := Game.take_reminders()
-	if not (site.get("guide", false) or site.get("building_level", false)) or supply:
-		for line in reminders:
-			_script.append({"say": line})
+	# new-tool reminders, except the one this dig's own lesson teaches anyway: only the
+	# Workshop's drill has a lesson dig that is about its tool (the Power Station's and the
+	# Teleporter's boosters are introduced by the reminder itself)
+	var taught := -1
+	if site.get("building_level", false) and not supply:
+		var nb: int = site.get("needs", {}).get("building", -1)
+		if nb >= 0 and Economy.BUILDINGS[nb].has("opens"):
+			taught = nb
+	for line in Game.take_reminders(taught):
+		_script.append({"say": line})
 	if not supply:
 		for st in site.get("script", []):
 			if not seen:
@@ -285,6 +325,12 @@ func _show_mission(goals: Array) -> void:
 	var rush := _rush()
 	if supply:
 		v.add_child(Widgets.JuicyText.new("Supply run", 56, Color("f3c9ff"), 0.05))
+	# a hard dig says so up front, in its colour (GDD v4 §3): the player knows to bring a booster
+	var tier: String = Sites.get_site(site_index).get("tier", "") if not supply else ""
+	if tier == "hard" or tier == "superhard":
+		var tcol: Color = Color("ff9a3d") if tier == "hard" else Color("ff4f6a")
+		card.rim = tcol
+		v.add_child(Widgets.JuicyText.new("Hard Dig" if tier == "hard" else "Super Hard!", 76, tcol, 0.05))
 	if rush:
 		var pic := Widgets.Picture.new("res://assets/ui/gold_rush.png", 300.0, 0.1)
 		pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -293,7 +339,14 @@ func _show_mission(goals: Array) -> void:
 	var gc := Widgets.GoalCard.new(goals)
 	gc.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	v.add_child(gc)
-	if not supply and not rush:
+	var psite := Sites.get_site(site_index)
+	if psite.get("proto", false):
+		var tip := Ui.label(String(Sites.SPECIAL_TIPS.get(String(psite.get("special", "blast")), "")), Pal.FS_SMALL, Color("f3e9ff"))
+		tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tip.custom_minimum_size.x = 620
+		v.add_child(tip)
+	if not supply and not rush and not psite.get("proto", false):
 		# what clearing it pays (plus a Coin per move left)
 		var tag := Widgets.CoinTag.new(Economy.clear_coin(site_index), 0.5 + goals.size() * 0.12)
 		tag.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -393,8 +446,14 @@ func _process(delta: float) -> void:
 		if _auto_hint and _idle > AUTO_HINT_IDLE and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
 		if _idle > IDLE_GLOW and view.glow.is_empty():
-			var path := board.path_to_match(4)
-			var gems := board.match_gems(path) if not path.is_empty() else []
+			var gems := []
+			if board.cfg.classic:
+				var sw := board.find_swap()
+				if not sw.is_empty():
+					gems = [sw[0], Board.idx(Board.pos(sw[0]) + Board.DIRS[sw[1]])]
+			else:
+				var path := board.path_to_match(4)
+				gems = board.match_gems(path) if not path.is_empty() else []
 			# nothing in reach: keep checking, but not every frame
 			if gems.is_empty():
 				_idle = IDLE_GLOW - 1.0
@@ -418,13 +477,32 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _on_move(dir: Vector2i) -> void:
-	if board == null or board.over or _result != null or _busy_talking():
+	if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or board.cfg.classic:
 		return
 	if view.is_busy():
 		_pending = dir
 		_has_pending = true
 		return
 	_do_move(dir)
+
+
+## Classic prototype: swap a gem with its neighbour (a swap that makes no line wobbles back).
+func _on_swap(cell: int, dir: Vector2i) -> void:
+	if board == null or board.over or _result != null or _busy_talking() or view.is_busy():
+		return
+	_idle = 0.0
+	var before := board.stats.duplicate()
+	var r := board.try_swap(cell, dir)
+	if not r.ok:
+		if r.reason == "nomatch":
+			view.reject_swap(cell, Board.idx(Board.pos(cell) + dir))
+		return
+	for k in _turn_events(before):
+		_events[k] = true
+	view.set_glow([])
+	view.play_steps(r.steps)
+	if Engine.has_singleton("Android") or OS.has_feature("mobile"):
+		Input.vibrate_handheld(25)
 
 
 func _do_move(dir: Vector2i) -> void:
@@ -458,8 +536,8 @@ func _do_move(dir: Vector2i) -> void:
 func _on_snap(s: Dictionary) -> void:
 	_hud.set_energy(s.energy, board.cfg.capacity)
 	_haul.set_values(s.haul)
-	for r in _chips.size():
-		(_chips[r] as Widgets.Chip).set_value(s.haul[r])
+	for c in _chips:
+		(c as Widgets.Chip).set_value(s.haul[(c as Widgets.Chip).res])
 	var site := Sites.get_site(site_index)
 	for i in site.goals.size():
 		var g: Dictionary = site.goals[i]
@@ -505,7 +583,7 @@ func _on_settled() -> void:
 ## One-line notes for things that can turn up before their own lesson (a random line of 4
 ## leaves a charge long before the charge dig). Each is said once per colony.
 func _first_encounters() -> void:
-	if supply or _waiting != "":
+	if supply or _waiting != "" or String(Sites.get_site(site_index).get("special", "blast")) != "blast":
 		return
 	var notes := {"charge": "A line of 4 leaves a blast charge. Step onto it to blow up everything around it."}
 	for ev in notes:
@@ -517,6 +595,12 @@ func _first_encounters() -> void:
 
 
 func _refresh_reach() -> void:
+	if board.cfg.classic:
+		_reach = []
+		if board.find_swap().is_empty():
+			_say("No swaps left: the gems reshuffle.", 2.5)
+			view.play_steps(board.shuffle_classic().steps)
+		return
 	# a crystal, energy cell or charge in the open comes first: it is usually what the dig is for
 	_reach = board.path_to_pickup(10)
 	if _reach.is_empty():
@@ -534,13 +618,18 @@ func _refresh_reach() -> void:
 			return
 	if _reach.is_empty():
 		if board.can_pulse():
-			_hint_btn.text = "Pulse (-%d)" % board.cfg.pulse_cost
-			Ui.paint_button(_hint_btn, Pal.CRYSTAL)
-			_say("No line of 3 within reach. Pulse reshuffles the ore, or Recall to bank your haul.", 4.0)
+			# nothing in reach: the ground shakes and the ore reshuffles by itself (as a stuck
+			# board does in any match-3), for the pulse's energy
+			_say("No line of 3 in reach: a seismic pulse reshuffles the ore.", 3.0)
+			var r := board.pulse()
+			view.play_steps(r.steps)
 		else:
 			_hint_btn.text = "Hint"
 			# stuck for good: this beats any instruction still on screen
-			_coach.say("Nothing left in reach. Tap Recall to bank your haul and try again.")
+			_coach.say("Nothing left in reach, and no energy for a pulse.")
+			board.recall()
+			view.input_enabled = false
+			get_tree().create_timer(1.2).timeout.connect(_show_result)
 	else:
 		_hint_btn.text = "Hint"
 		Ui.paint_button(_hint_btn, Pal.ACCENT)
@@ -558,12 +647,62 @@ func _on_hint() -> void:
 	_hints_used += 1
 
 
+## Boosters (GDD v4 §1): tap a slot to arm it, then pick its target on the board; tap the
+## armed slot again to put it away.
+func _sync_boosters() -> void:
+	var u := []
+	for k in Economy.BOOSTERS.size():
+		u.append(Game.booster_unlocked(k))
+	_boosters.set_state(Game.boosters, u, view.armed)
+
+
+func _on_booster(k: int) -> void:
+	if k < 0 or k >= Economy.BOOSTERS.size() or board == null or board.over or _result != null or _busy_talking() or _mission != null:
+		return
+	if view.armed == k:
+		view.armed = -1
+		_coach.clear()
+	elif Game.boosters[k] <= 0:
+		var maker: String = Economy.BUILDINGS[Economy.BOOSTERS[k].building].name
+		_say("No %ss left. The %s makes more as you clear digs." % [Economy.BOOSTERS[k].name, maker], 3.0)
+		Sfx.play("bump")
+	else:
+		view.armed = k
+		view.hint_dir = -1
+		view.set_glow([])
+		_coach.say(String(Economy.BOOSTERS[k].tip) + ". Tap the booster again to cancel.")
+		Sfx.play("swap", 1.2)
+	_sync_boosters()
+
+
+func _use_booster(target: int) -> void:
+	var k := view.armed
+	if k < 0 or board == null or board.over or view.is_busy() or _busy_talking():
+		return
+	var before := board.stats.duplicate()
+	var r := board.use_booster(k, target)
+	if not r.ok:
+		Sfx.play("bump")
+		return
+	Game.use_booster(k)
+	view.armed = -1
+	_coach.clear()
+	_idle = 0.0
+	for e in _turn_events(before):
+		_events[e] = true
+	_sync_boosters()
+	view.play_steps(r.steps)
+	if Engine.has_singleton("Android") or OS.has_feature("mobile"):
+		Input.vibrate_handheld(40)
+
+
 func _on_recall() -> void:
 	if board == null or board.over or _result != null or _busy_talking():
 		return
 	if _recall_armed <= 0.0:
 		_recall_armed = 2.0
 		_recall_btn.text = "Tap again"
+		_say("Press back again to leave this dig.", 2.0)
 		return
 	board.recall()
 	view.input_enabled = false
@@ -629,7 +768,7 @@ func _celebrate() -> void:
 	var r := view.get_global_rect()
 	fxl.confetti(Vector2(r.get_center().x, r.position.y + r.size.y * 0.55), 110)
 	# the Coin starts flying with the banner, not after it
-	if board.energy > 0 or board.complete:
+	if (board.energy > 0 or board.complete) and not Sites.get_site(site_index).get("proto", false):
 		_play_bonus()
 	else:
 		await get_tree().create_timer(1.1).timeout
@@ -715,8 +854,9 @@ func _show_result() -> void:
 	var b1 := Widgets.JellyButton.new("Colony", Color("8ff0a4"), Color("37b65a"))
 	b1.pressed.connect(func(): finished.emit())
 	v.add_child(b1)
-	if reason != "complete" and reason != "rush" and not supply:
-		var b2 := Widgets.JellyButton.new("Try again", Color("c7a6f5"), Color("6b45b0"), 116.0, 46)
+	var proto: bool = Sites.get_site(site_index).get("proto", false)
+	if (reason != "complete" and reason != "rush" and not supply) or proto:
+		var b2 := Widgets.JellyButton.new("Play again" if proto else "Try again", Color("c7a6f5"), Color("6b45b0"), 116.0, 46)
 		b2.pressed.connect(func(): start(site_index))
 		v.add_child(b2)
 	card.modulate.a = 0.0

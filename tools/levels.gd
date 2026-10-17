@@ -54,13 +54,13 @@ func _initialize() -> void:
 	quit(0)
 
 
-## Building levels a player has at campaign dig i: every building unlocked earlier, at level 1.
+## Building levels a player has at campaign dig i: Star = digs cleared (GDD v4), so every
+## building whose star milestone is at most i is up, at level 1.
 static func campaign_levels(i: int) -> Array:
-	var lv := [0, 0, 0]
-	for j in i:
-		var u: int = Sites.get_site(j).get("unlock", -1)
-		if u >= 0:
-			lv[u] = 1
+	var lv := [0, 0, 0, 0]
+	for b in Economy.BUILDINGS.size():
+		if i >= Economy.STAR_UNLOCK[b]:
+			lv[b] = 1
 	return lv
 
 
