@@ -212,6 +212,13 @@ func _open_settings() -> void:
 		_sound_btn.text = "Sound: %s" % ("On" if Game.sfx_on else "Off"))
 	_sound_btn.text = "Sound: %s" % ("On" if Game.sfx_on else "Off")
 	v.add_child(_sound_btn)
+	var music_btn := Widgets.JellyButton.new("", Color("c9a8ff"), Color("6f4fb8"), 120.0, 48)
+	music_btn.text = "Music: %s" % ("On" if Game.music_on else "Off")
+	music_btn.pressed.connect(func():
+		Game.music_on = not Game.music_on
+		Game.save()
+		music_btn.text = "Music: %s" % ("On" if Game.music_on else "Off"))
+	v.add_child(music_btn)
 	var fps_btn := Widgets.JellyButton.new("", Color("b8f59a"), Color("4f9a3a"), 120.0, 48)
 	fps_btn.text = "FPS: %s" % ("On" if Game.show_fps else "Off")
 	fps_btn.pressed.connect(func():
@@ -353,7 +360,7 @@ func _on_plot(i: int) -> void:
 		_collect(b, i)
 		return
 	# the building answers the tap first (squash-hop, a soft sound), then its card pops up
-	Sfx.play("swap", 0.9)
+	Sfx.play("tap")
 	_building = true
 	await get_tree().create_timer(0.16).timeout
 	_building = false
@@ -374,7 +381,7 @@ func _collect(b: int, i: int) -> void:
 		_fx.fly_icon(at, "dig", tex, 120.0, j * 0.12)
 	_fx.burst(at, Color("fff2b0"), 14, 520.0)
 	_fx.text(at - Vector2(0, 60), "+%d %s" % [n, Economy.BOOSTERS[k].name], Color("fff2b0"), 56)
-	Sfx.play("pickup")
+	Sfx.play("collect")
 
 
 func _open_card(b: int) -> void:
@@ -490,7 +497,7 @@ func _on_landed(i: int) -> void:
 		_fx.burst(at, Color("c9875a"), 26, 520.0)        # dirt
 		_fx.burst(at, Color("f3e3ff"), 14, 380.0)        # dust
 		_fx.burst(at - Vector2(0, 60), Pal.COIN, 16, 640.0)
-		Sfx.play("blast")
+		Sfx.play("quake")
 		_shake(14.0)
 	else:
 		_fx.burst(at - Vector2(0, 90), Pal.STAR, 22, 600.0)

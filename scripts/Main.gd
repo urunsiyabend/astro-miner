@@ -34,6 +34,7 @@ func _ready() -> void:
 	_fps.add_theme_constant_override("outline_size", 8)
 	_fps.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_fps)
+	Sfx.music("colony")
 	colony.launch.connect(_go_dig)
 	dig.finished.connect(_go_colony)
 	get_tree().set_auto_accept_quit(false)
@@ -46,6 +47,7 @@ func _go_dig(i: int, supply: bool) -> void:
 	_transition(func():
 		colony.visible = false
 		dig.visible = true
+		Sfx.music("dig")
 		dig.start(i, supply))
 
 
@@ -53,6 +55,7 @@ func _go_colony() -> void:
 	_transition(func():
 		dig.visible = false
 		colony.visible = true
+		Sfx.music("colony")
 		colony.refresh())
 
 

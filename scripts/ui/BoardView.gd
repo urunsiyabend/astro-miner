@@ -262,7 +262,7 @@ func _next_step() -> void:
 			if not _cur.robot.is_empty():
 				far = maxi(far, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
 			if not _cur.get("warps", []).is_empty():
-				Sfx.play("pulse", 1.6)
+				Sfx.play("warp", 1.2)
 			_fall_delay.clear()
 			_fall_time.clear()
 			var cols := {}  # x -> [[dest y, cell, rows]]
@@ -304,33 +304,37 @@ func _next_step() -> void:
 				Board.Special.QUAKE:
 					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.3, "r1": cell * 2.6, "t": 0.0, "dur": 0.45, "color": col})
 					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 2.2, "t": -0.08, "dur": 0.45, "color": col})
-					Sfx.play("blast", 0.8)
+					Sfx.play("quake")
 				Board.Special.GEODE:
 					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 1.6, "t": 0.0, "dur": 0.4, "color": Pal.ORE[_cur.ore]})
-					Sfx.play("pulse", 1.4)
+					Sfx.play("prism", 1.15)
+				Board.Special.DRILL:
+					Sfx.play("zap")
+				Board.Special.PRISM:
+					Sfx.play("prism")
 				_:
-					Sfx.play("blast", 1.3)
+					Sfx.play("blast")
 		"bomb":
 			_dur = 0.3  # the bomb drops onto its cell; the blast step that follows does the rest
-			Sfx.play("swap", 0.7)
+			Sfx.play("bombdrop")
 		"warp":
 			_dur = 0.2  # phase 0: the robot spins away; phase 1: it pops out at the target
 			_rings.append({"c": cell_center(_cur.from), "r0": cell * 0.7, "r1": cell * 0.1,
 					"t": 0.0, "dur": 0.2, "color": WARP_COL})
-			Sfx.play("pulse", 1.3)
+			Sfx.play("warp")
 		"laser":
 			_dur = 0.42
 			_shake = 0.5
 			for c in _cur.hit:
 				_flash[c] = 1.0
-			Sfx.play("blast", 1.4)
+			Sfx.play("laser")
 		"magnet":
 			_dur = 0.5
 			for c in _cur.cells:
 				_flash[c] = 1.0
 			_rings.append({"c": cell_center(snap.robot), "r0": cell * 3.0, "r1": cell * 0.4,
 					"t": 0.0, "dur": 0.5, "color": Color("7fe8ff")})
-			Sfx.play("pulse", 0.8)
+			Sfx.play("magnet")
 		_:
 			_dur = 0.01
 
@@ -342,7 +346,7 @@ func _finish_phase() -> void:
 				Sfx.play("pickup")
 				fx.emit("pickup", {"pos": cell_global(_cur.to), "res": Board.RES_CRYSTAL})
 			elif _cur.pickup == K.CELL:
-				Sfx.play("pickup", 0.8)
+				Sfx.play("cell")
 				fx.emit("energy", {"pos": cell_global(_cur.to), "amount": 0})
 			_apply(_cur.snap)
 			_next_step()
@@ -373,6 +377,8 @@ func _finish_phase() -> void:
 					_rise[c] = 0.0
 				for c in _cur.charges:
 					_rise[c] = 0.0
+				if not _cur.charges.is_empty():
+					Sfx.play("forge")
 				_flash.clear()
 				_apply(_cur.snap)
 				_phase = 1
@@ -401,13 +407,15 @@ func _finish_phase() -> void:
 			_apply(_cur.snap)
 			_next_step()
 		"fall":
+			if not _fall_from.is_empty() or not _fall_drop.is_empty():
+				Sfx.play("land", randf_range(0.95, 1.1))
 			for c in _cur.collected:
 				var res: int = Board.RES_CRYSTAL if snap.token[c] == K.CRYSTAL else -1
 				if res >= 0:
 					Sfx.play("pickup")
 					fx.emit("pickup", {"pos": cell_global(c), "res": res})
 				else:
-					Sfx.play("pickup", 0.8)
+					Sfx.play("cell")
 					fx.emit("energy", {"pos": cell_global(c), "amount": 0})
 			_fall_from.clear()
 			_fall_drop.clear()

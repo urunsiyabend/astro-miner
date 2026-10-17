@@ -73,7 +73,7 @@ class Overlay extends Control:
 		_typing = 0.0
 		_face.talking = true
 		_more.modulate.a = 0.0
-		Sfx.play("step", 1.4)
+		Sfx.play("tap", 1.2)
 
 	func _process(delta: float) -> void:
 		if not visible or _text.visible_ratio >= 1.0:

@@ -37,3 +37,18 @@ Example prompt (ElevenLabs, duration as a parameter): "Match-3 gem pop: a glossy
 bursting when matched, a soft wet plop with a bright glassy sparkle on top, instant attack,
 silent within a quarter second. Cartoon mobile puzzle game, bright and friendly. Dry,
 close-mic'd, isolated, no room reverb, no ambience, no music."
+
+## What we shipped (2026-10-17, ~33 CU)
+
+- SFX: Mirelo SFX 2, 27 sounds x 3 takes (batch 3, WAV), all kept as variants in
+  `assets/sfx/<name>_<k>.wav`; trimmed, faded, RMS-matched to -18 dB (peak <= -1 dBFS), 44.1 kHz
+  mono. `Sfx.gd` picks a random take with pitch/volume jitter and a per-sound repeat gap.
+- Combo ladder: one marimba note from ElevenLabs ("single marimba note, middle register C5")
+  came back at 528 Hz, retuned to C5 (`note.wav`). Mirelo's "bell note" takes were 4-5 kHz
+  tinkles or noise: useless for pitching. ElevenLabs is the model for single tonal notes.
+- Music: on Layer, MiniMax Music 3 with `instrumental: true` returns only 10-15 s whatever the
+  duration (and one colony take still had vocals); ACE-Step / Stable Audio with a reference or
+  init clip return the clip's own length (no extend). Text-only Stable Audio 3 Medium and
+  ACE-Step give the full 120 s (~1 / 2.4 CU). Loops are cut by `loop.py` (scratch): skip the
+  quiet intro, stop before the fade-out, choose the loop end by onset-envelope correlation,
+  1 s equal-power crossfade, Ogg q4 (~1.8 MB each).
