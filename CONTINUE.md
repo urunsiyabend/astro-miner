@@ -5,8 +5,8 @@ devam ederken önce bunu okut.
 
 ## 0. GÜNCEL DURUM (2026-10-17): GDD v4, önce bunu oku
 
-Doğrudan `main` üzerinde çalışılıyor, PR yok. Sürüm `0.9.7`. Main'e push edilince workflow
-`v0.9.7` release'ini kendisi açar. Aşağıdaki §1–§3 eski notlar.
+Doğrudan `main` üzerinde çalışılıyor, PR yok. Sürüm `0.9.8`. Main.e push edilince workflow
+`v0.9.8` release'ini kendisi açar. Aşağıdaki §1–§3 eski notlar.
 
 - **Tasarım:** `docs/design/gdd-v4.md`. Araştırma: `docs/research/match3-meta-balance.md`.
   - Binalar kalıcı güç vermiyor; booster üretiyor.
