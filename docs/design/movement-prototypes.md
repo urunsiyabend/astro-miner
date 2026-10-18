@@ -12,6 +12,18 @@ movement.
   Back onto the previous cell undoes a step. Lifting the finger is **one move**; matches,
   dragged specials and pads resolve once, at the end (`Board.try_path`). A short swipe is
   still one step (and can still drill).
+- **Steady drag** (2026-10-18; on a phone the robot was twitchy and a path went wrong easily).
+  The drag works from anywhere; the finger's travel is mapped onto the robot (`BoardView.drag_to`):
+  - a step is 1.25 cells of finger travel (`DRAG_STEP`), not one;
+  - the next step comes only when the aim is 0.65 of a step past the last cell (`STEP_AT`), so a
+    finger resting near the halfway mark can't step and undo over and over;
+  - on a diagonal the robot waits until one axis leads by 0.3 (`STEP_LEAD`);
+  - each step takes back 80% of the sideways drift (`RAIL_PULL`), so a slanted thumb swipe
+    stays on its row;
+  - walls are solid: pushing into rock, the edge or a full path doesn't pile up travel, so
+    turning away from them works at once.
+  Simulated thumb (slanted swipes, tremor, a slip on lift; 8 paths × 150 tries × 3 tremor
+  levels): the right path 70.6% → 95.1% of the time (heavy tremor: 58% → 89%).
 - Bot measurement (`tools/path_probe.gd`, same digs and budgets):
 
 | path | dry moves | matches/move | specials/move | moves to clear |
