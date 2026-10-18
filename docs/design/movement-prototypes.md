@@ -14,22 +14,28 @@ movement.
   still one step (and can still drill).
 - **Steady drag** (2026-10-18; on a phone the robot was twitchy and a path went wrong easily).
   The drag works from anywhere; the finger's travel is mapped onto the robot (`BoardView.drag_to`):
-  - a step is 1.25 cells of finger travel (`DRAG_STEP`), not one;
-  - the next step comes only when the aim is 0.65 of a step past the last cell (`STEP_AT`), so a
+  - a step is 1.1 cells of finger travel (`DRAG_STEP`). 0.10.3 used 1.25 with a 0.65 threshold,
+    which felt like paths could not be drawn at all (the first step needed 0.8 cell);
+  - the next step comes only when the aim is 0.6 of a step past the last cell (`STEP_AT`), so a
     finger resting near the halfway mark can't step and undo over and over;
-  - on a diagonal the robot waits until one axis leads by 0.3 (`STEP_LEAD`);
+  - on a diagonal the robot waits until one axis leads by 0.25 (`STEP_LEAD`);
   - each step takes back 80% of the sideways drift (`RAIL_PULL`), so a slanted thumb swipe
     stays on its row;
   - walls are solid: pushing into rock, the edge or a full path doesn't pile up travel, so
-    turning away from them works at once.
+    turning away from them works at once;
+  - travel is measured on the screen, not on the board, so the board leaning in (scale 1.025)
+    while drawing doesn't drift the aim;
+  - **flick** (0.10.5): a touch lifted within 0.22 s (`FLICK_MS`) that moved at least 0.3 cell
+    (`FLICK_MIN`) is one step that way, for players who move one step at a time;
   - the held robot holds still (0.10.4): it used to lean up to 0.32 cell toward the raw finger,
     so every tremor shook it, and right after a step (the aim then sits behind the new cell)
     it was pulled back, which felt like the hand slipping; it also swayed at ~3 Hz and jittered
-    on a teleporter. Now it leans only as the aim nears its next step (from 0.3 of a step,
-    at most 0.2 cell, smoothed). Simulated tremor: shake while the finger rests 3.05 → 0.12
-    cells of motion per drag, pull-back after steps 1.01 → 0 cells.
+    on a teleporter. Now it leans toward its next step only (at most 0.2 cell, smoothed; before
+    the first step from the first millimetres, after a step once the aim is past where the
+    step left it). Simulated tremor: shake while the finger rests 3.05 → 0.12 cells of motion
+    per drag, pull-back after steps 1.01 → 0 cells.
   Simulated thumb (slanted swipes, tremor, a slip on lift; 8 paths × 150 tries × 3 tremor
-  levels): the right path 70.6% → 95.1% of the time (heavy tremor: 58% → 89%).
+  levels): the right path 70.6% → 90.6% of the time (heavy tremor: 58% → 78%).
 - Bot measurement (`tools/path_probe.gd`, same digs and budgets):
 
 | path | dry moves | matches/move | specials/move | moves to clear |
