@@ -22,6 +22,12 @@ movement.
     stays on its row;
   - walls are solid: pushing into rock, the edge or a full path doesn't pile up travel, so
     turning away from them works at once.
+  - the held robot holds still (0.10.4): it used to lean up to 0.32 cell toward the raw finger,
+    so every tremor shook it, and right after a step (the aim then sits behind the new cell)
+    it was pulled back, which felt like the hand slipping; it also swayed at ~3 Hz and jittered
+    on a teleporter. Now it leans only as the aim nears its next step (from 0.3 of a step,
+    at most 0.2 cell, smoothed). Simulated tremor: shake while the finger rests 3.05 → 0.12
+    cells of motion per drag, pull-back after steps 1.01 → 0 cells.
   Simulated thumb (slanted swipes, tremor, a slip on lift; 8 paths × 150 tries × 3 tremor
   levels): the right path 70.6% → 95.1% of the time (heavy tremor: 58% → 89%).
 - Bot measurement (`tools/path_probe.gd`, same digs and budgets):
@@ -35,7 +41,7 @@ movement.
 
 - The path bot weighs every path (~160 at 4 steps) and plays like an expert; budgets add a 40%
   human margin (`tools/tune_proto.gd`) until real plays calibrate it.
-- Feel (BoardView): the robot lifts, leans to the finger, casts a shadow; swapped gems hop
+- Feel (BoardView): the robot lifts, leans toward its next step, casts a shadow; swapped gems hop
   into place; the trail flows and warms cyan → gold → pink as steps run out; pips over the
   robot; a rising pentatonic marimba note per step, falling on undo; sparks and a haptic tick;
   the board dims, leans in 2.5% and the music ducks. **Outcome preview**: lines that would
