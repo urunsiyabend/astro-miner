@@ -500,7 +500,7 @@ func _input(event: InputEvent) -> void:
 			if view.begin_drag(event.position):
 				get_viewport().set_input_as_handled()
 		elif view.is_drawing():
-			view.end_drag()
+			view.end_drag(event.position)
 			get_viewport().set_input_as_handled()
 	elif event is InputEventScreenDrag and view.is_drawing():
 		view.drag_to(event.position)

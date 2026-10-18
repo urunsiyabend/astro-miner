@@ -634,8 +634,11 @@ func _process(delta: float) -> void:
 	var lean_to := Vector2.ZERO
 	if _drawing and not snap.is_empty() and snap.robot >= 0:
 		var off := (_finger - cell_center(snap.robot)) / (Vector2(cell, pitch) * DRAG_STEP)
+		# from the first step's start, the lean shows the finger is felt at once; after a step the
+		# aim rests ~0.4 behind the new cell, so the lean waits until it is past that
+		var dz := 0.08 if _path_dirs.is_empty() else 0.4
 		if off.length() > 0.001:
-			lean_to = off.normalized() * smoothstep(0.3, STEP_AT, off.length()) * cell * 0.2
+			lean_to = off.normalized() * smoothstep(dz, STEP_AT, off.length()) * cell * 0.2
 	_lean = _lean.lerp(lean_to, 1.0 - exp(-delta * 20.0))
 	for k in _slide.keys():
 		_slide[k][1] += delta / 0.11
@@ -747,16 +750,20 @@ func _gui_input(event: InputEvent) -> void:
 ## Drawn paths, from anywhere on the screen: the finger's travel since it went down is
 ## mapped onto the robot (DRAG_STEP cells of travel is a step), so the finger never hides the
 ## robot. A drag of one step is a one-step move (into rock: a drill bump); a tap does nothing.
+## A flick (a quick swipe, lifted within FLICK_MS) is one step that way, however far it went.
 ## The mapping is steady on purpose, a small screen and a thumb wobble a lot: a step needs the
 ## aim well past the halfway mark (so a wobble at the edge can't step and undo), a diagonal
 ## finger waits until one axis clearly leads, each step pulls the aim back onto the line it
 ## runs along (so a slanted swipe doesn't drift into the next row), and walls are solid (a
 ## finger pushing into rock, the edge or a full path doesn't pile up travel there).
-const DRAG_STEP := 1.25   # finger travel per step, in cells
-const STEP_AT := 0.65     # how far past the last cell (in steps) the aim must go to step on
-const STEP_LEAD := 0.3    # and by how much it must lead the other axis
+const DRAG_STEP := 1.1    # finger travel per step, in cells
+const STEP_AT := 0.6      # how far past the last cell (in steps) the aim must go to step on
+const STEP_LEAD := 0.25   # and by how much it must lead the other axis
 const RAIL_PULL := 0.8    # the share of sideways drift each step takes back
-var _drag_start := Vector2.ZERO
+const FLICK_MS := 220     # a touch lifted this soon after it went down is a flick...
+const FLICK_MIN := 0.3    # ...if it travelled at least this far (cells)
+var _drag_start := Vector2.ZERO  # where the finger went down (screen)
+var _drag_t0 := 0
 var _aim_bias := Vector2.ZERO  # travel (in steps) taken back by the rail pull and the walls
 var _path_drill := false  # the path is a single bump into rock (the Drill)
 
@@ -765,7 +772,8 @@ func begin_drag(screen_pos: Vector2) -> bool:
 	if path_max <= 1 or snap.is_empty() or snap.robot < 0 or not input_enabled or is_busy() or armed >= 0:
 		return false
 	_drawing = true
-	_drag_start = _to_local(screen_pos)
+	_drag_start = screen_pos
+	_drag_t0 = Time.get_ticks_msec()
 	_aim_bias = Vector2.ZERO
 	_path_real = snap
 	_path_dirs = []
@@ -788,7 +796,7 @@ func drag_to(screen_pos: Vector2) -> void:
 		return
 	var unit := Vector2(cell, pitch)
 	var start := Vector2(Board.pos(_path_real.robot))
-	var travel := (_to_local(screen_pos) - _drag_start) / (unit * DRAG_STEP)
+	var travel := _cells_moved(screen_pos) / Vector2(1.0, pitch / cell) / DRAG_STEP
 	for guard in 8:
 		var aim := travel - _aim_bias
 		var off := aim - (Vector2(Board.pos(_path_cells[-1])) - start)
@@ -813,15 +821,23 @@ func drag_to(screen_pos: Vector2) -> void:
 	_finger = cell_center(_path_real.robot) + (travel - _aim_bias) * unit
 
 
-func end_drag() -> void:
+func end_drag(screen_pos: Vector2) -> void:
 	if not _drawing:
 		return
 	_drawing = false
+	var moved := _cells_moved(screen_pos)
+	if Time.get_ticks_msec() - _drag_t0 <= FLICK_MS and moved.length() >= FLICK_MIN:
+		# a flick: one step the way it went, whatever the path had drawn on the way
+		_path_drill = false
+		_path_dirs = [Vector2i(int(signf(moved.x)), 0) if absf(moved.x) >= absf(moved.y) else Vector2i(0, int(signf(moved.y)))]
 	_finish_path()
 
 
-func _to_local(screen_pos: Vector2) -> Vector2:
-	return get_global_transform_with_canvas().affine_inverse() * screen_pos
+## The finger's travel since it went down, in cells. Measured on the screen and unscaled, so
+## the board leaning in while drawing (its scale) doesn't move the aim.
+func _cells_moved(screen_pos: Vector2) -> Vector2:
+	var k := get_global_transform_with_canvas().get_scale().x / scale.x
+	return (screen_pos - _drag_start) / (cell * k)
 
 
 ## Walk the path toward a cell, one cell at a time (DevShot draws paths with this).
