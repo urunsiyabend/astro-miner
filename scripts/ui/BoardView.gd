@@ -736,9 +736,19 @@ func _gui_input(event: InputEvent) -> void:
 
 
 ## Drawn paths, from anywhere on the screen: the finger's travel since it went down is
-## mapped onto the robot (a cell of travel is a step), so the finger never hides the robot.
-## A drag of one cell is a one-step move (into rock: a drill bump); a tap does nothing.
+## mapped onto the robot (DRAG_STEP cells of travel is a step), so the finger never hides the
+## robot. A drag of one step is a one-step move (into rock: a drill bump); a tap does nothing.
+## The mapping is steady on purpose, a small screen and a thumb wobble a lot: a step needs the
+## aim well past the halfway mark (so a wobble at the edge can't step and undo), a diagonal
+## finger waits until one axis clearly leads, each step pulls the aim back onto the line it
+## runs along (so a slanted swipe doesn't drift into the next row), and walls are solid (a
+## finger pushing into rock, the edge or a full path doesn't pile up travel there).
+const DRAG_STEP := 1.25   # finger travel per step, in cells
+const STEP_AT := 0.65     # how far past the last cell (in steps) the aim must go to step on
+const STEP_LEAD := 0.3    # and by how much it must lead the other axis
+const RAIL_PULL := 0.8    # the share of sideways drift each step takes back
 var _drag_start := Vector2.ZERO
+var _aim_bias := Vector2.ZERO  # travel (in steps) taken back by the rail pull and the walls
 var _path_drill := false  # the path is a single bump into rock (the Drill)
 
 
@@ -747,6 +757,7 @@ func begin_drag(screen_pos: Vector2) -> bool:
 		return false
 	_drawing = true
 	_drag_start = _to_local(screen_pos)
+	_aim_bias = Vector2.ZERO
 	_path_real = snap
 	_path_dirs = []
 	_path_cells = [snap.robot]
@@ -765,11 +776,31 @@ func begin_drag(screen_pos: Vector2) -> bool:
 func drag_to(screen_pos: Vector2) -> void:
 	if not _drawing:
 		return
-	var travel := _to_local(screen_pos) - _drag_start
-	_finger = cell_center(_path_real.robot) + travel
-	var start := Board.pos(_path_real.robot)
-	var target := start + Vector2i(roundi(travel.x / cell), roundi(travel.y / pitch))
-	_path_extend(target)
+	var unit := Vector2(cell, pitch)
+	var start := Vector2(Board.pos(_path_real.robot))
+	var travel := (_to_local(screen_pos) - _drag_start) / (unit * DRAG_STEP)
+	for guard in 8:
+		var aim := travel - _aim_bias
+		var off := aim - (Vector2(Board.pos(_path_cells[-1])) - start)
+		var ax := absf(off.x)
+		var ay := absf(off.y)
+		if maxf(ax, ay) < STEP_AT or absf(ax - ay) < STEP_LEAD:
+			break
+		var step := Vector2i(int(signf(off.x)), 0) if ax > ay else Vector2i(0, int(signf(off.y)))
+		if _path_step(step):
+			if step.x != 0:
+				_aim_bias.y += off.y * RAIL_PULL
+			else:
+				_aim_bias.x += off.x * RAIL_PULL
+			continue
+		# blocked: hold the aim just short of the wall
+		var hold := STEP_AT - 0.05
+		if step.x != 0:
+			_aim_bias.x += off.x - signf(off.x) * hold
+		else:
+			_aim_bias.y += off.y - signf(off.y) * hold
+	# the held robot leans toward where the next step would go
+	_finger = cell_center(_path_real.robot) + (travel - _aim_bias) * unit
 
 
 func end_drag() -> void:
@@ -783,59 +814,65 @@ func _to_local(screen_pos: Vector2) -> Vector2:
 	return get_global_transform_with_canvas().affine_inverse() * screen_pos
 
 
-## Walk the path toward the cell under the finger, one cell at a time (a fast finger skips
-## cells); going back onto the previous cell takes the last step back.
+## Walk the path toward a cell, one cell at a time (DevShot draws paths with this).
 func _path_extend(target: Vector2i) -> void:
 	for guard in 8:
-		var last: int = _path_cells[-1]
-		var lp := Board.pos(last)
-		if target == lp:
+		var dv := target - Board.pos(_path_cells[-1])
+		if dv == Vector2i.ZERO:
 			return
-		var dv := target - lp
 		var step := Vector2i(signi(dv.x), 0) if absi(dv.x) >= absi(dv.y) else Vector2i(0, signi(dv.y))
-		var np := lp + step
-		if not Board.inside(np):
+		if not _path_step(step):
 			return
-		var ni := Board.idx(np)
-		if _path_cells.size() >= 2 and ni == _path_cells[-2]:
-			# back one step: the gem slides back where it was, the note steps down
-			var undone: int = _path_cells.pop_back()
-			_path_dirs.pop_back()
-			if _path_drill:
-				_path_drill = false
-				continue
-			_slide[undone] = [cell_center(ni) - cell_center(undone), 0.0]
-			_preview()
-			Sfx.play("note", pow(2.0, PATH_NOTES[_path_dirs.size()] / 12.0) * 0.5)
-			Sfx.play("swap", 0.85)
-			continue
+
+
+## One step of the path from its end; going back onto the previous cell takes the last step
+## back. False when the step can't be taken (the edge, rock, a full path).
+func _path_step(step: Vector2i) -> bool:
+	var last: int = _path_cells[-1]
+	var np := Board.pos(last) + step
+	if not Board.inside(np):
+		return false
+	var ni := Board.idx(np)
+	if _path_cells.size() >= 2 and ni == _path_cells[-2]:
+		# back one step: the gem slides back where it was, the note steps down
+		var undone: int = _path_cells.pop_back()
+		_path_dirs.pop_back()
 		if _path_drill:
-			return
-		if _path_real.terrain[ni] == T.ROCK and _path_dirs.is_empty() and drill:
-			# one step into rock with the Drill: a bump, nothing to preview
-			_path_cells.append(ni)
-			_path_dirs.append(step)
-			_path_drill = true
-			Sfx.play("tap", 0.8)
-			return
-		if _path_real.terrain[ni] != T.GROUND:
-			return
-		if _path_dirs.size() >= path_max:
-			if _path_deny <= 0.0:
-				_path_deny = 1.0
-				Sfx.play("bump", 1.3)
-			return
+			_path_drill = false
+			return true
+		_slide[undone] = [cell_center(ni) - cell_center(undone), 0.0]
+		_preview()
+		Sfx.play("note", pow(2.0, PATH_NOTES[_path_dirs.size()] / 12.0) * 0.5)
+		Sfx.play("swap", 0.85)
+		return true
+	if _path_drill:
+		return false
+	if _path_real.terrain[ni] == T.ROCK and _path_dirs.is_empty() and drill:
+		# one step into rock with the Drill: a bump, nothing to preview
 		_path_cells.append(ni)
 		_path_dirs.append(step)
-		# the gem the robot steps onto slides into the cell it just left
-		_slide[last] = [cell_center(ni) - cell_center(last), 0.0]
-		_pip_pop = 0.0
-		_preview()
-		Sfx.play("note", pow(2.0, PATH_NOTES[mini(_path_dirs.size(), PATH_NOTES.size() - 1)] / 12.0) * 0.5)
-		Sfx.play("swap", 1.0 + 0.06 * _path_dirs.size())
-		fx.emit("path_step", {"pos": cell_global(ni), "n": _path_dirs.size()})
-		if OS.has_feature("mobile"):
-			Input.vibrate_handheld(8)
+		_path_drill = true
+		Sfx.play("tap", 0.8)
+		return true
+	if _path_real.terrain[ni] != T.GROUND:
+		return false
+	if _path_dirs.size() >= path_max:
+		if _path_deny <= 0.0:
+			_path_deny = 1.0
+			Sfx.play("bump", 1.3)
+		return false
+	_path_cells.append(ni)
+	_path_dirs.append(step)
+	# the gem the robot steps onto slides into the cell it just left
+	_slide[last] = [cell_center(ni) - cell_center(last), 0.0]
+	_pip_pop = 0.0
+	_preview()
+	Sfx.play("note", pow(2.0, PATH_NOTES[mini(_path_dirs.size(), PATH_NOTES.size() - 1)] / 12.0) * 0.5)
+	Sfx.play("swap", 1.0 + 0.06 * _path_dirs.size())
+	fx.emit("path_step", {"pos": cell_global(ni), "n": _path_dirs.size()})
+	if OS.has_feature("mobile"):
+		Input.vibrate_handheld(8)
+	return true
 
 
 ## The board as it will stand once the path is walked (swaps only; matching waits for release).
