@@ -52,7 +52,8 @@ var _path_specials := {}  # while drawing: cell a dragged special ends on -> the
 var _spec_angle := {}     # cell -> the angle a dragged Drill is drawn at (it turns to aim)
 var _tok_rot := 0.0       # rotation for the next special drawn (_draw_special)
 var _draw_off := Vector2.ZERO
-var _finger := Vector2.ZERO  # where the drawing finger is (local)
+var _finger := Vector2.ZERO  # where the drawing finger aims (local)
+var _lean := Vector2.ZERO    # the held robot's lean toward its next step (local, smoothed)
 var _belt_from := {}  # during a belt step: cell -> the cell its token came from
 var _belt_run := 0.0    # 0..1: how hard the belt is running (only while it moves)
 var _belt_phase := 0.0  # where the chevrons are along each cell
@@ -628,6 +629,14 @@ func _process(delta: float) -> void:
 		Sfx.duck(5.0)
 	if not snap.is_empty() and snap.robot >= 0:
 		_path_rp = _path_rp.lerp(cell_center(snap.robot), 1.0 - exp(-delta * 28.0))
+	# the held robot leans only as the aim nears its next step, and smoothly, so a shaky thumb
+	# never shakes it and it never leans back after a step
+	var lean_to := Vector2.ZERO
+	if _drawing and not snap.is_empty() and snap.robot >= 0:
+		var off := (_finger - cell_center(snap.robot)) / (Vector2(cell, pitch) * DRAG_STEP)
+		if off.length() > 0.001:
+			lean_to = off.normalized() * smoothstep(0.3, STEP_AT, off.length()) * cell * 0.2
+	_lean = _lean.lerp(lean_to, 1.0 - exp(-delta * 20.0))
 	for k in _slide.keys():
 		_slide[k][1] += delta / 0.11
 		if _slide[k][1] >= 1.0:
@@ -765,6 +774,7 @@ func begin_drag(screen_pos: Vector2) -> bool:
 	_path_t = 0.0
 	_path_rp = cell_center(snap.robot)
 	_finger = _path_rp
+	_lean = Vector2.ZERO
 	_path_match.clear()
 	_path_groups.clear()
 	Sfx.play("tap", 1.5)
@@ -799,7 +809,7 @@ func drag_to(screen_pos: Vector2) -> void:
 			_aim_bias.x += off.x - signf(off.x) * hold
 		else:
 			_aim_bias.y += off.y - signf(off.y) * hold
-	# the held robot leans toward where the next step would go
+	# where the aim is, for the held robot's lean (_process)
 	_finger = cell_center(_path_real.robot) + (travel - _aim_bias) * unit
 
 
@@ -1295,20 +1305,17 @@ func _draw() -> void:
 				_draw_special_aim(c)  # over the trail, so an armed special is never hidden
 		var lift := _back_out(_path_lift) if _drawing else _path_lift
 		if _drawing:
-			# held: the robot strains toward the finger, like something picked up
-			var pull := (_finger - _path_rp).limit_length(cell * 0.32)
-			rp = _path_rp + pull
+			# held: the robot strains toward its next step, like something picked up
+			rp = _path_rp + _lean
 		# a soft shadow stays on the board while the robot is held up
 		draw_circle(rp + Vector2(0, cell * 0.28), cell * 0.3 * (1.0 - 0.25 * lift), Color(0.05, 0.0, 0.12, 0.28 * lift))
 		rp.y -= cell * 0.16 * lift
 		rsc *= 1.0 + 0.14 * lift
-		rp.x += sin(_time * 18.0) * cell * 0.012 * lift
 		if _drawing and _path_tele >= 0:
 			# armed: the robot hums with the charge, glowing in the pair's colour
 			var tcol := _tele_col(_path_tele)
 			draw_circle(rp, cell * (0.55 + 0.05 * sin(_time * 24.0)), Color(tcol, 0.3))
-			rp += Vector2(randf_range(-1, 1), randf_range(-1, 1)) * cell * 0.02
-			rsc *= 1.0 + 0.04 * sin(_time * 30.0)
+			rsc *= 1.0 + 0.03 * sin(_time * 8.0)
 	_draw_robot(rp, rsc)
 	_draw_booster_fx()
 	_draw_overlays(glowing)
