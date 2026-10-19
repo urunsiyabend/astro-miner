@@ -3,10 +3,10 @@ extends SceneTree
 ## The drawn-path preview must tell the truth: before every move of a bot game it asks
 ## Board.preview_path what the path will do, plays the path for real and compares.
 ##   godot --headless --path . -s res://tools/preview_check.gd -- [runs]
-## Checked: the lines that match first, where their specials form, and where each dragged
-## special goes off and which way. Moves whose first match comes after a fall (a pickup or a
-## blast opened a hole first) are skipped: the preview stops before gravity. Exits 1 on a
-## mismatch, so it can gate a commit.
+## Checked: the lines that match first, where their specials form, where each dragged
+## special goes off and which way, and the combo a path that drags several makes. Moves whose
+## first match comes after a fall (a pickup or a blast opened a hole first) are skipped: the
+## preview stops before gravity. Exits 1 on a mismatch, so it can gate a commit.
 
 func _initialize() -> void:
 	var runs := 4
@@ -51,6 +51,13 @@ func _initialize() -> void:
 
 
 func _compare(pv: Dictionary, steps: Array) -> String:
+	# power-ups the path merges: the move merges the same ones, into the same cell
+	var merges := steps.filter(func(s): return s.type == "merge")
+	if not pv.combo.is_empty() or not merges.is_empty():
+		if pv.combo.is_empty() or merges.is_empty():
+			return "combo: preview %s, move %s" % [pv.combo.get("name", "-"), merges.map(func(m): return m.name)]
+		if merges[0].to != pv.combo.at or merges[0].name != pv.combo.name:
+			return "combo %s at %d, preview said %s at %d" % [merges[0].name, merges[0].to, pv.combo.name, pv.combo.at]
 	# dragged specials that go off in place fire right after the walk, in order
 	for c in pv.specials:
 		var aim: Array = pv.specials[c]

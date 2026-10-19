@@ -842,6 +842,116 @@
         "attribution": "",
         "prompt_or_source_record": "A tutorial pointer hand for a cute mobile match-3 puzzle game: ONE cartoon hand in a white glove, index finger extended and pointing straight up ... flat solid pure green background"
       }
+    },
+    {
+      "id": "pulsar",
+      "role": "Pulsar power-up (4 in a row)",
+      "path": "assets/ui/specials/pulsar.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference f98b95bc-4d5b-4c61-83d1-2ecb4c988fb5, output d63fff6d-9e7b-441b-abb3-4cf7bddb6322), sheet docs/art/sources/powerups.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "nova",
+      "role": "Nova power-up (L/T)",
+      "path": "assets/ui/specials/nova.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference f98b95bc-4d5b-4c61-83d1-2ecb4c988fb5, output d63fff6d-9e7b-441b-abb3-4cf7bddb6322), sheet docs/art/sources/powerups.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "blackhole",
+      "role": "Black hole power-up (5 in a row)",
+      "path": "assets/ui/specials/blackhole.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference f98b95bc-4d5b-4c61-83d1-2ecb4c988fb5, output d63fff6d-9e7b-441b-abb3-4cf7bddb6322), sheet docs/art/sources/powerups.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "drone",
+      "role": "Scout drone power-up (2x2)",
+      "path": "assets/ui/specials/drone.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference f98b95bc-4d5b-4c61-83d1-2ecb4c988fb5, output d63fff6d-9e7b-441b-abb3-4cf7bddb6322), sheet docs/art/sources/powerups.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "reticle",
+      "role": "drone lock-on reticle",
+      "path": "assets/ui/specials/reticle.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference f98b95bc-4d5b-4c61-83d1-2ecb4c988fb5, output d63fff6d-9e7b-441b-abb3-4cf7bddb6322), sheet docs/art/sources/powerups.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
+      }
     }
   ]
 }

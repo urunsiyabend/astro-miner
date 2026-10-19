@@ -76,8 +76,10 @@ with a small margin. That suits obstacles:
   between tiles (soil tiles still draw under it);
 - a dock is under the gem it holds, so it also gets a mark on the board's edge below it (Candy
   Crush's exit arrows).
-Rock layer counters (white pips) and the old vein pips were removed: rock shows its layers by
-its art (form + crack state). Gems are 15% bigger (ORE_SIZE 0.80 → 0.94).
+Rock layer counters (white pips) and the old vein pips were removed: rock shows the layers it
+has left by its shade (darker = thicker, `BoardView.ROCK_TINT`, as Royal Match's boxes peel a
+layer per match) and how worn it is by its crack state (`Art.rock`). The three rock "forms"
+share one painted rock today; separate art per layer count is a todo. Gems are 15% bigger (ORE_SIZE 0.80 → 0.94).
 
 ## Prototypes (Settings > Prototypes)
 
