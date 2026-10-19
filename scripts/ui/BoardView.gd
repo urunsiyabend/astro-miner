@@ -2,7 +2,8 @@ class_name BoardView
 extends Control
 
 ## Draws a board snapshot and animates the step list returned by Board.try_move().
-## Rules never live here: the view only replays what the Board already decided.
+## Rules never live here: the view only replays what the Board already decided, and while a
+## path is drawn it shows what the Board says the path will do (Board.preview_path).
 
 signal move_requested(dir: Vector2i)
 signal snap_changed(snap: Dictionary)
@@ -22,7 +23,7 @@ const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 ## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
 const GAP := 0.0            # px between neighbouring blocks (the cell art carries its own margin)
 const ROCK_SIZE := 1.0      # rock sprite canvas / cell (the rock body is ~80% of its canvas)
-const ORE_SIZE := 0.80      # ore sprite canvas / cell
+const ORE_SIZE := 0.94      # ore sprite canvas / cell (the gem is ~80% of its canvas)
 
 var snap: Dictionary = {}
 var scanner := false
@@ -42,13 +43,19 @@ var classic := false  # the classic prototype: no robot, a swipe on a gem swaps 
 ## Drawn paths: hold the robot and draw up to path_max steps. While the finger is down the
 ## board shows the swaps live (a preview snap); lifting it sends the path as one move.
 var path_max := 1
+var board: Board  # the dig's board, read only: asked where a path may go and what it will do
 var pads := {}       # launch pad cell -> target cell
 var belts: Array = []  # conveyor loops of cells
 var teleports := {}   # teleporter cell -> its twin
+var docks := {}       # cells where an energy core is delivered
+const OBS_DIR := "res://assets/obstacles/"
+const CORE_COL := Color("5ff2c8")
+var _obs_jolt := {}   # obstacle index -> 1..0: it shudders when hit
+var _obs_glow := {}   # obstacle index -> 1..0: the flash of finishing (a generator switching on)
 const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ffd24a")]
 var _path_tele := -1  # while drawing: the twin the robot would come out of, or -1
 var _tele_arm := 0.0  # 1 -> 0: the flash when a path comes to rest on a teleporter
-var _path_specials := {}  # while drawing: cell a dragged special ends on -> the way it will fire
+var _path_specials := {}  # while drawing: dragged special's cell -> [where it goes off, way it fires]
 var _spec_angle := {}     # cell -> the angle a dragged Drill is drawn at (it turns to aim)
 var _tok_rot := 0.0       # rotation for the next special drawn (_draw_special)
 var _draw_off := Vector2.ZERO
@@ -447,6 +454,7 @@ func _finish_phase() -> void:
 					_rise[c] = 0.0
 				if not _cur.charges.is_empty():
 					Sfx.play("forge")
+				_obstacle_fx(_cur)
 				_flash.clear()
 				_apply(_cur.snap)
 				_phase = 1
@@ -461,6 +469,7 @@ func _finish_phase() -> void:
 			for c in _cur.surfaced:
 				_rise[c] = 0.0
 			_reveal_fx(_cur.revealed)
+			_obstacle_fx(_cur)
 			fx.emit("blast_done", {"cells": _cur.cells.map(func(c): return cell_global(c))})
 			_apply(_cur.snap)
 			_next_step()
@@ -470,6 +479,7 @@ func _finish_phase() -> void:
 				_jolt[r] = 1.0
 				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
 			_reveal_fx(_cur.revealed)
+			_obstacle_fx(_cur)
 			fx.emit("blast_done", {"cells": [cell_global(_cur.at)]})
 			_flash.clear()
 			_apply(_cur.snap)
@@ -479,7 +489,15 @@ func _finish_phase() -> void:
 				Sfx.play("land", randf_range(0.95, 1.1))
 			for c in _cur.collected:
 				var res: int = Board.RES_CRYSTAL if snap.token[c] == K.CRYSTAL else -1
-				if res >= 0:
+				if snap.token[c] == K.CORE:
+					# delivered: the core sinks into the dock in a burst of light
+					_rings.append({"c": cell_center(c), "r0": cell * 0.6, "r1": cell * 0.1, "t": 0.0, "dur": 0.3, "color": CORE_COL})
+					_rings.append({"c": cell_center(c), "r0": cell * 0.3, "r1": cell * 1.8, "t": -0.1, "dur": 0.45, "color": Color.WHITE})
+					fx.emit("path_step", {"pos": cell_global(c), "n": 14})
+					add_trauma(0.25)
+					Sfx.play("teleport", 0.9)
+					Sfx.play("collect")
+				elif res >= 0:
 					Sfx.play("pickup")
 					fx.emit("pickup", {"pos": cell_global(c), "res": res})
 				else:
@@ -509,6 +527,7 @@ func _finish_phase() -> void:
 				_jolt[r] = 1.0
 				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
 			_reveal_fx(_cur.revealed)
+			_obstacle_fx(_cur)
 			for c in _cur.surfaced:
 				_rise[c] = 0.0
 			_apply(_cur.snap)
@@ -657,8 +676,7 @@ func _process(delta: float) -> void:
 		if not _path_specials.has(c):
 			_spec_angle.erase(c)
 	for c in _path_specials:
-		var aim := _special_aim(c)
-		var target_a := Vector2(aim[1]).angle() + PI * 0.5
+		var target_a := Vector2(_path_specials[c][1]).angle() + PI * 0.5
 		_spec_angle[c] = lerp_angle(float(_spec_angle.get(c, 0.0)), target_a, 1.0 - exp(-delta * 16.0))
 	if _hold > 0.0:
 		_hold -= delta  # hit-stop: the board holds its breath, the rest of the screen runs on
@@ -679,6 +697,14 @@ func _process(delta: float) -> void:
 		_jolt[k] -= delta / 0.25
 		if _jolt[k] <= 0.0:
 			_jolt.erase(k)
+	for k in _obs_jolt.keys():
+		_obs_jolt[k] -= delta / 0.3
+		if _obs_jolt[k] <= 0.0:
+			_obs_jolt.erase(k)
+	for k in _obs_glow.keys():
+		_obs_glow[k] -= delta / 0.6
+		if _obs_glow[k] <= 0.0:
+			_obs_glow.erase(k)
 	if _cur.is_empty() or _cur.type != "match":
 		for k in _flash.keys():
 			_flash[k] -= delta / 0.2
@@ -855,10 +881,9 @@ func _path_extend(target: Vector2i) -> void:
 ## back. False when the step can't be taken (the edge, rock, a full path).
 func _path_step(step: Vector2i) -> bool:
 	var last: int = _path_cells[-1]
-	var np := Board.pos(last) + step
-	if not Board.inside(np):
+	var ni := board.step_to(last, step)
+	if ni < 0:
 		return false
-	var ni := Board.idx(np)
 	if _path_cells.size() >= 2 and ni == _path_cells[-2]:
 		# back one step: the gem slides back where it was, the note steps down
 		var undone: int = _path_cells.pop_back()
@@ -880,13 +905,13 @@ func _path_step(step: Vector2i) -> bool:
 		_path_drill = true
 		Sfx.play("tap", 0.8)
 		return true
-	if _path_real.terrain[ni] != T.GROUND:
-		return false
 	if _path_dirs.size() >= path_max:
 		if _path_deny <= 0.0:
 			_path_deny = 1.0
 			Sfx.play("bump", 1.3)
 		return false
+	if board.path_cells(_path_dirs + [step]).is_empty():
+		return false  # the Board says no: a wall, rock, an obstacle, a caged gem
 	_path_cells.append(ni)
 	_path_dirs.append(step)
 	# the gem the robot steps onto slides into the cell it just left
@@ -901,81 +926,39 @@ func _path_step(step: Vector2i) -> bool:
 	return true
 
 
-## The board as it will stand once the path is walked (swaps only; matching waits for release).
+## The board as it will stand once the path is walked (swaps only; matching waits for release),
+## and what the release will do, both from the Board (preview_path): the view adds only how it
+## looks and sounds.
 func _preview() -> void:
-	if _path_drill:
-		snap = _path_real
-		return
-	var p := _path_real.duplicate()
-	var tk: PackedInt32Array = PackedInt32Array(_path_real.token)
-	var orr: PackedInt32Array = PackedInt32Array(_path_real.ore)
-	var sp: PackedInt32Array = PackedInt32Array(_path_real.spec)
-	var cur: int = _path_real.robot
-	var pivot := -1
-	_path_specials.clear()
-	for k in range(1, _path_cells.size()):
-		var ti: int = _path_cells[k]
-		var carried := tk[ti] == K.ORE or (tk[ti] == K.CHARGE and sp[ti] != Board.Special.BLAST)
-		if carried and tk[ti] == K.CHARGE:
-			# a dragged special fires the way it was pushed: back along the robot's step
-			_path_specials.erase(ti)
-			_path_specials[cur] = Board.pos(cur) - Board.pos(ti)
-		if carried:
-			tk[cur] = tk[ti]
-			orr[cur] = orr[ti]
-			sp[cur] = sp[ti]
-			if tk[cur] == K.ORE:
-				pivot = cur
-		tk[ti] = K.NONE
-		cur = ti
-	# ending on a teleporter: the robot will come out of the twin, and the twin's gem drops into
-	# the teleporter (shown now, so the preview's matches are the real ones)
+	var pv := {} if _path_drill else board.preview_path(_path_dirs)
 	var was_tele := _path_tele
+	var before := _path_match.size()
+	var specials_before := _path_groups.filter(func(g): return g.special >= 0).size()
+	_path_specials.clear()
+	_path_match.clear()
+	_path_groups.clear()
 	_path_tele = -1
-	if _path_cells.size() > 1 and teleports.has(cur):
-		var tw: int = teleports[cur]
-		if _path_real.terrain[tw] == T.GROUND:
-			_path_tele = tw
-			if tk[tw] == K.ORE or tk[tw] == K.CHARGE:
-				tk[cur] = tk[tw]
-				orr[cur] = orr[tw]
-				sp[cur] = sp[tw]
-				if tk[cur] == K.ORE:
-					pivot = cur
-			tk[tw] = K.NONE
+	if pv.is_empty():
+		snap = _path_real
+		queue_redraw()
+		return
+	snap = pv.snap
+	_path_specials = pv.specials
+	_path_tele = pv.twin
 	if _path_tele >= 0 and was_tele != _path_tele:
 		# the path just came to rest on a teleporter: it arms with a charge-up, a flash and a buzz
 		_tele_arm = 1.0
 		Sfx.play("telearm")
 		if OS.has_feature("mobile"):
 			Input.vibrate_handheld(30)
-	p.token = tk
-	p.ore = orr
-	p.spec = sp
-	p.robot = cur
-	snap = p
 	# what would match if the finger lifted now: those gems bounce and glow, and a new line
 	# chimes as it forms
-	var probe := Board.new()
-	probe.terrain = PackedInt32Array(_path_real.terrain)
-	probe.token = tk
-	probe.ore = orr
-	var before := _path_match.size()
-	var specials_before := _path_groups.filter(func(g): return g.special >= 0).size()
-	_path_match.clear()
-	_path_groups.clear()
-	for g in probe.find_groups():
+	for g in pv.groups:
 		var mid := Vector2.ZERO
 		for c in g.cells:
 			_path_match[c] = true
 			mid += cell_center(c)
-		var special := -1
-		var at: int = g.cells[0]
-		if g.cells.size() >= 4:
-			special = probe._special_for(g.cells)
-			at = pivot if g.cells.has(pivot) else probe._central(g.cells)
-		_path_groups.append({"cells": g.cells, "ore": g.ore, "special": special, "at": at,
-				"mid": mid / float(g.cells.size())})
+		_path_groups.append(g.merged({"mid": mid / float(g.cells.size())}))
 	var specials_now := _path_groups.filter(func(g): return g.special >= 0).size()
 	if specials_now > specials_before:
 		Sfx.play("forge", 1.2)
@@ -1131,6 +1114,8 @@ func _draw() -> void:
 	for i in Board.W * Board.H:
 		if snap.terrain[i] == T.ROCK:
 			_draw_rock(i)
+	_draw_docks()
+	_draw_obstacles(Obstacles.Layer.PIECE)
 	_draw_elements()
 	_draw_move_hints(moving_to)
 	var glowing := not glow.is_empty() and _cur.is_empty() and not _drawing
@@ -1245,9 +1230,11 @@ func _draw() -> void:
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
 		_tok_rot = 0.0
 		_tok_squash = Vector2.ONE
+	_draw_obstacles(Obstacles.Layer.COVER)  # over the gems they lock
+	_draw_dock_marks()
 	var hot := {}
 	for p in pads:
-		if snap.robot == p or (snap.token[p] == K.CHARGE or snap.token[p] == K.CRYSTAL or snap.token[p] == K.CELL):
+		if Board.pad_throws(snap.token[p]):
 			hot[p] = true
 	if _drawing or _path_lift > 0.0:
 		_draw_outcome(tok, kinds, specs)
@@ -1428,16 +1415,6 @@ func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: Packed
 
 ## Where a dragged special will go off and which way: [cell, direction]. Pushed onto a pad it
 ## goes off at the pad's target, heading along the throw; onto a teleporter, at the twin.
-func _special_aim(c: int) -> Array:
-	var d: Vector2i = _path_specials[c]
-	if pads.has(c):
-		var dv := Board.pos(pads[c]) - Board.pos(c)
-		return [pads[c], Vector2i(signi(dv.x), 0) if absi(dv.x) > absi(dv.y) else Vector2i(0, signi(dv.y))]
-	if teleports.has(c):
-		return [teleports[c], d]
-	return [c, d]
-
-
 ## A dragged special, before release: it stands out of the dimmed board, armed. A Drill
 ## turns to the way it will fire, with a sparking tip; any special trembles and throbs in its
 ## glow. Sent through a pad or teleporter, a small ring marks where it will go off.
@@ -1445,7 +1422,7 @@ func _draw_special_aim(c: int) -> void:
 	if snap.token[c] != K.CHARGE:
 		return
 	var kind: int = snap.spec[c]
-	var aim := _special_aim(c)
+	var aim: Array = _path_specials[c]  # [where it goes off, the way it fires] (Board.special_aim)
 	var col: Color = SPECIAL_COL[kind]
 	var pulse := 0.5 + 0.5 * sin(_time * 14.0)
 	if aim[0] != c:
@@ -1476,6 +1453,126 @@ func _arc(a: Vector2, b: Vector2, t: float) -> Vector2:
 
 ## Movement elements on the ground, under the gems: conveyor chevrons that flow, launch pads,
 ## the dotted flight to each pad's target, and teleporters.
+## Docks: where an energy core is delivered, a socket in the floor under whatever stands on it.
+func _draw_docks() -> void:
+	var tex := Art.tex(OBS_DIR + "dock.png")
+	for d in docks:
+		var c := cell_center(d)
+		var pul := 0.5 + 0.5 * sin(_time * 3.0)
+		draw_circle(c, cell * (0.46 + 0.03 * pul), Color(CORE_COL, 0.12 + 0.1 * pul), true, -1.0, true)
+		if tex != null:
+			var ds := Vector2(cell, cell) * 0.98
+			draw_texture_rect(tex, Rect2(c - ds * 0.5, ds), false)
+		else:
+			draw_arc(c, cell * 0.4, 0.0, TAU, 32, CORE_COL, cell * 0.06, true)
+
+
+## A dock is covered by what stands on it, so it also gets a mark on the board's edge below it
+## (Candy Crush's exit arrows): the socket, bobbing, with a light pulsing down into it.
+func _draw_dock_marks() -> void:
+	var tex := Art.tex(OBS_DIR + "dock.png")
+	for d in docks:
+		var c := cell_center(d) + Vector2(0, cell * 0.66 + cell * 0.04 * sin(_time * 4.0))
+		var pul := fmod(_time * 1.6, 1.0)
+		draw_circle(c, cell * (0.3 + 0.25 * pul), Color(CORE_COL, 0.45 * (1.0 - pul)), true, -1.0, true)
+		if tex != null:
+			var ds := Vector2(cell, cell * 0.85) * 0.82
+			_draw_lifted(tex, Rect2(c - ds * 0.5, ds))
+		else:
+			_chevron(c, Vector2(0, 1), CORE_COL)
+
+
+## Obstacles of one layer (Obstacles.Layer): pieces under the gems' layer, covers over the gems
+## they lock. What each looks like follows its state in the snapshot (hits left), so the view
+## never needs to know the rules.
+func _draw_obstacles(layer: int) -> void:
+	var list: Array = snap.get("obstacles", [])
+	for id in list.size():
+		var it: Dictionary = list[id]
+		var rule: Dictionary = Obstacles.KINDS[it.kind]
+		if rule.layer != layer or (it.left <= 0 and not rule.stays):
+			continue
+		var r := Rect2(cell_origin(Board.pos(it.cells[0])),
+				Vector2(cell * rule.size.x, pitch * (rule.size.y - 1) + cell))
+		var jolt: float = _obs_jolt.get(id, 0.0)
+		match it.kind:
+			"generator":
+				_draw_generator(it, int(rule.need), r, jolt, float(_obs_glow.get(id, 0.0)))
+			"cage":
+				var tex := Art.tex(OBS_DIR + "cage.png")
+				var cs := Vector2(cell, cell) * (1.0 + 0.1 * sin(PI * jolt))
+				if tex != null:
+					_draw_lifted(tex, Rect2(r.get_center() - cs * 0.5, cs))
+				else:
+					draw_rect(Rect2(r.get_center() - cs * 0.45, cs * 0.9), Color(0.3, 0.3, 0.36), false, cell * 0.08)
+
+
+## A generator charges as matches land next to it: the dome fills with light and a row of lamps
+## under it lights up one per hit; full, it switches on and hums.
+func _draw_generator(it: Dictionary, need: int, r: Rect2, jolt: float, glow: float) -> void:
+	var on: bool = it.left <= 0
+	var c := r.get_center()
+	var have: int = need - int(it.left)
+	var pul := 0.5 + 0.5 * sin(_time * 4.0)
+	if on:
+		draw_circle(c, r.size.x * (0.52 + 0.03 * pul), Color(0.37, 0.95, 1.0, 0.16 + 0.12 * pul + 0.4 * glow), true, -1.0, true)
+	var sz := r.size * 0.98 * (1.0 + 0.05 * sin(PI * jolt) + 0.12 * glow)
+	var tex := Art.tex(OBS_DIR + ("generator_on.png" if on else "generator_off.png"))
+	if tex != null:
+		_draw_lifted(tex, Rect2(c - sz * 0.5, sz))
+	else:
+		_round_rect(Rect2(c - sz * 0.45, sz * 0.9), Color(0.75, 0.78, 0.85), cell * 0.12)
+	if on:
+		return
+	# the dome lights up as it charges (and flickers as a hit lands)
+	var k := float(have) / float(need)
+	if have > 0:
+		draw_circle(c - Vector2(0, sz.y * 0.02), sz.x * 0.27, Color(0.37, 0.95, 1.0, 0.18 + 0.4 * k + 0.3 * jolt), true, -1.0, true)
+	# lamps: one per hit it needs, lit as they land
+	var lw := sz.x * 0.62 / need
+	var y := c.y + sz.y * 0.36
+	var x0 := c.x - lw * need * 0.5
+	_round_rect(Rect2(Vector2(x0 - lw * 0.2, y - lw * 0.42), Vector2(lw * (need + 0.4), lw * 0.84)), Color(0.05, 0.03, 0.1, 0.7), lw * 0.4)
+	for j in need:
+		var lc := Vector2(x0 + lw * (j + 0.5), y)
+		if j < have:
+			draw_circle(lc, lw * 0.4, Color(0.37, 0.95, 1.0, 0.35), true, -1.0, true)
+			draw_circle(lc, lw * 0.26, Color("bffaff"), true, -1.0, true)
+		else:
+			draw_circle(lc, lw * 0.22, Color(0.35, 0.38, 0.5), true, -1.0, true)
+
+
+## What a step did to obstacles (step.obstacles from Board._strike): every hit shudders the
+## obstacle and sparks; a finish rings out (a generator switches on, a cage bursts).
+func _obstacle_fx(step: Dictionary) -> void:
+	for r in step.get("obstacles", []):
+		_obs_jolt[r.id] = 1.0
+		var c := Vector2.ZERO
+		for cc in r.cells:
+			c += cell_center(cc)
+		c /= float(r.cells.size())
+		var g := get_global_transform_with_canvas() * c
+		match r.kind:
+			"generator":
+				var have: int = r.need - r.left
+				fx.emit("path_step", {"pos": g, "n": 6 + have})
+				if r.done:
+					_obs_glow[r.id] = 1.0
+					_rings.append({"c": c, "r0": cell * 0.4, "r1": cell * 2.6, "t": 0.0, "dur": 0.45, "color": Color("5ff2ff")})
+					_rings.append({"c": c, "r0": cell * 0.2, "r1": cell * 2.0, "t": -0.08, "dur": 0.45, "color": Color.WHITE})
+					add_trauma(0.3)
+					_whiteout = maxf(_whiteout, 0.35)
+					Sfx.play("teleport", 1.15)
+					Sfx.play("collect")
+				else:
+					Sfx.play("cell", 0.9 + 0.08 * have)
+			"cage":
+				fx.emit("debris", {"pos": g, "color": Color(0.45, 0.47, 0.55)})
+				_rings.append({"c": c, "r0": cell * 0.3, "r1": cell * 0.9, "t": 0.0, "dur": 0.3, "color": Color(0.8, 0.82, 0.9)})
+				Sfx.play("crack", 1.25)
+				add_trauma(0.08)
+
+
 func _draw_elements() -> void:
 	for loop in belts:
 		var n: int = loop.size()
@@ -1888,13 +1985,6 @@ func _draw_ground(i: int) -> void:
 			draw_line(p0, p1, Color(0, 0, 0, 0.35), 3.0, true)
 	# grid seam so cells stay readable inside a merged pit
 	draw_rect(r.grow(-1), Color(0, 0, 0, 0.16), false, 2.0)
-	# ore layers left under the floor: warm pips on a dark pill (same language as rock)
-	if res > 0 and not gravity:
-		var n := mini(res, 5)
-		var pill := Rect2(Vector2(r.get_center().x - (n * 16 + 10) * 0.5, r.end.y - 22), Vector2(n * 16 + 10, 18))
-		_round_rect(pill, Color(0, 0, 0, 0.5), 9)
-		for k in n:
-			draw_circle(Vector2(pill.position.x + 13 + k * 16, pill.get_center().y), 5.5, Pal.VEIN)
 
 
 ## Four wall bands between an outer and an inner rect; ins = [N, E, S, W] widths.
@@ -1931,7 +2021,6 @@ func _draw_rock(i: int) -> void:
 		if tex != null:
 			var s := (cell - GAP) * ROCK_SIZE
 			_draw_lifted(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)))
-		_draw_layer_pill(c0 + Vector2(0, -cell * 0.02), cell * 0.42, hpv)
 		if scanner:
 			_draw_buried(c0, snap.buried[i])
 		return
@@ -1967,11 +2056,6 @@ func _draw_rock(i: int) -> void:
 		var p1 := c + Vector2(cos(a + 0.5), sin(a + 0.5)) * rad * 0.55
 		var p2 := c + Vector2(cos(a + 0.2), sin(a + 0.2)) * rad * 0.85
 		draw_polyline(PackedVector2Array([p0, p1, p2]), col.darkened(0.45), 4.0, true)
-	# layer counter: a dark pill with one bright pip per remaining layer
-	var pill := Rect2(Vector2(c.x - 12 - hpv * 9, c.y - rad * 0.95), Vector2(24 + hpv * 18 - 6, 22))
-	_round_rect(pill, Color(0, 0, 0, 0.55), 11)
-	for k in hpv:
-		draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
 	if scanner:
 		_draw_buried(c, snap.buried[i])
 
@@ -1996,23 +2080,7 @@ func _draw_tile(i: int, r: Rect2) -> void:
 	if _sink.has(i):  # the floor just dropped a layer: a quick dip
 		top.position.y += 4.0 * sin(PI * _ease(_sink[i]))
 	draw_texture_rect(tex, Rect2(top.position, Vector2(w, w * (1.0 + _band))), false)
-	if t == T.GROUND and res > 0 and not gravity:
-		var n := mini(res, 5)
-		# vein pips: a small row inside the cell's lower edge, under the ore
-		var step := cell * 0.085
-		var dot := cell * 0.028
-		var pill := Rect2(Vector2(top.get_center().x - (n * step + dot * 2.2) * 0.5, top.end.y - cell * 0.13),
-				Vector2(n * step + dot * 2.2, dot * 3.0))
-		_round_rect(pill, Color(0, 0, 0, 0.42), dot * 1.5)
-		for k in n:
-			draw_circle(Vector2(pill.position.x + dot * 1.1 + step * 0.5 + k * step, pill.get_center().y), dot, Pal.VEIN, true, -1.0, true)
 
-
-func _draw_layer_pill(c: Vector2, rad: float, hpv: int) -> void:
-	var pill := Rect2(Vector2(c.x - 12 - hpv * 9, c.y - rad * 0.95), Vector2(24 + hpv * 18 - 6, 22))
-	_round_rect(pill, Color(0, 0, 0, 0.55), 11)
-	for k in hpv:
-		draw_circle(Vector2(pill.position.x + 15 + k * 18, pill.get_center().y), 7, Pal.TEXT)
 
 
 static func _moved(pts: PackedVector2Array, by: Vector2) -> PackedVector2Array:
@@ -2091,6 +2159,15 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float, sp := 
 		_draw_lifted(art, Rect2(c + Vector2(-sz.x * 0.5, size * 0.5 - sz.y), sz))
 		return
 	match tk:
+		K.CORE:
+			var glow2 := 0.5 + 0.5 * sin(_time * 5.0 + c.y * 0.02)
+			draw_circle(c, cell * 0.42 * sc, Color(CORE_COL, 0.16 + 0.14 * glow2), true, -1.0, true)
+			var ct := Art.tex(OBS_DIR + "core.png")
+			if ct != null:
+				var cs := Vector2(cell, cell) * 0.9 * sc * _tok_squash
+				_draw_lifted(ct, Rect2(c + Vector2(-cs.x * 0.5, cell * 0.45 * sc - cs.y), cs))
+			else:
+				draw_circle(c, s * 1.1, CORE_COL)
 		K.ORE:
 			var col: Color = Pal.ORE[kind]
 			var dark: Color = Pal.ORE_DARK[kind]

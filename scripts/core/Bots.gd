@@ -60,7 +60,7 @@ static func _paths_from(b: Board, at: int, prev: int, cur: Array, out: Array) ->
 		return
 	for d in Board.DIRS:
 		var ti := b.step_to(at, d)
-		if ti < 0 or ti == prev or b.terrain[ti] != Board.Terrain.GROUND:
+		if ti < 0 or ti == prev or not b.can_enter(ti):
 			continue
 		var next: Array = cur.duplicate()
 		next.append(d)
@@ -82,7 +82,7 @@ static func _legal(b: Board) -> Array:
 		if ti < 0:
 			continue
 		var tt := b.terrain[ti]
-		if tt == Board.Terrain.GROUND or (tt == Board.Terrain.ROCK and b.cfg.drill and b.energy >= b.cfg.drill_cost):
+		if b.can_enter(ti) or (tt == Board.Terrain.ROCK and b.cfg.drill and b.energy >= b.cfg.drill_cost):
 			out.append(d)
 	return out
 
@@ -278,6 +278,14 @@ static func _value(b: Board, plan: bool) -> float:
 			if target and dist[i] >= 0:
 				nearest = mini(nearest, dist[i])
 		v += dmg * (1.5 if wants_rock else 0.3)
+		# obstacles on their way to done (a generator charging, a cage cracking), and energy
+		# cores on their way down to the docks, are progress the bot can see
+		for it in b.obs.items:
+			v -= int(it.left) * 3.0
+		if not b.cfg.docks.is_empty():
+			for i in Board.W * Board.H:
+				if b.token[i] == Board.Token.CORE:
+					v += Board.pos(i).y * 4.0
 		if nearest < 99:
 			# a crystal still owed to the goal is worth heading for: each step closer must beat the
 			# move it costs, or the bot spends the budget on stray matches and stalls in sight of it

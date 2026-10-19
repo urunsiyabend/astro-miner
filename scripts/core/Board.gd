@@ -9,8 +9,11 @@ extends RefCounted
 static var W := 7
 static var H := 8
 
-enum Terrain { GROUND, ROCK, BEDROCK }
-enum Token { NONE, ORE, CRYSTAL, CELL, CHARGE }
+## BLOCK: a cell taken by a piece obstacle (Obstacles: a generator...), solid like rock.
+enum Terrain { GROUND, ROCK, BEDROCK, BLOCK }
+## CORE: an energy core to deliver (a Deliver goal): it falls like a gem, never matches, the robot
+## can push it along, and it is delivered when it comes to rest on a dock (cfg.docks).
+enum Token { NONE, ORE, CRYSTAL, CELL, CHARGE, CORE }
 enum Buried { ORE, CELL, CRYSTAL, EMPTY, TREASURE }
 
 ## What a line of 4 leaves (a site's "special", prototypes). BLAST is the original charge: step
@@ -46,9 +49,10 @@ var treasure_coin := 0   # Coin from chests opened this dig (paid even if the di
 var stats := {
 	"moves": 0, "drills": 0, "groups": 0, "cascade_groups": 0, "chunks": 0,
 	"rocks_broken": 0, "crystals": 0, "cells": 0, "charges_made": 0, "blasts": 0, "treasures": 0,
-	"energy_refunded": 0, "rejected": 0, "paths": 0, "launches": 0, "teleports": 0, "pulses": 0, "continues": 0, "boosters": 0,
+	"energy_refunded": 0, "rejected": 0, "cores": 0, "paths": 0, "launches": 0, "teleports": 0, "pulses": 0, "continues": 0, "boosters": 0,
 }
-var goals: Array = []  # [{type:"ore", ore:int, n:int} | {type:"rock", n} | {type:"crystal", n}]
+var goals: Array = []  # [{type:"ore", ore:int, n:int} | {type:"rock", n} | {type:"crystal", n} | ...]
+var obs := Obstacles.new()  # generators, cages...: what they are and what hits them
 var over := false
 var complete := false
 var rng := RandomNumberGenerator.new()
@@ -92,6 +96,7 @@ var cfg := {
 	"teleports": {},  # teleporter cell -> its twin (both ways): a move or path that ends on one
 	                  # puts the robot on the twin; a special that comes to rest on one appears on
 	                  # the twin and goes off there
+	"docks": {},    # cells where an energy core that comes to rest is delivered
 }
 
 var record := true  # build per-step snapshots for the view; sims switch this off
@@ -147,7 +152,25 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 		teleports[idx(t[0])] = idx(t[1])
 		teleports[idx(t[1])] = idx(t[0])
 	r.teleports = teleports
+	var docks := {}
+	for d in site.get("docks", []):
+		docks[idx(d)] = true
+	r.docks = docks
 	setup(site.rows, int(site.get("seed", seed_value)), r, site.goals, site.get("ore", []))
+	# obstacles ([[top-left cell, kind], ...], Obstacles.KINDS): a piece takes its cells, a
+	# cover goes over the gem already there
+	for ob in site.get("obstacles", []):
+		var cells := obs.place(ob[1], ob[0], W)
+		for c in cells:
+			if Obstacles.KINDS[ob[1]].layer == Obstacles.Layer.PIECE:
+				terrain[c] = Terrain.BLOCK
+				token[c] = Token.NONE
+			else:
+				assert(token[c] == Token.ORE, "a cover needs a gem under it (cell %d)" % c)
+				for belt in cfg.belts:
+					assert(not belt.has(c), "a cover can't ride a belt (cell %d)" % c)
+	for c in site.get("cores", []):
+		token[idx(c)] = Token.CORE
 	# pre-placed specials ([[cell, "drill"], ...]): a gem that already carries one, as Royal
 	# Match seeds a TNT to show what a level wants
 	for sp in site.get("specials", []):
@@ -180,6 +203,7 @@ func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Arr
 	for k in rules:
 		cfg[k] = rules[k]
 	goals = site_goals.duplicate(true)
+	obs = Obstacles.new()
 	robot = -1
 	var n := W * H
 	terrain.resize(n); hp.resize(n); hp0.resize(n); buried.resize(n); reserve.resize(n)
@@ -333,13 +357,14 @@ func _is_ore(c: Vector2i) -> bool:
 # --- moves -----------------------------------------------------------------
 
 ## Attempt a robot move. Returns {ok, reason, steps:[...]}; steps carry snapshots when record.
+## A step into rock is a drill bump (with the Drill); any other step is a one-cell path.
 func try_move(dir: Vector2i) -> Dictionary:
 	var out := {"ok": false, "reason": "", "steps": []}
 	if over:
 		out.reason = "over"
 		return out
 	var ti := step_to(robot, dir)
-	if ti < 0:
+	if ti < 0 or terrain[ti] == Terrain.BLOCK or obs.locked(ti):
 		out.reason = "wall"
 		stats.rejected += 1
 		return out
@@ -363,66 +388,13 @@ func try_move(dir: Vector2i) -> Dictionary:
 		_finish_turn()
 		out.ok = true
 		return out
-
-	energy -= 1
-	stats.moves += 1
-	pushed.clear()
-	belt_boost = 0
-	var fi := robot
-	var step := {"type": "move", "from": fi, "to": ti, "swap": false, "pickup": Token.NONE}
-	var dd := pos(ti) - pos(fi)
-	if absi(dd.x) + absi(dd.y) != 1:
-		step.portal = true  # walked through a portal: the view pops it out of the other end
-	var pivot := -1
-	match token[ti]:
-		Token.ORE:
-			token[fi] = Token.ORE
-			ore[fi] = ore[ti]
-			token[ti] = Token.NONE
-			step.swap = true
-			pivot = fi
-		Token.CRYSTAL:
-			token[ti] = Token.NONE
-			haul[RES_CRYSTAL] += 1
-			stats.crystals += 1
-			step.pickup = Token.CRYSTAL
-		Token.CELL:
-			token[ti] = Token.NONE
-			# a cell always gives its full moves (a move booster), even on a full budget
-			energy += cfg.cell_energy
-			stats.cells += 1
-			step.pickup = Token.CELL
-		Token.CHARGE:
-			if spec[ti] == Special.BLAST:
-				token[ti] = Token.NONE
-				step.pickup = Token.CHARGE
-			else:
-				# a moved special: the robot drags it back into its own old cell, where it goes off
-				token[fi] = Token.CHARGE
-				spec[fi] = spec[ti]
-				ore[fi] = ore[ti]
-				token[ti] = Token.NONE
-				step.swap = true
-				step.special = fi
-	robot = ti
-	_push(out.steps, step)
-	if step.pickup == Token.CHARGE:
-		_blast(ti, out.steps)
-	elif step.has("special") and not cfg.pads.has(fi) and not cfg.teleports.has(fi):
-		_special(fi, -dir, out.steps)
-	elif step.has("special") and cfg.teleports.has(fi):
-		pushed[fi] = -dir
-	var tp := _teleport_robot(out.steps)
-	_resolve(out.steps, tp if tp >= 0 else pivot)
-	_turn_end(out.steps)
-	_finish_turn()
-	out.ok = true
-	return out
+	return _move([dir], [ti], false)
 
 
 ## The cells a drawn path visits from the robot (start excluded), or [] if a step is not
-## allowed: off the board, bedrock, rock (a path never drills), longer than path_max, or
-## straight back onto the cell it just left (that only undoes the last swap).
+## allowed: off the board, bedrock, rock or an obstacle (a path never drills), a caged gem,
+## longer than path_max, or straight back onto the cell it just left (that only undoes the
+## last swap).
 func path_cells(dirs: Array) -> Array:
 	var out := []
 	if dirs.is_empty() or dirs.size() > cfg.path_max or robot < 0:
@@ -431,7 +403,7 @@ func path_cells(dirs: Array) -> Array:
 	var prev := -1
 	for d in dirs:
 		var ti := step_to(cur, d)
-		if ti < 0 or terrain[ti] != Terrain.GROUND or ti == prev:
+		if ti < 0 or not can_enter(ti) or ti == prev:
 			return []
 		out.append(ti)
 		prev = cur
@@ -439,10 +411,8 @@ func path_cells(dirs: Array) -> Array:
 	return out
 
 
-## One move along a drawn path: the robot steps cell by cell and swaps with each gem it
-## meets (pickups are collected, a blast charge is stepped on), with no matching on the way;
-## then the specials it dragged go off where they ended up, in the order they were moved, and
-## the board resolves once. Costs one move whatever its length. A one-step path is try_move.
+## One move along a drawn path: costs one move whatever its length. A one-step path is
+## try_move (it may be a drill bump).
 func try_path(dirs: Array) -> Dictionary:
 	if dirs.size() == 1:
 		return try_move(dirs[0])
@@ -455,19 +425,87 @@ func try_path(dirs: Array) -> Dictionary:
 		out.reason = "path"
 		stats.rejected += 1
 		return out
+	stats.paths += 1
+	return _move(dirs, cells, true)
+
+
+## What a drawn path would do if the finger lifted now, without doing it: played by the same
+## code as the move itself (_walk) on a clone, so what the player is shown can't disagree with
+## what happens. {} if the path isn't allowed. Otherwise:
+##   snap      the board after the robot's swaps (and a teleport at the end), before matching
+##   twin      the teleporter the robot will come out of, or -1
+##   groups    [{cells, ore, special (-1: none), at}]: the lines that will match, and the
+##             special each leaves and where
+##   specials  dragged special's cell -> [cell it goes off at, the way it fires]
+func preview_path(dirs: Array) -> Dictionary:
+	var cells := path_cells(dirs)
+	if cells.is_empty():
+		return {}
+	var b := clone()
+	var w := b._walk(dirs, cells, [], true)
+	var specials := {}
+	for m in w.moved:
+		specials[m[0]] = b.special_aim(m[0], m[1])
+	var end := b.robot
+	var tp := b._teleport_robot([])
+	var pivot: int = tp if tp >= 0 else w.pivot
+	var groups := []
+	for g in b.find_groups():
+		var special := -1
+		var at: int = g.cells[0]
+		if g.cells.size() >= 4 and b._charge_cell(g.cells, pivot) >= 0:
+			special = b._special_kind(g.cells)
+			at = b._charge_cell(g.cells, pivot)
+		groups.append({"cells": g.cells, "ore": g.ore, "special": special, "at": at})
+	return {"snap": b.snapshot(), "twin": b.robot if b.robot != end else -1, "groups": groups,
+			"specials": specials}
+
+
+## A player's move along `cells` (one cell for a step, more for a drawn path): the walk, then
+## what it set off, then the board resolves once, the belts run and the turn ends. `live`: the
+## path was shown step by step while it was drawn, so the view doesn't play the walk again.
+func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
+	var out := {"ok": true, "reason": "", "steps": []}
 	energy -= 1
 	stats.moves += 1
-	stats.paths += 1
-	belt_boost = 0
-	var moved := []    # [cell, direction it was pushed] of every dragged special, in order
 	pushed.clear()
-	var charges := []  # blast charges stepped on
+	belt_boost = 0
+	var w := _walk(dirs, cells, out.steps, live)
+	for c in w.charges:
+		_blast(c, out.steps)
+	for m in w.moved:
+		if token[m[0]] != Token.CHARGE:
+			continue
+		if cfg.teleports.has(m[0]):
+			pushed[m[0]] = m[1]  # it travels first (_launch), still heading this way
+		elif not cfg.pads.has(m[0]):
+			_special(m[0], m[1], out.steps)
+	var tp := _teleport_robot(out.steps)
+	_resolve(out.steps, tp if tp >= 0 else w.pivot)
+	_turn_end(out.steps)
+	_finish_turn()
+	return out
+
+
+## The robot walks `cells`, swapping with each gem it meets (pickups are collected, a blast
+## charge is stepped on), with no matching on the way. A special it drags is pushed back into
+## the cell the robot just left. Returns {moved: [[cell, way pushed]] the dragged specials
+## where they ended up, in order; charges: blast charges stepped on; pivot: the cell the last
+## swapped gem landed on (where a line it makes leaves its special)}.
+func _walk(dirs: Array, cells: Array, steps: Array, live: bool) -> Dictionary:
+	var moved := []
+	var charges := []
 	var pivot := -1
 	for k in cells.size():
 		var fi := robot
 		var ti: int = cells[k]
 		var d: Vector2i = dirs[k]
-		var step := {"type": "move", "from": fi, "to": ti, "swap": false, "pickup": Token.NONE, "path": true}
+		var step := {"type": "move", "from": fi, "to": ti, "swap": false, "pickup": Token.NONE}
+		if live:
+			step.path = true
+		var dd := pos(ti) - pos(fi)
+		if absi(dd.x) + absi(dd.y) != 1:
+			step.portal = true  # walked through a portal: the view pops it out of the other end
 		match token[ti]:
 			Token.ORE:
 				token[fi] = Token.ORE
@@ -476,6 +514,10 @@ func try_path(dirs: Array) -> Dictionary:
 				token[ti] = Token.NONE
 				step.swap = true
 				pivot = fi
+			Token.CORE:
+				token[fi] = Token.CORE
+				token[ti] = Token.NONE
+				step.swap = true
 			Token.CRYSTAL:
 				token[ti] = Token.NONE
 				haul[RES_CRYSTAL] += 1
@@ -483,6 +525,7 @@ func try_path(dirs: Array) -> Dictionary:
 				step.pickup = Token.CRYSTAL
 			Token.CELL:
 				token[ti] = Token.NONE
+				# a cell always gives its full moves (a move booster), even on a full budget
 				energy += cfg.cell_energy
 				stats.cells += 1
 				step.pickup = Token.CELL
@@ -499,35 +542,47 @@ func try_path(dirs: Array) -> Dictionary:
 					step.swap = true
 					for m in moved:
 						if m[0] == ti:
-							moved.erase(m)
+							moved.erase(m)  # dragged again: it goes off where it ends up
 							break
 					moved.append([fi, -d])
 		robot = ti
-		_push(out.steps, step)
-	for c in charges:
-		_blast(c, out.steps)
-	for m in moved:
-		if token[m[0]] == Token.CHARGE and not cfg.pads.has(m[0]) and not cfg.teleports.has(m[0]):
-			_special(m[0], m[1], out.steps)  # one pushed onto a pad or teleporter travels first (_launch)
-		elif cfg.teleports.has(m[0]):
-			pushed[m[0]] = m[1]
-	var tp := _teleport_robot(out.steps)
-	_resolve(out.steps, tp if tp >= 0 else pivot)
-	_turn_end(out.steps)
-	_finish_turn()
-	out.ok = true
-	return out
+		_push(steps, step)
+	return {"moved": moved, "charges": charges, "pivot": pivot}
 
 
-## Launch pads: a special, crystal or energy cell that comes to rest on a pad flies to the
-## pad's target. A special goes off where it lands (a Drill bores on in the flight's
+## Where a special that came to rest on cell c, pushed along d, goes off, and the way it fires:
+## a pad throws it to the pad's target (firing along the throw), a teleporter puts it on the
+## twin (still heading d), anywhere else it goes off in place. [cell, Vector2i].
+func special_aim(c: int, d: Vector2i) -> Array:
+	if cfg.pads.has(c):
+		return [cfg.pads[c], _pad_dir(c)]
+	if cfg.teleports.has(c):
+		return [cfg.teleports[c], d]
+	return [c, d]
+
+
+## What a launch pad throws: a special, a crystal, an energy cell or an energy core; never a
+## plain gem or the robot (a robot thrown into a sealed room could never leave).
+static func pad_throws(tk: int) -> bool:
+	return tk == Token.CHARGE or tk == Token.CRYSTAL or tk == Token.CELL or tk == Token.CORE
+
+
+## The way pad p throws: along the longer axis from the pad to its target.
+func _pad_dir(p: int) -> Vector2i:
+	var dv := pos(cfg.pads[p]) - pos(p)
+	return Vector2i(signi(dv.x), 0) if absi(dv.x) > absi(dv.y) else Vector2i(0, signi(dv.y))
+
+
+## Launch pads: a special, crystal, energy cell or energy core that comes to rest on a pad flies
+## to the pad's target. A special goes off where it lands (a Drill bores on in the flight's
 ## direction), a crystal or cell lands there. Plain gems and the robot stay put (a robot
 ## thrown into a sealed room could never leave). Returns true if anything flew.
 func _launch(steps: Array) -> bool:
 	var any := false
 	for p in cfg.teleports:
 		var t: int = cfg.teleports[p]
-		if token[p] != Token.CHARGE or t == robot or terrain[t] != Terrain.GROUND:
+		if token[p] != Token.CHARGE or t == robot or terrain[t] != Terrain.GROUND or obs.locked(t) \
+				or token[t] == Token.CORE:
 			continue
 		# a special on a teleporter appears on the twin and goes off there, still heading the way
 		# it was pushed (straight on if it fell in)
@@ -550,13 +605,12 @@ func _launch(steps: Array) -> bool:
 		any = true
 	for p in cfg.pads:
 		var t: int = cfg.pads[p]
-		var dv := pos(t) - pos(p)
-		var dir := Vector2i(signi(dv.x), 0) if absi(dv.x) > absi(dv.y) else Vector2i(0, signi(dv.y))
+		var dir := _pad_dir(p)
 		var tk := token[p]
-		if tk != Token.CHARGE and tk != Token.CRYSTAL and tk != Token.CELL:
+		if not pad_throws(tk):
 			continue
-		if t == robot or terrain[t] != Terrain.GROUND:
-			continue
+		if t == robot or terrain[t] != Terrain.GROUND or obs.locked(t) or token[t] == Token.CORE:
+			continue  # nothing lands on the robot, a wall, a caged gem or a core
 		var step := {"type": "launch", "from": p, "to": t, "robot": false, "token": tk, "ore": ore[p], "spec": spec[p]}
 		if token[t] != Token.NONE:
 			_take(t)  # whatever was there is knocked out and counts as taken
@@ -585,10 +639,12 @@ func _teleport_robot(steps: Array) -> int:
 		return -1
 	var a := robot
 	var t: int = cfg.teleports[a]
-	if terrain[t] != Terrain.GROUND:
+	if terrain[t] != Terrain.GROUND or obs.locked(t):
 		return -1
 	var pivot := -1
 	match token[t]:
+		Token.CORE:
+			token[a] = Token.CORE
 		Token.ORE, Token.CHARGE:
 			token[a] = token[t]
 			ore[a] = ore[t]
@@ -725,11 +781,11 @@ func booster_ok(k: int, c: int) -> bool:
 		Economy.Booster.BOMB:
 			return c >= 0 and c < W * H and terrain[c] != Terrain.BEDROCK
 		Economy.Booster.WARP:
-			return c >= 0 and c < W * H and c != robot and terrain[c] == Terrain.GROUND
+			return c >= 0 and c < W * H and c != robot and terrain[c] == Terrain.GROUND and not obs.locked(c)
 		Economy.Booster.LASER:
 			return c >= 0 and c < 4 and not _laser_cells(c).is_empty()
 		Economy.Booster.MAGNET:
-			return c >= 0 and c < W * H and terrain[c] == Terrain.GROUND and token[c] == Token.ORE
+			return c >= 0 and c < W * H and terrain[c] == Terrain.GROUND and token[c] == Token.ORE and not obs.locked(c)
 	return false
 
 
@@ -771,6 +827,9 @@ func _warp(c: int, steps: Array) -> int:
 			ore[from] = ore[c]
 			token[c] = Token.NONE
 			pivot = from
+		Token.CORE:
+			token[from] = Token.CORE
+			token[c] = Token.NONE
 		Token.CRYSTAL:
 			token[c] = Token.NONE
 			haul[RES_CRYSTAL] += 1
@@ -806,11 +865,10 @@ func _laser_cells(d: int) -> Array:
 func _laser(d: int, steps: Array) -> void:
 	var cells := _laser_cells(d)
 	var step := {"type": "laser", "dir": d, "from": robot, "cells": cells, "hit": [],
-			"revealed": [], "surfaced": [], "cracked": []}
+			"revealed": [], "surfaced": [], "cracked": [], "obstacles": []}
+	var seen := {}
 	for i in cells:
-		if terrain[i] == Terrain.ROCK:
-			_damage_rock(i, cfg.crack_power, step.revealed)
-			step.cracked.append(i)
+		if _strike(i, Obstacles.Hit.POWER, cfg.crack_power, step, seen):
 			continue
 		if not _take(i):
 			continue
@@ -824,7 +882,7 @@ func _laser(d: int, steps: Array) -> void:
 func _magnet(kind: int, at: int, steps: Array) -> void:
 	var step := {"type": "magnet", "at": at, "ore": kind, "cells": [], "surfaced": []}
 	for i in W * H:
-		if terrain[i] != Terrain.GROUND or token[i] != Token.ORE or ore[i] != kind:
+		if terrain[i] != Terrain.GROUND or token[i] != Token.ORE or ore[i] != kind or obs.locked(i):
 			continue
 		_take(i)
 		step.cells.append(i)
@@ -881,9 +939,8 @@ func _resolve(steps: Array, pivot: int) -> void:
 		if groups.is_empty():
 			return
 		var step := {"type": "match", "groups": [], "cracked": [], "revealed": [],
-				"surfaced": [], "charges": [], "energy": 0, "cascade": pass_no > 0}
+				"surfaced": [], "charges": [], "energy": 0, "cascade": pass_no > 0, "obstacles": []}
 		var to_dig := []
-		var cracked_set := {}
 		for g in groups:
 			var cells: Array = g.cells
 			var kind: int = g.ore
@@ -903,37 +960,53 @@ func _resolve(steps: Array, pivot: int) -> void:
 			step.groups.append({"cells": cells, "ore": kind})
 			var charge_at := -1
 			if n >= 4:
-				charge_at = pivot if cells.has(pivot) else _central(cells)
-				stats.charges_made += 1
+				charge_at = _charge_cell(cells, pivot)
+				if charge_at >= 0:
+					stats.charges_made += 1
+			# the group hits what is on its own cells (a cage keeps its gem: the hit breaks the
+			# cage instead) and, once each, every rock and obstacle next to it
+			var seen := {}
 			for c in cells:
+				if _strike(c, Obstacles.Hit.ON, cfg.crack_power, step, seen):
+					continue
 				if c == charge_at:
 					token[c] = Token.CHARGE
-					spec[c] = cfg.special if cfg.special >= 0 else _special_for(cells)
+					spec[c] = _special_kind(cells)
 					step.charges.append(c)
 				else:
 					to_dig.append(c)
-			# crack each adjacent rock once per group
 			var touched := {}
 			for c in cells:
 				for d in DIRS:
 					var nb: Vector2i = pos(c) + d
-					if inside(nb) and terrain[idx(nb)] == Terrain.ROCK:
+					if inside(nb) and not cells.has(idx(nb)):
 						touched[idx(nb)] = true
-			for r in touched:
-				cracked_set[r] = true
-				_damage_rock(r, cfg.crack_power, step.revealed)
+			for nb in touched:
+				_strike(nb, Obstacles.Hit.NEXT, cfg.crack_power, step, seen)
 		energy = mini(cfg.capacity, energy + step.energy)
 		stats.energy_refunded += step.energy
 		for c in to_dig:
 			if _dig(c):
 				step.surfaced.append(c)
-		step.cracked = cracked_set.keys()
 		_push(steps, step)
 		pivot = -1
 		pass_no += 1
 
 
 # --- moved specials --------------------------------------------------------------------
+
+## The special a match of 4 or more leaves: the site's own (cfg.special), else by its shape.
+func _special_kind(cells: Array) -> int:
+	return cfg.special if cfg.special >= 0 else _special_for(cells)
+
+
+## Where a match of 4 or more leaves its special: on the gem that was moved into it (the
+## pivot), else in the middle of the line; -1 when that gem is caged (the match only breaks
+## the cage).
+func _charge_cell(cells: Array, pivot: int) -> int:
+	var c := pivot if cells.has(pivot) else _central(cells)
+	return -1 if obs.locked(c) else c
+
 
 ## Which special a match leaves by its shape (the default, cfg.special == -1): 4 in a row a
 ## Drill core, an L or T a Quake, 5 or more in a row a Prism (the rarest, the strongest).
@@ -955,13 +1028,14 @@ func _special(c: int, d: Vector2i, steps: Array) -> void:
 	token[c] = Token.NONE
 	stats.blasts += 1
 	var step := {"type": "special", "kind": kind, "at": c, "dir": DIRS.find(d), "rays": [], "hit": [],
-			"cracked": [], "revealed": [], "turned": [], "ore": colour}
+			"cracked": [], "revealed": [], "turned": [], "ore": colour, "obstacles": []}
+	var seen := {}  # a power-up hits a multi-cell obstacle once
 	match kind:
 		Special.DRILL:
-			step.rays.append(_ray(c, d, 2, true, step))
+			step.rays.append(_ray(c, d, 2, true, step, seen))
 		Special.PRISM:
 			for dd in [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-				step.rays.append(_ray(c, dd, 1, false, step))
+				step.rays.append(_ray(c, dd, 1, false, step, seen))
 		Special.QUAKE:
 			var cp := pos(c)
 			for dy in range(-2, 3):
@@ -970,7 +1044,7 @@ func _special(c: int, d: Vector2i, steps: Array) -> void:
 						continue
 					var p := cp + Vector2i(dx, dy)
 					if inside(p):
-						_hit(idx(p), 1, step)
+						_hit(idx(p), 1, step, seen)
 		Special.GEODE:
 			var cp := pos(c)
 			for dy in range(-1, 2):
@@ -979,9 +1053,8 @@ func _special(c: int, d: Vector2i, steps: Array) -> void:
 					if (dx == 0 and dy == 0) or not inside(p):
 						continue
 					var i := idx(p)
-					if terrain[i] == Terrain.ROCK:
-						_damage_rock(i, 1, step.revealed)
-						step.cracked.append(i)
+					if _strike(i, Obstacles.Hit.POWER, 1, step, seen):
+						pass
 					elif terrain[i] == Terrain.GROUND and token[i] == Token.ORE and ore[i] != colour:
 						ore[i] = colour
 						step.turned.append(i)
@@ -991,34 +1064,62 @@ func _special(c: int, d: Vector2i, steps: Array) -> void:
 
 
 ## A ray from c along d to the edge (bedrock ends it): takes every gem and pickup; rock loses
-## `power` layers and, with `stop_at_rock`, ends the ray. Returns [c, last cell reached].
-func _ray(c: int, d: Vector2i, power: int, stop_at_rock: bool, step: Dictionary) -> Array:
+## `power` layers and, with `stop_at_rock`, ends the ray, as an obstacle piece does. Returns
+## [c, last cell reached].
+func _ray(c: int, d: Vector2i, power: int, stop_at_rock: bool, step: Dictionary, seen: Dictionary) -> Array:
 	var p := pos(c) + d
 	var last := c
 	while inside(p) and terrain[idx(p)] != Terrain.BEDROCK:
 		var i := idx(p)
 		last = i
-		var was_rock := terrain[i] == Terrain.ROCK
-		_hit(i, power, step)
-		if was_rock and stop_at_rock:
+		var solid := terrain[i] == Terrain.ROCK or terrain[i] == Terrain.BLOCK
+		_hit(i, power, step, seen)
+		if solid and stop_at_rock:
 			break
 		p += d
 	return [c, last]
 
 
-func _hit(i: int, power: int, step: Dictionary) -> void:
-	if terrain[i] == Terrain.ROCK:
-		_damage_rock(i, power, step.revealed)
-		step.cracked.append(i)
-	elif terrain[i] == Terrain.GROUND and i != robot and _take(i):
+## A power-up reaches cell i: rock or an obstacle takes the hit, otherwise what lies there is
+## taken (a core is never destroyed).
+func _hit(i: int, power: int, step: Dictionary, seen: Dictionary) -> void:
+	if _strike(i, Obstacles.Hit.POWER, power, step, seen):
+		return
+	if terrain[i] == Terrain.GROUND and i != robot and _take(i):
 		step.hit.append(i)
+
+
+## The one way anything on the board damages a cell (a match on it or next to it, a power-up,
+## a blast, a booster): rock loses `power` layers (it takes NEXT and POWER hits), an obstacle
+## takes the hit by its own rule (Obstacles.KINDS). `seen` is shared by one source of hits so a
+## multi-cell obstacle counts it once. Records what happened on `step` for the view. Returns
+## true when rock or an obstacle took the hit, so it goes no further (a caged gem stays).
+func _strike(i: int, h: int, power: int, step: Dictionary, seen: Dictionary) -> bool:
+	var r := obs.hit(i, h, seen)
+	if not r.is_empty():
+		step.get_or_add("obstacles", []).append(r)
+		for c in r.freed:
+			terrain[c] = Terrain.GROUND  # a piece that leaves opens its cells (gravity fills them)
+		return true
+	if obs.target(i, h) >= 0:
+		return true  # this source already hit the obstacle (through another of its cells)
+	if obs.locked(i) and h != Obstacles.Hit.NEXT:
+		return true  # a cover this hit can't break still keeps its gem
+	if terrain[i] == Terrain.ROCK and h != Obstacles.Hit.ON:
+		_damage_rock(i, power, step.get_or_add("revealed", []))
+		var cracked: Array = step.get_or_add("cracked", [])
+		if not cracked.has(i):
+			cracked.append(i)
+		return true
+	return terrain[i] == Terrain.BLOCK
 
 
 # --- gravity (prototypes "fall" and "classic") ---------------------------------------
 
-## An open cell things can fall through: any ground (the robot falls too).
+## An open cell things can fall through: any ground (the robot falls too) but a caged gem's,
+## which holds still and holds up what is above it.
 func _open(p: Vector2i) -> bool:
-	return inside(p) and terrain[idx(p)] == Terrain.GROUND
+	return inside(p) and terrain[idx(p)] == Terrain.GROUND and not obs.locked(idx(p))
 
 
 ## Gems drop to fill the holes, column by column, inside each run of open cells (rock and
@@ -1094,6 +1195,11 @@ func _gravity(steps: Array) -> void:
 				token[src] = Token.NONE
 				warps.append([src, dst])
 		var collected := []
+		for i in cfg.docks:
+			if token[i] == Token.CORE:  # a core at rest on a dock is delivered
+				token[i] = Token.NONE
+				stats.cores += 1
+				collected.append(i)
 		if cfg.classic or cfg.collect_bottom:
 			for i in W * H:
 				if (token[i] == Token.CRYSTAL or token[i] == Token.CELL) and not _open(pos(i) + Vector2i(0, 1)):
@@ -1265,7 +1371,8 @@ func _blast(center: int, steps: Array) -> void:
 		done[c0] = true
 		stats.blasts += 1
 		var step := {"type": "blast", "center": c0, "radius": cfg.blast_radius,
-				"cells": [], "revealed": [], "surfaced": []}
+				"cells": [], "revealed": [], "surfaced": [], "obstacles": []}
+		var seen := {}
 		var rad: int = cfg.blast_radius
 		var cp := pos(c0)
 		for dy in range(-rad, rad + 1):
@@ -1276,8 +1383,7 @@ func _blast(center: int, steps: Array) -> void:
 				var i := idx(p)
 				if i == robot:
 					continue
-				if terrain[i] == Terrain.ROCK:
-					_damage_rock(i, cfg.blast_rock, step.revealed)
+				if _strike(i, Obstacles.Hit.POWER, cfg.blast_rock, step, seen):
 					step.cells.append(i)
 					continue
 				if terrain[i] != Terrain.GROUND:
@@ -1393,6 +1499,11 @@ func has_line() -> bool:
 ## The cell a step from c in direction d reaches, or -1 (edge, bedrock). A portal links its
 ## source to its destination both ways: down out of the source drops into the destination,
 ## up out of the destination climbs back into the source.
+## The robot (or a path) can step onto cell i: open ground, not a caged gem.
+func can_enter(i: int) -> bool:
+	return terrain[i] == Terrain.GROUND and not obs.locked(i)
+
+
 func step_to(c: int, d: Vector2i) -> int:
 	var p := pos(c) + d
 	if inside(p) and terrain[idx(p)] != Terrain.BEDROCK:
@@ -1423,7 +1534,7 @@ func path_to_match(depth: int) -> Array:
 				var ti := step_to(st.robot, DIRS[di])
 				if ti < 0:
 					continue
-				if terrain[ti] != Terrain.GROUND:
+				if not can_enter(ti):
 					continue
 				var tk: PackedInt32Array = st.token.duplicate()
 				var orr: PackedInt32Array = st.ore.duplicate()
@@ -1460,7 +1571,7 @@ func paths_to_matches(depth: int, limit: int) -> Array:
 				var ti := step_to(st.robot, DIRS[di])
 				if ti < 0:
 					continue
-				if terrain[ti] != Terrain.GROUND:
+				if not can_enter(ti):
 					continue
 				var tk: PackedInt32Array = st.token.duplicate()
 				var orr: PackedInt32Array = st.ore.duplicate()
@@ -1499,7 +1610,7 @@ func walk_routes(depth: int) -> Dictionary:
 				var ti := step_to(c, DIRS[di])
 				if ti < 0:
 					continue
-				if terrain[ti] != Terrain.GROUND or routes.has(ti):
+				if not can_enter(ti) or routes.has(ti):
 					continue
 				var path: Array = routes[c].duplicate()
 				path.append(di)
@@ -1521,7 +1632,7 @@ func path_to_pickup(depth: int) -> Array:
 				var ti := step_to(c, DIRS[di])
 				if ti < 0:
 					continue
-				if terrain[ti] != Terrain.GROUND or prev.has(ti):
+				if not can_enter(ti) or prev.has(ti):
 					continue
 				prev[ti] = c
 				if token[ti] == Token.CRYSTAL or token[ti] == Token.CELL or token[ti] == Token.CHARGE:
@@ -1634,6 +1745,7 @@ func clone() -> Board:
 	b.robot = robot; b.energy = energy; b.haul = haul.duplicate()
 	b.extracted = extracted.duplicate(); b.stats = stats.duplicate(); b.treasure_coin = treasure_coin
 	b.goals = goals.duplicate(true); b.over = over; b.complete = complete
+	b.obs = obs.clone()
 	b.cfg = cfg.duplicate(); b.record = false
 	b.rng.seed = rng.seed
 	b.rng.state = rng.state
@@ -1650,6 +1762,8 @@ func goal_progress(g: Dictionary) -> int:
 		"chunks": return stats.chunks
 		"crystal": return stats.crystals
 		"blast": return stats.blasts
+		"core": return stats.cores
+		"generator", "cage": return obs.count_finished(g.type)
 	return 0
 
 
@@ -1669,5 +1783,6 @@ func snapshot() -> Dictionary:
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,
 		"crystals": stats.crystals, "blasts": stats.blasts, "treasures": stats.treasures,
-		"treasure_coin": treasure_coin,
+		"treasure_coin": treasure_coin, "obstacles": obs.snapshot(),
+		"progress": goals.map(func(g): return goal_progress(g)),
 	}
