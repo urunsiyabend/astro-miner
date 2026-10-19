@@ -158,6 +158,43 @@ func _open_protos() -> void:
 	_open_panel(card)
 
 
+## Dev mode (Settings): Dig opens every level, campaign and prototypes, to play any of them.
+## The next dig is marked; a level played this way counts like any other.
+func _open_levels() -> void:
+	_close_panel()
+	var card := Widgets.JellyCard.new(40.0)
+	card.custom_minimum_size.x = 960
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	card.add_child(v)
+	v.add_child(Widgets.JuicyText.new("Levels", 64, Color.WHITE, 0.1))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(900, 1180)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.add_child(scroll)
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	scroll.add_child(grid)
+	var next := Game.next_dig()
+	var items := []
+	for i in Sites.count():
+		var n := Sites.dig_number(i)
+		items.append([("%d %s" % [n, Sites.get_site(i).id]) if n > 0 else String(Sites.get_site(i).id), i])
+	items.append_array(Sites.proto_list().map(func(p): return ["P" + String(p[0]), p[1]]))
+	for it in items:
+		var i: int = it[1]
+		var face := Color("37b65a") if i == next else (Color("8a4fd8") if i >= Sites.count() else Color("2f97ea"))
+		var b := Widgets.JellyButton.new(it[0], face.lightened(0.35), face, 92.0, 32)
+		b.custom_minimum_size.x = 288
+		b.pressed.connect(func():
+			_close_panel()
+			launch.emit(i, false))
+		grid.add_child(b)
+	_open_panel(card)
+
+
 func _close_panel() -> void:
 	if _panel != null:
 		_panel.queue_free()
@@ -218,6 +255,14 @@ func _open_settings() -> void:
 		Game.save()
 		fps_btn.text = "FPS: %s" % ("On" if Game.show_fps else "Off"))
 	v.add_child(fps_btn)
+	var dev_btn := Widgets.JellyButton.new("", Color("ff9ae0"), Color("b8378f"), 120.0, 48)
+	dev_btn.text = "Dev mode: %s" % ("On" if Game.dev_mode else "Off")
+	dev_btn.pressed.connect(func():
+		Game.dev_mode = not Game.dev_mode
+		Game.save()
+		refresh()
+		dev_btn.text = "Dev mode: %s" % ("On" if Game.dev_mode else "Off"))
+	v.add_child(dev_btn)
 	var proto_btn := Widgets.JellyButton.new("Prototypes", Color("ffd27a"), Color("c77a1c"), 120.0, 48)
 	proto_btn.pressed.connect(_open_protos)
 	v.add_child(proto_btn)
@@ -257,7 +302,11 @@ func refresh(celebrate := -1) -> void:
 	var next := Game.next_dig()
 	_go_btn.disabled = false
 	_go_btn.modulate = Color.WHITE
-	if Game.pending_build() >= 0:
+	if Game.dev_mode:
+		_go_btn.add_theme_font_size_override("font_size", 72)
+		_go_btn.text = "DIG"
+		_go_btn.paint(Color("ff9ae0"), Color("b8378f"))  # dev mode: Dig opens every level
+	elif Game.pending_build() >= 0:
 		# a freshly unlocked building comes first: its tool is what the next dig teaches
 		_go_btn.text = "BUILD FIRST"
 		_go_btn.add_theme_font_size_override("font_size", 54)
@@ -405,6 +454,9 @@ func _close_card() -> void:
 
 
 func _on_go() -> void:
+	if Game.dev_mode:
+		_open_levels()
+		return
 	var next := Game.next_dig()
 	if next >= 0 and Game.can_start(next):
 		launch.emit(next, false)

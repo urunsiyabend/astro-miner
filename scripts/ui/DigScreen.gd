@@ -292,7 +292,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	_waiting = ""
 	_events = {}
 	# Script: Mira says it the first time this dig is played, never again on a retry.
-	var seen: bool = Game.tips_seen.has(site.id)
+	var seen: bool = Game.tips_seen.has(site.id) and not Game.dev_mode  # dev mode: every lesson again
 	_script = []
 	# new-tool reminders, except the one this dig's own lesson teaches anyway: only the
 	# Workshop's drill has a lesson dig that is about its tool (the Power Station's and the

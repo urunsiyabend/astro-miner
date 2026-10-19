@@ -385,18 +385,22 @@ func _next_step() -> void:
 				Board.Special.NOVA: _dur = 0.32
 				_: _dur = 0.28
 			if not _cur.flights.is_empty():
-				_dur = 0.42
+				_dur = 0.6
 			if combo != "":
 				_dur = 0.5
 			if not first:
-				_dur = 0.24 if not _cur.flights.is_empty() else 0.12
+				_dur = 0.45 if not _cur.flights.is_empty() else 0.12
 			_shake = 0.3 if first else 0.15
 			add_trauma(minf(1.0, (0.45 if first else 0.12) + (0.3 if combo != "" else 0.0)))
 			if first:
 				_whiteout = 0.6
 				_hold = 0.05
+			var landing := {}
+			for f in _cur.flights:
+				landing[f[1]] = true
 			for c in _cur.hit:
-				_flash[c] = 1.0
+				if not landing.has(c):
+					_flash[c] = 1.0  # a drone's target lights up when it lands, not before
 			for c in _cur.turned:
 				_flash[c] = 1.0
 			var col: Color = SPECIAL_COL[_cur.kind]
@@ -517,6 +521,8 @@ func _finish_phase() -> void:
 			for f in _cur.flights:
 				_rings.append({"c": cell_center(f[1]), "r0": cell * 0.2, "r1": cell * 1.2, "t": 0.0, "dur": 0.3, "color": SPECIAL_COL[Board.Special.DRONE]})
 				fx.emit("blast_done", {"cells": [cell_global(f[1])]})
+				Sfx.play("pickup", 1.3)
+				add_trauma(0.12)
 			for r in _cur.cracked:
 				_jolt[r] = 1.0
 				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
@@ -1222,6 +1228,8 @@ func _draw() -> void:
 				_draw_token(cell_center(i), snap.token[i], snap.ore[i], (1.0 - mt) * _depth_scale(i), 0.0)
 			continue
 		var sc := _depth_scale(i)
+		if not _cur.is_empty() and ((_cur.type == "special" and i == _cur.at) or (_cur.type == "merge" and _cur.from.has(i))):
+			continue  # a power-up going off (or merging) is drawn by its effect, not in its cell
 		if not _cur.is_empty() and _cur.type == "belt" and _belt_from.has(i):
 			var bf: int = _belt_from[i]
 			var gap := Board.pos(i) - Board.pos(bf)
@@ -2053,8 +2061,26 @@ func _draw_booster_fx() -> void:
 					draw_set_transform(_draw_off + b5, _time * 2.0)
 					draw_texture_rect(ret, Rect2(-Vector2(rs, rs) * 0.5, Vector2(rs, rs)), false, Color(1, 1, 1, 0.9))
 					draw_set_transform(_draw_off)
-				var fp := _arc(a5, b5, _ease(_t))
-				_draw_special(fp, Board.Special.DRONE, 0, 1.0 + 0.25 * sin(PI * _t))
+				# lift off and hover (0-0.2), glide over in a soft curve leaving a trail (0.2-0.85),
+				# then dive onto the target (0.85-1)
+				var lift := clampf(_t / 0.2, 0.0, 1.0)
+				var glide := clampf((_t - 0.2) / 0.65, 0.0, 1.0)
+				var start := a5 - Vector2(0, cell * 0.45 * _ease(lift))
+				var over := b5 - Vector2(0, cell * 0.45)
+				var ctrl := (start + over) * 0.5 - Vector2(0, cell * 0.6 + start.distance_to(over) * 0.2)
+				var g := glide * glide * (3.0 - 2.0 * glide)  # smoothstep: eases in and out
+				var fp := start.lerp(ctrl, g).lerp(ctrl.lerp(over, g), g)
+				if _t > 0.85:
+					fp = over.lerp(b5, _ease((_t - 0.85) / 0.15))
+				for k8 in 6:  # the trail: where it was a moment ago
+					var tb := clampf(glide - 0.05 * (k8 + 1), 0.0, 1.0)
+					if tb <= 0.0 or _t > 0.9:
+						break
+					var gb := tb * tb * (3.0 - 2.0 * tb)
+					var pb := start.lerp(ctrl, gb).lerp(ctrl.lerp(over, gb), gb)
+					draw_circle(pb, cell * (0.12 - 0.015 * k8), Color(SPECIAL_COL[Board.Special.DRONE], 0.5 - 0.07 * k8), true, -1.0, true)
+				var bob := sin(_time * 30.0) * cell * 0.02 * (1.0 - glide)
+				_draw_special(fp + Vector2(0, bob), Board.Special.DRONE, 0, 1.0 + 0.2 * lift - 0.2 * clampf((_t - 0.85) / 0.15, 0.0, 1.0))
 				if int(f[2]) >= 0:
 					_draw_special(fp + Vector2(0, cell * 0.35), int(f[2]), 0, 0.6)
 		"bomb":

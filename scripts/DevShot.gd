@@ -125,6 +125,10 @@ func _run() -> void:
 				v._drawing = false
 				v._finish_path()
 				await get_tree().create_timer(float(OS.get_environment("ASTRO_RELEASE"))).timeout
+				await RenderingServer.frame_post_draw  # shoot exactly this far after the release
+				get_viewport().get_texture().get_image().save_png(OS.get_environment("ASTRO_SHOT"))
+				get_tree().quit()
+				return
 		if OS.has_environment("ASTRO_AUTOMOVE"):  # ASTRO_AUTOMOVE=n: the planner plays n moves
 			var rng := RandomNumberGenerator.new()
 			rng.seed = 7
@@ -235,6 +239,10 @@ func _run() -> void:
 			main.colony._on_tab(int(OS.get_environment("ASTRO_TAB")))
 		if OS.has_environment("ASTRO_PROTOS"):  # the Prototypes picker
 			main.colony._open_protos()
+		if OS.has_environment("ASTRO_DEV"):  # dev mode on, and Dig pressed (the level list)
+			Game.dev_mode = true
+			main.colony.refresh()
+			main.colony._on_go()
 		if OS.has_environment("ASTRO_CARD"):  # ASTRO_CARD=b: tap building b's plot
 			main.colony.refresh()
 			main.colony._on_plot(Colony.building_plot(int(OS.get_environment("ASTRO_CARD"))))

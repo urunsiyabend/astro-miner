@@ -94,13 +94,50 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 
 ## How we build a level
 
-1. Write its row here first: what it teaches, the goal, the board.
-2. Hand-place the opening and pin the seed for a guided level; check the guided move does what
-   Mira says with `tools/lesson_probe.gd` (it plays the guided moves and prints the board).
-3. Record its solution in `tests/run_tests.gd` (TUTORIAL_SOLUTIONS); the tests replay it.
-4. Budget: guided levels are given generous moves (Royal Match levels 1–10 are not lost);
-   the path bot's moves +40%.
-5. Play it on a phone. Then the next three.
+The loop, three levels at a time: build, measure, play on a phone, then the next three.
+
+1. **Write its row here first**: what it teaches (one new thing at most), the goal (a problem,
+   not just a count, once the goal types exist), the board size and colours.
+2. **A guided level** (it teaches something new): hand-place the opening (`"ore"` rows, codes
+   F C L R) around the move the hand shows (`"guide"` in Mira's line: the cells from the
+   robot on; only that move is accepted, the rest of the board dims). Design the move so it
+   shows the new thing at its best: two lines at once, a line under the obstacle, a power-up
+   firing down a whole column.
+3. **Pick the seed** (what falls in) so the guided move ends in a cascade and makes no
+   power-up before its time:
+   `godot --headless --path . -s res://tools/lesson_design.gd -- scan <id> <moves> [specials=N] [rocks=N]`.
+   An opening never holds a ready-made line or 2x2 square (the tests check it).
+4. **Check it move by move**: `tools/lesson_probe.gd -- <id> <moves...>` prints the board.
+5. **Measure**: `lesson_design.gd -- rate <id> <moves>`: 40 games of the SLOPPY path bot.
+   It plays paths like an expert (it weighs ~160 paths a move), so people need more moves:
+   targets for its **median**: level 1 about 4–5 moves, early levels about 7, never lost (40/40
+   with the budget at least 2x its worst game). Free-play levels (no guide) use fresh boards
+   each attempt; tier "intro" ≈ 92% first-try clears for people.
+6. **Record the solution** (`lesson_design.gd -- solve <id> <moves>`) in `tests/run_tests.gd`
+   (TUTORIAL_SOLUTIONS, one path per entry); the tests replay it and check that the hand's
+   moves are the solution's first moves.
+7. **Play it on a phone**: Settings > Dev mode on, then Dig lists every level (and the
+   prototypes); lessons replay Mira every time in dev mode.
+
+## Decisions so far (2026-10-19, with the user)
+
+- **Paths are the game.** No swipe lesson: a one-step drag is just a short path. Level 1
+  teaches drawing a path.
+- **The first obstacle on level 1** (Royal Match's Box is on its level 1): rock, cracked by a
+  match next to it. Level 3 brings its variant, thick rock; layers read by shade (darker =
+  thicker), never by counters or dots on the board.
+- **Guided moves are Royal Match's**: a hand draws the move in a loop, the board dims around
+  it, only that move works. One short Mira line, never a paragraph.
+- **Goal types beyond Collect** (`docs/design/obstacles.md`): Excavate, Deliver (energy core
+  onto a dock), Activate (generators), and later Connect (our genre's own, rare elsewhere)
+  and Rescue. Prototypes 7 Power grid and 8 Core run were the reference ("very much liked").
+- **Power-ups** (`docs/design/powerups.md`): Pulsar (4 in a row, twin beams), Nova (L/T,
+  5x5), Black hole (5 in a row, the most common colour), Scout drone (2x2, flies to the most
+  useful cell, not the nearest, gliding so the player sees where it goes). Power-ups chain;
+  a path that drags two or more merges them (pair table; three doubled; four = Big Bang).
+  Chains rattle off ~0.12 s apart: a long chain must not drag.
+- **Animation polish comes in its own pass later**; rules first. The view never holds rules
+  (`Board.preview_path`), so polishing it can't break the game.
 
 ## Built so far
 
