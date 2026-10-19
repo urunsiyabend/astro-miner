@@ -54,6 +54,12 @@ movement.
   match glow in their colour with +N, a special that would form shows where it will appear,
   two or more lines call "xN COMBO!". Release: a ring and a small shake, then the cascade.
 - Input that starts while the board animates is dropped, never queued.
+- **The preview is the Board's** (2026-10-19): `Board.preview_path` plays the path with the same
+  walk code as the move (`_walk`, shared by `try_move` and `try_path`) on a clone, and returns
+  the board after the swaps, the lines that will match, where specials form, where each
+  dragged special goes off. BoardView only draws it; it holds no rules (it used to rebuild the
+  swaps itself and had already drifted: it ignored a site's pinned special and pads throwing
+  cores). `tools/preview_check.gd` plays bot games and fails if preview and move disagree.
 
 ## Board elements
 

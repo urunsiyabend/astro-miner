@@ -687,6 +687,8 @@ static func get_site(i: int) -> Dictionary:
 ##             pushed or dropped onto one goes off at the twin
 ##   specials: [[cell, kind]]: gems that start out carrying a special
 ##   collect:  crystals and cells are collected at the bottom of their run
+##   obstacles: [[top-left cell, kind]]: generators, cages... (Obstacles.KINDS)
+##   cores:    [cell]: energy cores to deliver; docks: [cell] where they are delivered
 const PROTOS := [
 	{"name": "Launch bay", "energy": 20, "collect": true,
 		"idea": "The vault is sealed. The launch pad throws power-ups into it: clear the gems under the Quake and let it drop onto the pad.",
@@ -792,12 +794,49 @@ const PROTOS := [
 			". . . 2 2 2 . . .",
 			"1c . . . 1c . . . 1c",
 		]},
+	# --- obstacles (Obstacles.KINDS): modern match-3 goals beyond "collect" ---------------
+	{"name": "Power grid", "energy": 20,
+		"idea": "Activate: matches next to a generator charge it. Charge all three to switch them on. Power-ups charge them too.",
+		"goals": [{"type": "generator", "n": 3}],
+		"obstacles": [[Vector2i(1, 1), "generator"], [Vector2i(6, 1), "generator"], [Vector2i(3, 6), "generator"]],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"1 1 . . . . . 1 1",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+		]},
+	{"name": "Core run", "energy": 20,
+		"idea": "Deliver: bring both energy cores down onto the docks. Cages lock their gems and hold up the columns: match a caged gem or hit it with a power-up to break it, or push a core around them with the robot.",
+		"goals": [{"type": "core", "n": 2}],
+		"cores": [Vector2i(2, 0), Vector2i(6, 0)],
+		"docks": [Vector2i(2, 9), Vector2i(6, 9)],
+		"obstacles": [[Vector2i(1, 4), "cage"], [Vector2i(2, 4), "cage"], [Vector2i(3, 4), "cage"],
+			[Vector2i(5, 4), "cage"], [Vector2i(6, 4), "cage"], [Vector2i(7, 4), "cage"]],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+		]},
 ]
 
 ## Budgets (drawn paths, 4 steps). Set by hand for the first playtest: the path bot clears
 ## Conveyor ring in ~7 moves (14 with the human margin), but cannot plan pad shots well enough
-## to rate Launch bay (40% at 60 moves), so the others are guesses to calibrate.
-const PROTO_ENERGY := [30, 14, 22, 30, 30, 22]
+## to rate Launch bay (40% at 60 moves), so the others are guesses to calibrate. Power grid and
+## Core run: the path bot clears 75% / 93% at 20 moves (93% / 100% at 30).
+const PROTO_ENERGY := [30, 14, 22, 30, 30, 22, 26, 22]
 
 static var _protos: Array = []
 
@@ -832,6 +871,9 @@ static func goal_text(g: Dictionary) -> String:
 		"chunks": return "Extract %d ore" % g.n
 		"crystal": return "Recover %d crystal%s" % [g.n, "" if g.n == 1 else "s"]
 		"blast": return "Set off %d blast%s" % [g.n, "" if g.n == 1 else "s"]
+		"generator": return "Switch on %d generator%s" % [g.n, "" if g.n == 1 else "s"]
+		"core": return "Deliver %d energy core%s" % [g.n, "" if g.n == 1 else "s"]
+		"cage": return "Break %d cage%s" % [g.n, "" if g.n == 1 else "s"]
 	return "?"
 
 

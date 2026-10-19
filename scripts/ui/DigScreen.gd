@@ -231,10 +231,12 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	view.classic = board.cfg.classic
 	view.portals = board.cfg.portals
 	view.gravity = board.cfg.gravity
+	view.board = board
 	view.path_max = board.cfg.path_max
 	view.pads = board.cfg.pads
 	view.belts = board.cfg.belts
 	view.teleports = board.cfg.teleports
+	view.docks = board.cfg.docks
 	_boosters.visible = not proto  # prototypes compare the core loops alone
 	_hud.set_goals(site.goals)
 	# ore that counts toward a goal flies into its goal icon; other ore just bursts (Coin comes
@@ -610,17 +612,10 @@ func _on_snap(s: Dictionary) -> void:
 	for c in _chips:
 		(c as Widgets.Chip).set_value(s.haul[(c as Widgets.Chip).res])
 	var site := Sites.get_site(site_index)
-	for i in site.goals.size():
-		var g: Dictionary = site.goals[i]
-		var v := 0
-		match g.type:
-			"ore": v = s.extracted[g.ore]
-			"rock": v = s.rocks
-			"chunks": v = s.chunks
-			"crystal": v = s.crystals
-			"blast": v = s.blasts
-			"treasure": v = s.treasures
-		_hud.set_have(i, v)
+	# the Board counts every goal (Board.goal_progress); the snapshot carries it step by step
+	var progress: Array = s.get("progress", [])
+	for i in mini(site.goals.size(), progress.size()):
+		_hud.set_have(i, progress[i])
 
 
 func _on_settled() -> void:
