@@ -11,7 +11,13 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 
 ## Rules of the road
 
-1. **One new thing per level, on an easy level.** A new element never debuts on a hard level
+0. **Levels are about the board, not about power-ups.** A level is a puzzle made of the
+   elements met so far (obstacles, goal types, board elements); the progression is the
+   elements, one new one every ~10 levels (Royal Match). Power-ups are never a level's topic:
+   they are learned in play, by Mira's one-line note the first time one is made and by a tip
+   on a goal card now and then (`"tip": [power-up ids..., text]`, e.g. Pulsar + Nova "draw
+   through both: they merge"). 15 power-ups would never get 15 levels.
+1. **One new element per level at most, on an easy level.** A new element never debuts on a hard level
    (Royal Match, Homescapes). The level right after pairs it with something known; a harder
    level 3–5 later tests it (Homescapes: Apples 51/52/54).
 2. **Show, don't tell.** A new verb is taught by a guided first move: a hand draws it, the
@@ -35,13 +41,13 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
    is a plain colour order and its first blocker (frosting) comes on level 2.
 7. **A chapter is a place.** 10 levels, ending in a reward level and a colony building.
 
-## The verbs and elements, in the order they are met
+## The elements, in the order they are met (power-ups: tips, see rule 0)
 
 | # | Thing | Kind | Rule in one line |
 |---|---|---|---|
 | 1 | Draw a path | verb | hold and draw up to 4 steps: the robot swaps all the way, one move |
 | 2 | Rock | obstacle | a match next to it cracks it (1–3 layers) |
-| 3 | Pulsar | power-up | 4 in a row; push it and it fires twin beams along that axis |
+| – | power-ups | tips | Pulsar, Scout drone, Nova, Black hole, combos: a tip on a goal card, Mira's note the first time |
 | 4 | Thick rock | variant | two or three layers: a match per layer |
 | 5 | Falling robot | verb | clear under the robot and it drops down for free |
 | 6 | Nova | power-up | an L or T; push it, a 5x5 blast |
@@ -58,20 +64,21 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 
 ## Chapter plan
 
-### Chapter 1 · Landing (levels 1–10): the verbs
+### Chapter 1 · Landing (levels 1–10): rock
 
-| L | Teaches | Goal | Board | Notes |
+The chapter's element is rock; its variant (thick rock) and the first new goal (crystals in
+rock, Excavate) come inside it. Every level is free play except level 1 (the path lesson).
+
+| L | Board | Goal | Element | Tip on the goal card |
 |---|---|---|---|---|
-| 1 | **Draw a path** + **Rock** | break 7 rock | 7x8, 3 colours | guided path makes two lines, one under the rock row |
-| 2 | **Pulsar** | collect Lumen | 9x9 | guided path lines up 4; guided path onto the Pulsar fires it along the column |
-| 3 | practice: **thick rock** | break 9 rock | 9x9 | free play; Mira points at the thick rock |
-| 4 | practice: a path to a Pulsar | collect | 9 wide | *old: landing* |
-| 5 | rock + collect | | | *old: rocks*; to rebuild |
-| 6 | **Falling robot** | reach the crystal at the bottom | | *old: vein* |
-| 7 | **Nova**; Scout drone soon after (2x2) | | | |
-| 8 | **Crystal in rock** (Excavate) | crystals | | *old: glint* |
-| 9 | mix: rock + crystals + Pulsar | | | normal |
-| 10 | reward: big cascades | | | colony: Power Station |
+| 1 | 7x8, rock rows top and bottom, 3 colours | 14 rock | **path + rock** (guided) | – |
+| 2 | arches: two rock bands | 11 rock | | Pulsar |
+| 3 | a rock band with a thick middle | 9 rock | **thick rock** (Mira points at it) | – |
+| 4 | spine: a wall splits two quarries | 10 rock | | Scout drone |
+| 5 | strata: a full band up top, thick rock below | 14 rock | | Nova |
+| 6 | crystals in rock, one in a thick-rock vault | 3 crystals | **crystal in rock** (Mira, one line) | combo (Pulsar + Nova) |
+| 7–9 | *to build*: mixes, rising to a small peak at 9 | | | Black hole at 7 or 8 |
+| 10 | *to build*: reward, big cascades | | | |
 
 ### Chapter 2 · The Shaft (11–20): Deliver
 11 **energy core** (one core, one dock, open board) · 12 core + rock · 13 **Black hole**; path combos ·
@@ -131,6 +138,8 @@ The loop, three levels at a time: build, measure, play on a phone, then the next
 - **Goal types beyond Collect** (`docs/design/obstacles.md`): Excavate, Deliver (energy core
   onto a dock), Activate (generators), and later Connect (our genre's own, rare elsewhere)
   and Rescue. Prototypes 7 Power grid and 8 Core run were the reference ("very much liked").
+- **No level teaches a power-up** (the user, firmly): power-ups come through tips and Mira's
+  first-time note; levels are built around the board's elements.
 - **Power-ups** (`docs/design/powerups.md`): Pulsar (4 in a row, twin beams), Nova (L/T,
   5x5), Black hole (5 in a row, the most common colour), Scout drone (2x2, flies to the most
   useful cell, not the nearest, gliding so the player sees where it goes). Power-ups chain;

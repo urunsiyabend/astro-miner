@@ -11,7 +11,7 @@ no chains or combos (Drill 4 cells vs a rocket's 9; the 5-match Prism 10 vs a co
 | 4 in a row | **Pulsar** | twin beams **both ways** along the axis it was pushed, through rock (a layer each); aimed like Candy Crush's striped candy, a rocket's reach |
 | 2x2 square | **Scout drone** | hits the 4 neighbours, then flies to the most useful cell (below) |
 | L / T | **Nova** | 5x5 |
-| 5 in a row | **Black hole** | swallows every gem of the most common colour (Royal Match's Light Ball on a tap) |
+| 5 in a row | **Black hole** | swallows every gem of the colour of the gem the path swapped just before it (Royal Match's Light Ball takes the colour it is swapped with); with none before it (first step, a chain, a pad), the most common colour. The preview rings every gem it will take |
 
 Names: a pulsar is a star that sweeps two opposite beams; the user wanted space names, not a
 rocket under another name. Four merged: the **Big Bang**.

@@ -60,6 +60,7 @@ var docks := {}       # cells where an energy core is delivered
 const OBS_DIR := "res://assets/obstacles/"
 const CORE_COL := Color("5ff2c8")
 var _obs_jolt := {}   # obstacle index -> 1..0: it shudders when hit
+var _fly := 1.0       # a step with drones: the share of it they spend flying (what they carry goes off after)
 var _obs_glow := {}   # obstacle index -> 1..0: the flash of finishing (a generator switching on)
 const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ffd24a")]
 var _path_tele := -1  # while drawing: the twin the robot would come out of, or -1
@@ -389,7 +390,16 @@ func _next_step() -> void:
 			if combo != "":
 				_dur = 0.5
 			if not first:
-				_dur = 0.45 if not _cur.flights.is_empty() else 0.12
+				_dur = 0.12
+			# drones fly first; a power-up one carries goes off only once it has landed
+			_fly = 1.0
+			var carrying := false
+			for f in _cur.flights:
+				carrying = carrying or int(f[2]) >= 0
+			if not _cur.flights.is_empty():
+				var flight := 0.6 if first else 0.45
+				_dur = flight + (0.32 if carrying else 0.0)
+				_fly = flight / _dur
 			_shake = 0.3 if first else 0.15
 			add_trauma(minf(1.0, (0.45 if first else 0.12) + (0.3 if combo != "" else 0.0)))
 			if first:
@@ -399,8 +409,8 @@ func _next_step() -> void:
 			for f in _cur.flights:
 				landing[f[1]] = true
 			for c in _cur.hit:
-				if not landing.has(c):
-					_flash[c] = 1.0  # a drone's target lights up when it lands, not before
+				if not landing.has(c) and _cur.flights.all(func(f): return int(f[2]) < 0):
+					_flash[c] = 1.0  # what a drone hits lights up when it lands, not before
 			for c in _cur.turned:
 				_flash[c] = 1.0
 			var col: Color = SPECIAL_COL[_cur.kind]
@@ -1269,7 +1279,7 @@ func _draw() -> void:
 			fl = 0.35 + 0.65 * pull
 		if not _cur.is_empty() and _cur.type == "special" and _cur.sucked.has(i):
 			# swallowed: spiralling into the black hole
-			var k7 := _ease(clampf(_t * 1.2, 0.0, 1.0))
+			var k7 := _ease(clampf(_effect_t() * 1.2, 0.0, 1.0))
 			var rel := cell_center(i) - cell_center(_cur.at)
 			at = cell_center(_cur.at) + rel.rotated(k7 * 2.5) * (1.0 - k7)
 			sc *= 1.0 - 0.8 * k7
@@ -1410,24 +1420,35 @@ func _draw_path() -> void:
 		pts.append(cell_center(c))
 	pts[-1] = _path_rp  # the head follows the gliding robot
 	if pts.size() > 1:
-		var pulse := 1.0 + 0.08 * sin(_time * 9.0)
-		draw_polyline(pts, Color(col, 0.18), cell * 0.5 * pulse, true)
-		draw_polyline(pts, Color(col, 0.55), cell * 0.2, true)
-		draw_polyline(pts, Color(1, 1, 1, 0.95), cell * 0.06, true)
-		# energy flowing along the trail toward the robot
+		# a soft ribbon of light: corners rounded off, thin at the tail and swelling toward the
+		# robot, drawn as overlapping discs so every end and joint is round
+		var curve := _smooth_path(pts)
 		var total := 0.0
-		for k in range(1, pts.size()):
-			total += pts[k - 1].distance_to(pts[k])
+		for k in range(1, curve.size()):
+			total += curve[k - 1].distance_to(curve[k])
+		var pulse := 1.0 + 0.08 * sin(_time * 9.0)
+		var step := cell * 0.045
+		for layer in 3:
+			var d := 0.0
+			while d <= total:
+				var f := d / maxf(1.0, total)  # 0 at the tail, 1 at the robot
+				var w := lerpf(0.45, 1.0, f)
+				var p := _along(curve, d)
+				match layer:
+					0: draw_circle(p, cell * 0.28 * w * pulse, Color(col, 0.07), true, -1.0, true)
+					1: draw_circle(p, cell * 0.14 * w, Color(col, 0.45), true, -1.0, true)
+					2: draw_circle(p, cell * 0.05 * w, Color(1, 1, 1, 0.9), true, -1.0, true)
+				d += step
+		# energy flowing along it toward the robot
 		var spacing := cell * 0.42
 		var s := fmod(_path_t * cell * 2.6, spacing)
 		while s < total:
-			var p := _along(pts, s)
-			draw_circle(p, cell * 0.055, Color(1, 1, 1, 0.9))
-			draw_circle(p, cell * 0.1, Color(col, 0.35))
+			var p := _along(curve, s)
+			draw_circle(p, cell * 0.06, Color(1, 1, 1, 0.9), true, -1.0, true)
+			draw_circle(p, cell * 0.12, Color(col, 0.3), true, -1.0, true)
 			s += spacing
-		for k in range(1, pts.size() - 1):
-			draw_circle(pts[k], cell * 0.1, Color(col, 0.9))
-			draw_circle(pts[k], cell * 0.05, Color.WHITE)
+		# the head: a glow under the held robot
+		draw_circle(pts[-1], cell * 0.34 * pulse, Color(col, 0.16), true, -1.0, true)
 	# start ring where the robot was picked up
 	draw_arc(pts[0], cell * (0.36 + 0.03 * sin(_time * 6.0)), 0.0, TAU, 32, Color(col, 0.7), cell * 0.04, true)
 	# pips over the robot: the steps left; the newest pops, a full path shakes them
@@ -1442,6 +1463,26 @@ func _draw_path() -> void:
 			r *= 1.0 + 0.8 * sin(PI * _pip_pop)
 		draw_circle(at, r * 1.4, Color(0.1, 0.03, 0.2, 0.7))
 		draw_circle(at, r, Color(1, 1, 1, 0.25) if used else col)
+
+
+## The path's points with every corner rounded off (a quadratic curve through the corner), so
+## the trail flows instead of bending at right angles.
+func _smooth_path(pts: PackedVector2Array) -> PackedVector2Array:
+	if pts.size() < 3:
+		return pts
+	var out := PackedVector2Array([pts[0]])
+	for k in range(1, pts.size() - 1):
+		var a := pts[k - 1]
+		var p := pts[k]
+		var b := pts[k + 1]
+		var r := minf(cell * 0.4, minf(a.distance_to(p), b.distance_to(p)) * 0.5)
+		var s0 := p + (a - p).normalized() * r
+		var s1 := p + (b - p).normalized() * r
+		for j in 9:
+			var t := j / 8.0
+			out.append(s0.lerp(p, t).lerp(p.lerp(s1, t), t))
+	out.append(pts[-1])
+	return out
 
 
 ## While a path is drawn, what the release would do stands out (no dimming: the user found it
@@ -1502,6 +1543,14 @@ func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: Packed
 
 ## Where a dragged special will go off and which way: [cell, direction]. Pushed onto a pad it
 ## goes off at the pad's target, heading along the throw; onto a teleporter, at the twin.
+## The clock of what a power-up does: the step's own, or, with drones in it, the part after
+## they land (what they carry goes off there, never while they are still flying).
+func _effect_t() -> float:
+	if _fly >= 1.0 or _cur.get("flights", []).is_empty():
+		return _t
+	return clampf((_t - _fly) / (1.0 - _fly), 0.0, 1.0) if _t > _fly else 0.0
+
+
 ## A dragged special, before release: it stands out of the dimmed board, armed. A Drill
 ## turns to the way it will fire, with a sparking tip; any special trembles and throbs in its
 ## glow. Sent through a pad or teleporter, a small ring marks where it will go off.
@@ -1509,7 +1558,15 @@ func _draw_special_aim(c: int) -> void:
 	if snap.token[c] != K.CHARGE:
 		return
 	var kind: int = snap.spec[c]
-	var aim: Array = _path_specials[c]  # [where it goes off, the way it fires] (Board.special_aim)
+	var aim: Array = _path_specials[c]  # [where it goes off, the way it fires, colour] (Board.preview_path)
+	if aim.size() > 2 and int(aim[2]) >= 0:
+		# a Black hole: every gem of the colour it will swallow shivers toward it
+		var pul := 0.5 + 0.5 * sin(_time * 10.0)
+		for i in Board.W * Board.H:
+			if snap.token[i] == K.ORE and snap.ore[i] == int(aim[2]):
+				var gc := cell_center(i)
+				draw_arc(gc, cell * (0.44 + 0.04 * pul), 0.0, TAU, 28, Color(SPECIAL_COL[Board.Special.BLACKHOLE], 0.55 + 0.35 * pul), cell * 0.05, true)
+				draw_line(gc, gc.lerp(cell_center(c), 0.18 + 0.06 * pul), Color(SPECIAL_COL[Board.Special.BLACKHOLE], 0.35), cell * 0.04, true)
 	var col: Color = SPECIAL_COL[kind]
 	var pulse := 0.5 + 0.5 * sin(_time * 14.0)
 	if aim[0] != c:
@@ -2026,7 +2083,9 @@ func _draw_booster_fx() -> void:
 	match _cur.type:
 		"special":
 			var col2: Color = SPECIAL_COL[_cur.kind]
-			var k2 := sin(PI * _t)
+			var te := _effect_t()
+			var tf := clampf(_t / _fly, 0.0, 1.0)  # the drones' own clock
+			var k2 := sin(PI * te)
 			for ray in _cur.rays:
 				var a2 := cell_center(ray[0])
 				var b2 := cell_center(ray[1])
@@ -2042,45 +2101,47 @@ func _draw_booster_fx() -> void:
 				# a nova's blast: the cells it reaches flash out from the middle
 				for c4 in _cur.area:
 					var dd := cell_center(c4).distance_to(at2) / (cell * 3.0)
-					var a4 := clampf(1.0 - absf(_t * 1.4 - dd), 0.0, 1.0)
+					var a4 := clampf(1.0 - absf(te * 1.4 - dd), 0.0, 1.0) if te > 0.0 else 0.0
 					draw_rect(Rect2(cell_origin(Board.pos(c4)), Vector2(cell, pitch)), Color(col2.lightened(0.4), 0.45 * a4))
 			if _cur.kind == Board.Special.BLACKHOLE:
 				var bh := Art.tex("res://assets/ui/specials/blackhole.png")
-				var bs := cell * (1.0 + 1.2 * sin(PI * _t))
+				var bs := cell * (1.0 + 1.2 * sin(PI * te))
 				if bh != null:
 					draw_set_transform(_draw_off + at2, _time * 6.0)
 					draw_texture_rect(bh, Rect2(-Vector2(bs, bs) * 0.5, Vector2(bs, bs)), false)
 					draw_set_transform(_draw_off)
 			for f in _cur.flights:
 				# a drone's flight: up, over and down onto its target, which it has locked on to
+				if tf >= 1.0:
+					continue  # landed: what it carried takes over
 				var a5 := cell_center(f[0])
 				var b5 := cell_center(f[1])
 				var ret := Art.tex("res://assets/ui/specials/reticle.png")
 				if ret != null:
-					var rs := cell * (1.3 - 0.3 * _ease(_t))
+					var rs := cell * (1.3 - 0.3 * _ease(tf))
 					draw_set_transform(_draw_off + b5, _time * 2.0)
 					draw_texture_rect(ret, Rect2(-Vector2(rs, rs) * 0.5, Vector2(rs, rs)), false, Color(1, 1, 1, 0.9))
 					draw_set_transform(_draw_off)
 				# lift off and hover (0-0.2), glide over in a soft curve leaving a trail (0.2-0.85),
 				# then dive onto the target (0.85-1)
-				var lift := clampf(_t / 0.2, 0.0, 1.0)
-				var glide := clampf((_t - 0.2) / 0.65, 0.0, 1.0)
+				var lift := clampf(tf / 0.2, 0.0, 1.0)
+				var glide := clampf((tf - 0.2) / 0.65, 0.0, 1.0)
 				var start := a5 - Vector2(0, cell * 0.45 * _ease(lift))
 				var over := b5 - Vector2(0, cell * 0.45)
 				var ctrl := (start + over) * 0.5 - Vector2(0, cell * 0.6 + start.distance_to(over) * 0.2)
 				var g := glide * glide * (3.0 - 2.0 * glide)  # smoothstep: eases in and out
 				var fp := start.lerp(ctrl, g).lerp(ctrl.lerp(over, g), g)
-				if _t > 0.85:
-					fp = over.lerp(b5, _ease((_t - 0.85) / 0.15))
+				if tf > 0.85:
+					fp = over.lerp(b5, _ease((tf - 0.85) / 0.15))
 				for k8 in 6:  # the trail: where it was a moment ago
 					var tb := clampf(glide - 0.05 * (k8 + 1), 0.0, 1.0)
-					if tb <= 0.0 or _t > 0.9:
+					if tb <= 0.0 or tf > 0.9:
 						break
 					var gb := tb * tb * (3.0 - 2.0 * tb)
 					var pb := start.lerp(ctrl, gb).lerp(ctrl.lerp(over, gb), gb)
 					draw_circle(pb, cell * (0.12 - 0.015 * k8), Color(SPECIAL_COL[Board.Special.DRONE], 0.5 - 0.07 * k8), true, -1.0, true)
 				var bob := sin(_time * 30.0) * cell * 0.02 * (1.0 - glide)
-				_draw_special(fp + Vector2(0, bob), Board.Special.DRONE, 0, 1.0 + 0.2 * lift - 0.2 * clampf((_t - 0.85) / 0.15, 0.0, 1.0))
+				_draw_special(fp + Vector2(0, bob), Board.Special.DRONE, 0, 1.0 + 0.2 * lift - 0.2 * clampf((tf - 0.85) / 0.15, 0.0, 1.0))
 				if int(f[2]) >= 0:
 					_draw_special(fp + Vector2(0, cell * 0.35), int(f[2]), 0, 0.6)
 		"bomb":
