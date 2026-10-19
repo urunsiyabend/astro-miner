@@ -16,16 +16,13 @@ enum Terrain { GROUND, ROCK, BEDROCK, BLOCK }
 enum Token { NONE, ORE, CRYSTAL, CELL, CHARGE, CORE }
 enum Buried { ORE, CELL, CRYSTAL, EMPTY, TREASURE }
 
-## What a line of 4 leaves (a site's "special", prototypes). BLAST is the original charge: step
-## on it and it blows the 3x3 around it. The others go off when they are MOVED (the robot drags
-## one, or a classic swap moves it), at the cell they land on, aimed by the way they moved:
-##   DRILL  bores on in the direction it moved, taking every gem, until rock (2 layers off)
-##   PRISM  four diagonal rays to the edges, through rock (1 layer off each)
-##   GEODE  turns the 8 gems around it into its colour (and cracks rock next to it)
-##   QUAKE  hits the ring two cells out, leaving the middle standing
-enum Special { BLAST, DRILL, PRISM, GEODE, QUAKE }
-const SPECIAL_IDS := {"blast": Special.BLAST, "drill": Special.DRILL, "prism": Special.PRISM,
-		"geode": Special.GEODE, "quake": Special.QUAKE}
+## The power-ups (Powers.gd). BLAST is the robot dig's old charge: step on it and it blows the
+## 3x3 around it. The others go off when they are MOVED (the robot drags one), at the cell they
+## land on, aimed by the way they moved: PULSAR (4 in a row) twin beams, NOVA (L/T) a 5x5 blast,
+## BLACKHOLE (5 in a row) a colour, DRONE (2x2) flies to the most useful cell.
+enum Special { BLAST, PULSAR, NOVA, BLACKHOLE, DRONE }
+const SPECIAL_IDS := {"blast": Special.BLAST, "pulsar": Special.PULSAR, "nova": Special.NOVA,
+		"blackhole": Special.BLACKHOLE, "drone": Special.DRONE}
 const ORE_TYPES := 4   # most ore colours a dig can use (a dig picks 3 or 4: cfg.ore_types)
 const RES_CRYSTAL := 4  # index into haul[] after the ore types
 
@@ -81,7 +78,7 @@ var cfg := {
 	# surfacing in place; "classic" also drops the robot: swap two neighbouring gems
 	"gravity": false,
 	"classic": false,
-	"special": -1,  # Special a line of 4 leaves; -1: by the shape of the match (_special_for)
+	"special": -1,  # Special a line of 4 leaves; -1: by the shape of the match (Powers.by_shape)
 	"portals": [],         # [[source cell, destination cell]]: what falls out of one drops into the other
 	"spawn_top": false,    # new gems only enter runs that reach the top of the board
 	"collect_bottom": false,  # crystals and cells are collected at the bottom of their run
@@ -101,6 +98,7 @@ var cfg := {
 
 var record := true  # build per-step snapshots for the view; sims switch this off
 var pushed := {}  # teleporter cell -> the way the special on it was pushed (this move)
+var claimed := {}  # cells power-ups already reached this move (a drone looks elsewhere)
 
 
 static func idx(c: Vector2i) -> int:
@@ -308,7 +306,7 @@ func _fill_ore() -> void:
 			ore[i] = _pick_no_line(i)
 
 
-## Ore type that does not complete a line of 3 with the two cells left or above
+## Ore type that does not complete a line of 3 with the two cells left or above, or a square
 ## (the fill runs in row-major order, so only those neighbours are already set).
 func _pick_no_line(i: int) -> int:
 	var c := pos(i)
@@ -318,6 +316,12 @@ func _pick_no_line(i: int) -> int:
 		var b := c + d * 2
 		if _is_ore(a) and _is_ore(b) and ore[idx(a)] == ore[idx(b)]:
 			banned.append(ore[idx(a)])
+	# nor a 2x2 square with the three cells up and to the left
+	var l := c + Vector2i(-1, 0)
+	var u := c + Vector2i(0, -1)
+	var ul := c + Vector2i(-1, -1)
+	if _is_ore(l) and _is_ore(u) and _is_ore(ul) and ore[idx(l)] == ore[idx(u)] and ore[idx(u)] == ore[idx(ul)]:
+		banned.append(ore[idx(l)])
 	var choices := []
 	for t in cfg.ore_types:
 		if not banned.has(t):
@@ -438,6 +442,7 @@ func try_path(dirs: Array) -> Dictionary:
 ##   groups    [{cells, ore, special (-1: none), at}]: the lines that will match, and the
 ##             special each leaves and where
 ##   specials  dragged special's cell -> [cell it goes off at, the way it fires]
+##   combo     {} or, when it dragged two or more: {at, from, kinds, name} (Powers.combo)
 func preview_path(dirs: Array) -> Dictionary:
 	var cells := path_cells(dirs)
 	if cells.is_empty():
@@ -445,8 +450,15 @@ func preview_path(dirs: Array) -> Dictionary:
 	var b := clone()
 	var w := b._walk(dirs, cells, [], true)
 	var specials := {}
-	for m in w.moved:
-		specials[m[0]] = b.special_aim(m[0], m[1])
+	var moved: Array = w.moved.filter(func(m): return b.token[m[0]] == Token.CHARGE)
+	var combo := {}
+	if moved.size() >= 2:
+		var kinds: Array = moved.map(func(m): return b.spec[m[0]])
+		combo = {"at": moved[-1][0], "from": moved.map(func(m): return m[0]), "kinds": kinds,
+				"name": Powers.combo_name(kinds)}
+	else:
+		for m in moved:
+			specials[m[0]] = b.special_aim(m[0], m[1])
 	var end := b.robot
 	var tp := b._teleport_robot([])
 	var pivot: int = tp if tp >= 0 else w.pivot
@@ -459,7 +471,7 @@ func preview_path(dirs: Array) -> Dictionary:
 			at = b._charge_cell(g.cells, pivot)
 		groups.append({"cells": g.cells, "ore": g.ore, "special": special, "at": at})
 	return {"snap": b.snapshot(), "twin": b.robot if b.robot != end else -1, "groups": groups,
-			"specials": specials}
+			"specials": specials, "combo": combo}
 
 
 ## A player's move along `cells` (one cell for a step, more for a drawn path): the walk, then
@@ -470,17 +482,27 @@ func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
 	energy -= 1
 	stats.moves += 1
 	pushed.clear()
+	claimed.clear()
 	belt_boost = 0
 	var w := _walk(dirs, cells, out.steps, live)
 	for c in w.charges:
 		_blast(c, out.steps)
-	for m in w.moved:
-		if token[m[0]] != Token.CHARGE:
-			continue
+	var moved: Array = w.moved.filter(func(m): return token[m[0]] == Token.CHARGE)
+	if moved.size() >= 2:
+		# a path that dragged two or more power-ups merges them into the last one (Powers.combo)
+		var at: int = moved[-1][0]
+		var kinds := []
+		for m in moved:
+			kinds.append(spec[m[0]])
+			token[m[0]] = Token.NONE
+		_push(out.steps, {"type": "merge", "from": moved.map(func(m): return m[0]), "to": at, "kinds": kinds,
+				"name": Powers.combo_name(kinds)})
+		Powers.combo(self, at, moved[-1][1], kinds, out.steps)
+	for m in moved if moved.size() == 1 else []:
 		if cfg.teleports.has(m[0]):
 			pushed[m[0]] = m[1]  # it travels first (_launch), still heading this way
 		elif not cfg.pads.has(m[0]):
-			_special(m[0], m[1], out.steps)
+			Powers.fire(self, m[0], m[1], out.steps)
 	var tp := _teleport_robot(out.steps)
 	_resolve(out.steps, tp if tp >= 0 else w.pivot)
 	_turn_end(out.steps)
@@ -598,11 +620,7 @@ func _launch(steps: Array) -> bool:
 		token[p] = Token.NONE
 		stats.launches += 1
 		_push(steps, step)
-		if spec[t] == Special.BLAST:
-			token[t] = Token.NONE
-			_blast(t, steps)
-		else:
-			_special(t, d, steps)
+		Powers.fire(self, t, d, steps)
 		any = true
 	for p in cfg.pads:
 		var t: int = cfg.pads[p]
@@ -622,11 +640,7 @@ func _launch(steps: Array) -> bool:
 		stats.launches += 1
 		_push(steps, step)
 		if tk == Token.CHARGE:
-			if spec[t] == Special.BLAST:
-				token[t] = Token.NONE
-				_blast(t, steps)
-			else:
-				_special(t, dir, steps)
+			Powers.fire(self, t, dir, steps)
 		any = true
 	return any
 
@@ -960,7 +974,8 @@ func _resolve(steps: Array, pivot: int) -> void:
 			step.energy += gain
 			step.groups.append({"cells": cells, "ore": kind})
 			var charge_at := -1
-			if n >= 4:
+			var made := _special_kind(cells)
+			if made >= 0:
 				charge_at = _charge_cell(cells, pivot)
 				if charge_at >= 0:
 					stats.charges_made += 1
@@ -972,7 +987,7 @@ func _resolve(steps: Array, pivot: int) -> void:
 					continue
 				if c == charge_at:
 					token[c] = Token.CHARGE
-					spec[c] = _special_kind(cells)
+					spec[c] = made
 					step.charges.append(c)
 				else:
 					to_dig.append(c)
@@ -996,98 +1011,19 @@ func _resolve(steps: Array, pivot: int) -> void:
 
 # --- moved specials --------------------------------------------------------------------
 
-## The special a match of 4 or more leaves: the site's own (cfg.special), else by its shape.
+## The power-up a match leaves, or -1: the site's own (cfg.special, for 4 or more), else by
+## its shape (Powers.by_shape).
 func _special_kind(cells: Array) -> int:
-	return cfg.special if cfg.special >= 0 else _special_for(cells)
+	if cfg.special >= 0:
+		return cfg.special if cells.size() >= 4 else -1
+	return Powers.by_shape(cells)
 
 
-## Where a match of 4 or more leaves its special: on the gem that was moved into it (the
-## pivot), else in the middle of the line; -1 when that gem is caged (the match only breaks
-## the cage).
+## Where a match leaves its power-up: on the gem that was moved into it (the pivot), else in
+## the middle of the match; -1 when that gem is caged (the match only breaks the cage).
 func _charge_cell(cells: Array, pivot: int) -> int:
 	var c := pivot if cells.has(pivot) else _central(cells)
 	return -1 if obs.locked(c) else c
-
-
-## Which special a match leaves by its shape (the default, cfg.special == -1): 4 in a row a
-## Drill core, an L or T a Quake, 5 or more in a row a Prism (the rarest, the strongest).
-func _special_for(cells: Array) -> int:
-	var xs := {}
-	var ys := {}
-	for c in cells:
-		xs[pos(c).x] = true
-		ys[pos(c).y] = true
-	var straight := xs.size() == 1 or ys.size() == 1
-	if not straight:
-		return Special.QUAKE
-	return Special.PRISM if cells.size() >= 5 else Special.DRILL
-
-## The special at cell c was just moved in direction d: it goes off there (see Special).
-func _special(c: int, d: Vector2i, steps: Array) -> void:
-	var kind := spec[c]
-	var colour := ore[c]
-	token[c] = Token.NONE
-	stats.blasts += 1
-	var step := {"type": "special", "kind": kind, "at": c, "dir": DIRS.find(d), "rays": [], "hit": [],
-			"cracked": [], "revealed": [], "turned": [], "ore": colour, "obstacles": []}
-	var seen := {}  # a power-up hits a multi-cell obstacle once
-	match kind:
-		Special.DRILL:
-			step.rays.append(_ray(c, d, 2, true, step, seen))
-		Special.PRISM:
-			for dd in [Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
-				step.rays.append(_ray(c, dd, 1, false, step, seen))
-		Special.QUAKE:
-			var cp := pos(c)
-			for dy in range(-2, 3):
-				for dx in range(-2, 3):
-					if maxi(absi(dx), absi(dy)) != 2:
-						continue
-					var p := cp + Vector2i(dx, dy)
-					if inside(p):
-						_hit(idx(p), 1, step, seen)
-		Special.GEODE:
-			var cp := pos(c)
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					var p := cp + Vector2i(dx, dy)
-					if (dx == 0 and dy == 0) or not inside(p):
-						continue
-					var i := idx(p)
-					if _strike(i, Obstacles.Hit.POWER, 1, step, seen):
-						pass
-					elif terrain[i] == Terrain.GROUND and token[i] == Token.ORE and ore[i] != colour:
-						ore[i] = colour
-						step.turned.append(i)
-			# the geode itself becomes a plain gem of its colour, ready to line up with them
-			token[c] = Token.ORE
-	_push(steps, step)
-
-
-## A ray from c along d to the edge (bedrock ends it): takes every gem and pickup; rock loses
-## `power` layers and, with `stop_at_rock`, ends the ray, as an obstacle piece does. Returns
-## [c, last cell reached].
-func _ray(c: int, d: Vector2i, power: int, stop_at_rock: bool, step: Dictionary, seen: Dictionary) -> Array:
-	var p := pos(c) + d
-	var last := c
-	while inside(p) and terrain[idx(p)] != Terrain.BEDROCK:
-		var i := idx(p)
-		last = i
-		var solid := terrain[i] == Terrain.ROCK or terrain[i] == Terrain.BLOCK
-		_hit(i, power, step, seen)
-		if solid and stop_at_rock:
-			break
-		p += d
-	return [c, last]
-
-
-## A power-up reaches cell i: rock or an obstacle takes the hit, otherwise what lies there is
-## taken (a core is never destroyed).
-func _hit(i: int, power: int, step: Dictionary, seen: Dictionary) -> void:
-	if _strike(i, Obstacles.Hit.POWER, power, step, seen):
-		return
-	if terrain[i] == Terrain.GROUND and i != robot and _take(i):
-		step.hit.append(i)
 
 
 ## The one way anything on the board damages a cell (a match on it or next to it, a power-up,
@@ -1246,13 +1182,10 @@ func try_swap(c: int, d: Vector2i) -> Dictionary:
 	energy -= 1
 	stats.moves += 1
 	_push(out.steps, {"type": "swap", "a": c, "b": ib})
+	claimed.clear()
 	for cc in [ib, c]:
 		if token[cc] == Token.CHARGE:
-			if spec[cc] == Special.BLAST:
-				token[cc] = Token.NONE
-				_blast(cc, out.steps)
-			else:
-				_special(cc, d if cc == ib else -d, out.steps)
+			Powers.fire(self, cc, d if cc == ib else -d, out.steps)
 	_resolve(out.steps, ib)
 	_finish_turn()
 	out.ok = true
@@ -1365,6 +1298,7 @@ func _damage_rock(r: int, amount: int, revealed: Array) -> void:
 func _blast(center: int, steps: Array) -> void:
 	var queue := [center]
 	var done := {}
+	var others := []
 	while not queue.is_empty():
 		var c0: int = queue.pop_front()
 		if done.has(c0):
@@ -1408,10 +1342,16 @@ func _blast(center: int, steps: Array) -> void:
 						stats.cells += 1
 						step.cells.append(i)
 					Token.CHARGE:
-						token[i] = Token.NONE
 						step.cells.append(i)
-						queue.append(i)
+						if spec[i] == Special.BLAST:
+							token[i] = Token.NONE
+							queue.append(i)
+						else:
+							others.append(i)  # another power-up goes off as itself, after
 		_push(steps, step)
+	for i in others:
+		var dv := pos(i) - pos(center)
+		Powers.fire(self, i, Vector2i(0, 1) if absi(dv.x) >= absi(dv.y) else Vector2i(1, 0), steps)
 
 
 func _central(cells: Array) -> int:
@@ -1448,6 +1388,12 @@ func find_groups() -> Array:
 				for k in run:
 					in_line[idx(Vector2i(x, y + k))] = true
 			y += maxi(1, run)
+	# a 2x2 square of one colour matches too (it leaves a Scout drone)
+	for y in H - 1:
+		for x in W - 1:
+			var sq := _square(Vector2i(x, y))
+			for c in sq:
+				in_line[c] = true
 	var groups := []
 	var seen := {}
 	var keys := in_line.keys()
@@ -1490,9 +1436,18 @@ func has_line() -> bool:
 	for y in H:
 		for x in W:
 			var c := Vector2i(x, y)
-			if _run_len(c, Vector2i(1, 0)) >= 3 or _run_len(c, Vector2i(0, 1)) >= 3:
+			if _run_len(c, Vector2i(1, 0)) >= 3 or _run_len(c, Vector2i(0, 1)) >= 3 or not _square(c).is_empty():
 				return true
 	return false
+
+
+## The 4 cells of the 2x2 square with top-left p, if they are gems of one colour; else [].
+func _square(p: Vector2i) -> Array:
+	var cells := [p, p + Vector2i(1, 0), p + Vector2i(0, 1), p + Vector2i(1, 1)]
+	for q in cells:
+		if not _is_ore(q) or ore[idx(q)] != ore[idx(p)]:
+			return []
+	return cells.map(func(q): return idx(q))
 
 
 # --- search (hint, generator check, bots) -----------------------------------
@@ -1666,6 +1621,16 @@ func _line_through(tk: PackedInt32Array, orr: PackedInt32Array, c: int) -> bool:
 			n += 1
 			q -= axis
 		if n >= 3:
+			return true
+	# a 2x2 square through c
+	for corner in [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)]:
+		var tl: Vector2i = p + corner
+		var all := true
+		for q in [tl, tl + Vector2i(1, 0), tl + Vector2i(0, 1), tl + Vector2i(1, 1)]:
+			if not inside(q) or terrain[idx(q)] != Terrain.GROUND or tk[idx(q)] != Token.ORE or orr[idx(q)] != kind:
+				all = false
+				break
+		if all:
 			return true
 	return false
 

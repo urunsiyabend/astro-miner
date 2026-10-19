@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dejql0vj6g23b"
-path="res://.godot/imported/quake.png-3bc96a7fa0ddd0dd4eb20fe73f2b6532.ctex"
+uid="uid://bjthb3yjbcc52"
+path="res://.godot/imported/pulsar.png-6bd64c5b178deb10a3dd1a6a55393ad5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/specials/quake.png"
-dest_files=["res://.godot/imported/quake.png-3bc96a7fa0ddd0dd4eb20fe73f2b6532.ctex"]
+source_file="res://assets/ui/specials/pulsar.png"
+dest_files=["res://.godot/imported/pulsar.png-6bd64c5b178deb10a3dd1a6a55393ad5.ctex"]
 
 [params]
 

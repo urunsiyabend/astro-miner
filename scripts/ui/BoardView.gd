@@ -23,6 +23,9 @@ const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 ## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
 const GAP := 0.0            # px between neighbouring blocks (the cell art carries its own margin)
 const ROCK_SIZE := 1.0      # rock sprite canvas / cell (the rock body is ~80% of its canvas)
+## Rock by layers left (Royal Match's boxes): every match peels one, so thick rock is dark and
+## turns lighter as it is worn down; the crack state (Art.rock) shows how much is gone.
+const ROCK_TINT := [Color(1, 1, 1), Color(0.62, 0.58, 0.78), Color(0.38, 0.34, 0.5)]
 const ORE_SIZE := 0.94      # ore sprite canvas / cell (the gem is ~80% of its canvas)
 
 var snap: Dictionary = {}
@@ -62,6 +65,7 @@ const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ff
 var _path_tele := -1  # while drawing: the twin the robot would come out of, or -1
 var _tele_arm := 0.0  # 1 -> 0: the flash when a path comes to rest on a teleporter
 var _path_specials := {}  # while drawing: dragged special's cell -> [where it goes off, way it fires]
+var _path_combo := {}     # while drawing: the power-ups the path merges ({at, from, kinds, name}), or {}
 var _spec_angle := {}     # cell -> the angle a dragged Drill is drawn at (it turns to aim)
 var _tok_rot := 0.0       # rotation for the next special drawn (_draw_special)
 var _draw_off := Vector2.ZERO
@@ -371,33 +375,62 @@ func _next_step() -> void:
 			Sfx.play("step", 0.7)
 			Sfx.play("swap", 0.6)
 		"special":
-			_dur = 0.42
-			_shake = 0.3
-			add_trauma(0.5)
-			_whiteout = 0.7
-			_hold = 0.06
+			# the first power-up gets its moment; the ones it sets off rattle after it almost at once
+			# (Royal Match's chains go off nearly together), each a little higher in pitch
+			var link: int = _cur.get("link", 1)
+			var combo: String = _cur.get("combo", "")
+			var first := link == 1
+			match _cur.kind:
+				Board.Special.BLACKHOLE: _dur = 0.45
+				Board.Special.NOVA: _dur = 0.32
+				_: _dur = 0.28
+			if not _cur.flights.is_empty():
+				_dur = 0.42
+			if combo != "":
+				_dur = 0.5
+			if not first:
+				_dur = 0.24 if not _cur.flights.is_empty() else 0.12
+			_shake = 0.3 if first else 0.15
+			add_trauma(minf(1.0, (0.45 if first else 0.12) + (0.3 if combo != "" else 0.0)))
+			if first:
+				_whiteout = 0.6
+				_hold = 0.05
 			for c in _cur.hit:
 				_flash[c] = 1.0
 			for c in _cur.turned:
 				_flash[c] = 1.0
 			var col: Color = SPECIAL_COL[_cur.kind]
+			var at := cell_center(_cur.at)
+			var up := pow(2.0, mini(link - 1, 8) / 12.0)
 			match _cur.kind:
-				Board.Special.QUAKE:
-					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.3, "r1": cell * 2.6, "t": 0.0, "dur": 0.45, "color": col})
-					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 2.2, "t": -0.08, "dur": 0.45, "color": col})
-					Sfx.play("quake")
-				Board.Special.GEODE:
-					_rings.append({"c": cell_center(_cur.at), "r0": cell * 0.2, "r1": cell * 1.6, "t": 0.0, "dur": 0.4, "color": Pal.ORE[_cur.ore]})
-					Sfx.play("prism", 1.15)
-				Board.Special.DRILL:
-					Sfx.play("zap")
-				Board.Special.PRISM:
-					Sfx.play("prism")
+				Board.Special.NOVA:
+					_rings.append({"c": at, "r0": cell * 0.3, "r1": cell * 3.0, "t": 0.0, "dur": 0.45, "color": col})
+					_rings.append({"c": at, "r0": cell * 0.2, "r1": cell * 2.4, "t": -0.08, "dur": 0.45, "color": Color.WHITE})
+					Sfx.play("blast", up)
+				Board.Special.BLACKHOLE:
+					_rings.append({"c": at, "r0": cell * 3.0, "r1": cell * 0.2, "t": 0.0, "dur": 0.6, "color": col})
+					Sfx.play("magnet", up)
+					Sfx.play("warp", 0.7 * up)
+				Board.Special.PULSAR:
+					Sfx.play("laser", up)
+				Board.Special.DRONE:
+					_rings.append({"c": at, "r0": cell * 0.2, "r1": cell * 1.3, "t": 0.0, "dur": 0.3, "color": col})
+					Sfx.play("warp", 1.3 * up)
 				_:
-					Sfx.play("blast")
+					Sfx.play("blast", up)
+			if combo != "":
+				Sfx.play("quake")
+				fx.emit("callout", {"text": combo + "!", "big": combo == "BIG BANG"})
+			elif link in [3, 5, 8]:
+				fx.emit("callout", {"text": "CHAIN x%d" % link, "big": false})
 		"bomb":
 			_dur = 0.3  # the bomb drops onto its cell; the blast step that follows does the rest
 			Sfx.play("bombdrop")
+		"merge":
+			# the power-ups a path dragged fly into the last one and fuse: the combo comes next
+			_dur = 0.24
+			Sfx.play("forge", 0.8)
+			Sfx.play("telearm", 1.2)
 		"warp":
 			_dur = 0.2  # phase 0: the robot spins away; phase 1: it pops out at the target
 			_rings.append({"c": cell_center(_cur.from), "r0": cell * 0.7, "r1": cell * 0.1,
@@ -481,6 +514,9 @@ func _finish_phase() -> void:
 			_next_step()
 		"special":
 			_emit_extract(_cur.hit)
+			for f in _cur.flights:
+				_rings.append({"c": cell_center(f[1]), "r0": cell * 0.2, "r1": cell * 1.2, "t": 0.0, "dur": 0.3, "color": SPECIAL_COL[Board.Special.DRONE]})
+				fx.emit("blast_done", {"cells": [cell_global(f[1])]})
 			for r in _cur.cracked:
 				_jolt[r] = 1.0
 				fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
@@ -543,6 +579,11 @@ func _finish_phase() -> void:
 			for c in _cur.surfaced:
 				_rise[c] = 0.0
 			_flash.clear()
+			_apply(_cur.snap)
+			_next_step()
+		"merge":
+			_rings.append({"c": cell_center(_cur.to), "r0": cell * 1.4, "r1": cell * 0.2, "t": 0.0, "dur": 0.25, "color": Color.WHITE})
+			add_trauma(0.35)
 			_apply(_cur.snap)
 			_next_step()
 		"launch":
@@ -941,6 +982,8 @@ func _path_step(step: Vector2i) -> bool:
 func _preview() -> void:
 	var pv := {} if _path_drill else board.preview_path(_path_dirs)
 	var was_tele := _path_tele
+	if pv.is_empty():
+		_path_combo = {}
 	var before := _path_match.size()
 	var specials_before := _path_groups.filter(func(g): return g.special >= 0).size()
 	_path_specials.clear()
@@ -953,6 +996,9 @@ func _preview() -> void:
 		return
 	snap = pv.snap
 	_path_specials = pv.specials
+	if pv.combo.get("name", "") != _path_combo.get("name", ""):
+		Sfx.play("telearm", 1.4)  # a combo just formed (or changed): it charges up
+	_path_combo = pv.combo
 	_path_tele = pv.twin
 	if _path_tele >= 0 and was_tele != _path_tele:
 		# the path just came to rest on a teleporter: it arms with a charge-up, a flash and a buzz
@@ -979,6 +1025,7 @@ func _preview() -> void:
 func _finish_path() -> void:
 	_path_tele = -1
 	_path_specials.clear()
+	_path_combo = {}
 	_path_match.clear()
 	_path_groups.clear()
 	if _path_dirs.size() <= 1:
@@ -999,6 +1046,7 @@ func cancel_path() -> void:
 	_drawing = false
 	_path_tele = -1
 	_path_specials.clear()
+	_path_combo = {}
 	_path_match.clear()
 	_path_groups.clear()
 	if not _path_real.is_empty():
@@ -1211,6 +1259,12 @@ func _draw() -> void:
 			at = at.lerp(_match_to[i], pull * 0.9)
 			sc *= (1.0 + 0.16 * sin(PI * 0.5 * sw)) * (1.0 - 0.6 * pull)
 			fl = 0.35 + 0.65 * pull
+		if not _cur.is_empty() and _cur.type == "special" and _cur.sucked.has(i):
+			# swallowed: spiralling into the black hole
+			var k7 := _ease(clampf(_t * 1.2, 0.0, 1.0))
+			var rel := cell_center(i) - cell_center(_cur.at)
+			at = cell_center(_cur.at) + rel.rotated(k7 * 2.5) * (1.0 - k7)
+			sc *= 1.0 - 0.8 * k7
 		if not _cur.is_empty() and _cur.type == "magnet" and _cur.cells.has(i):
 			var k := _ease(clampf(_t * 1.25, 0.0, 1.0))
 			at = at.lerp(cell_center(snap.robot), k)
@@ -1235,7 +1289,7 @@ func _draw() -> void:
 			sc *= 1.06 + 0.04 * hop2
 			fl = maxf(fl, 0.22 + 0.12 * hop2)
 		_tok_squash = _squash_of(i)
-		_tok_rot = float(_spec_angle.get(i, 0.0)) if _drawing and tok[i] == K.CHARGE and specs[i] == Board.Special.DRILL else 0.0
+		_tok_rot = float(_spec_angle.get(i, 0.0)) if _drawing and tok[i] == K.CHARGE and specs[i] == Board.Special.PULSAR else 0.0
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
 		_tok_rot = 0.0
 		_tok_squash = Vector2.ONE
@@ -1414,6 +1468,21 @@ func _draw_outcome(tok: PackedInt32Array, kinds: PackedInt32Array, specs: Packed
 		var tw := _label_font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		draw_string_outline(_label_font, tp - Vector2(tw * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, int(cell * 0.1), Color(0.15, 0.03, 0.25, k))
 		draw_string(_label_font, tp - Vector2(tw * 0.5, 0), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(1, 1, 1, k))
+	if not _path_combo.is_empty():
+		# power-ups the path merges: pulled toward the last one, the combo's name over it
+		var to: Vector2 = cell_center(_path_combo.at)
+		var pulse2 := 0.5 + 0.5 * sin(_time * 12.0)
+		for fc in _path_combo.from:
+			if fc != _path_combo.at:
+				draw_line(cell_center(fc), to, Color(1, 0.9, 0.5, (0.5 + 0.4 * pulse2) * k), cell * (0.1 + 0.05 * pulse2), true)
+		draw_circle(to, cell * (0.55 + 0.08 * pulse2), Color(1, 0.85, 0.4, 0.35 * k), true, -1.0, true)
+		var ntxt: String = _path_combo.name
+		var nfs := int(cell * (0.5 + 0.03 * pulse2))
+		var nw := _label_font.get_string_size(ntxt, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs).x
+		var np := to + Vector2(-nw * 0.5, -cell * 0.75)
+		np.x = clampf(np.x, origin.x, origin.x + cell * Board.W - nw)
+		draw_string_outline(_label_font, np, ntxt, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs, int(cell * 0.12), Color(0.25, 0.05, 0.1, k))
+		draw_string(_label_font, np, ntxt, HORIZONTAL_ALIGNMENT_LEFT, -1, nfs, Color("ffe27a"))
 	if _path_groups.size() >= 2:
 		var ctxt := "x%d COMBO!" % _path_groups.size()
 		var cfs := int(cell * 0.6 * (1.0 + 0.05 * sin(_time * 10.0)))
@@ -1439,19 +1508,20 @@ func _draw_special_aim(c: int) -> void:
 		draw_arc(cell_center(aim[0]), cell * (0.4 + 0.05 * pulse), 0.0, TAU, 32, Color(col, 0.85), cell * 0.05, true)
 	var at := cell_center(c) + Vector2(sin(_time * 53.0), cos(_time * 47.0)) * cell * 0.025
 	draw_circle(at, cell * (0.5 + 0.08 * pulse), Color(col, 0.22 + 0.18 * pulse))
-	_tok_rot = float(_spec_angle.get(c, 0.0)) if kind == Board.Special.DRILL else 0.0
+	_tok_rot = float(_spec_angle.get(c, 0.0)) if kind == Board.Special.PULSAR else 0.0
 	_draw_token(at, K.CHARGE, snap.ore[c], _depth_scale(c) * (1.08 + 0.08 * pulse), 0.25 * pulse, kind)
 	_tok_rot = 0.0
-	if kind == Board.Special.DRILL:
-		# the tip, where it will bore from: a flickering spark
-		var ang: float = _spec_angle.get(c, 0.0) - PI * 0.5
-		var tip := at + Vector2(cos(ang), sin(ang)) * cell * 0.4
-		draw_circle(tip, cell * (0.1 + 0.05 * pulse), Color(1, 0.95, 0.7, 0.9))
-		draw_circle(tip, cell * (0.17 + 0.06 * pulse), Color(col, 0.35))
-		for k in 3:
-			var sa := ang + sin(_time * 23.0 + k * 2.1) * 0.9
-			var sl := cell * (0.12 + 0.1 * fmod(_time * 3.0 + k * 0.37, 1.0))
-			draw_line(tip, tip + Vector2(cos(sa), sin(sa)) * sl, Color(1, 0.9, 0.6, 0.8), cell * 0.025, true)
+	if kind == Board.Special.PULSAR:
+		# both tips, where the twin beams will come out: flickering sparks
+		for side in [0.0, PI]:
+			var ang: float = _spec_angle.get(c, 0.0) - PI * 0.5 + side
+			var tip := at + Vector2(cos(ang), sin(ang)) * cell * 0.4
+			draw_circle(tip, cell * (0.1 + 0.05 * pulse), Color(1, 1, 1, 0.9))
+			draw_circle(tip, cell * (0.17 + 0.06 * pulse), Color(col, 0.35))
+			for k in 3:
+				var sa: float = ang + sin(_time * 23.0 + k * 2.1 + side) * 0.9
+				var sl := cell * (0.12 + 0.1 * fmod(_time * 3.0 + k * 0.37, 1.0))
+				draw_line(tip, tip + Vector2(cos(sa), sin(sa)) * sl, Color(col.lightened(0.5), 0.8), cell * 0.025, true)
 
 
 ## A launch's flight from a to b: up and over, higher for longer throws.
@@ -1957,10 +2027,36 @@ func _draw_booster_fx() -> void:
 				draw_line(a2, b2, Color(col2, 0.35 * k2), cell * 0.5 * k2, true)
 				draw_line(a2, b2, Color(col2, 0.9 * k2), cell * 0.22 * k2, true)
 				draw_line(a2, b2, Color(1, 1, 1, k2), cell * 0.07 * k2, true)
-			if _cur.kind == Board.Special.GEODE:
-				for c3 in _cur.turned:
-					var p3 := cell_center(c3)
-					draw_line(cell_center(_cur.at), p3, Color(Pal.ORE[_cur.ore], 0.8 * k2), cell * 0.08, true)
+			var at2 := cell_center(_cur.at)
+			for c3 in _cur.turned:  # a black hole combo: a colour turning into power-ups
+				draw_line(at2, cell_center(c3), Color(col2, 0.8 * k2), cell * 0.08, true)
+			if not _cur.area.is_empty():
+				# a nova's blast: the cells it reaches flash out from the middle
+				for c4 in _cur.area:
+					var dd := cell_center(c4).distance_to(at2) / (cell * 3.0)
+					var a4 := clampf(1.0 - absf(_t * 1.4 - dd), 0.0, 1.0)
+					draw_rect(Rect2(cell_origin(Board.pos(c4)), Vector2(cell, pitch)), Color(col2.lightened(0.4), 0.45 * a4))
+			if _cur.kind == Board.Special.BLACKHOLE:
+				var bh := Art.tex("res://assets/ui/specials/blackhole.png")
+				var bs := cell * (1.0 + 1.2 * sin(PI * _t))
+				if bh != null:
+					draw_set_transform(_draw_off + at2, _time * 6.0)
+					draw_texture_rect(bh, Rect2(-Vector2(bs, bs) * 0.5, Vector2(bs, bs)), false)
+					draw_set_transform(_draw_off)
+			for f in _cur.flights:
+				# a drone's flight: up, over and down onto its target, which it has locked on to
+				var a5 := cell_center(f[0])
+				var b5 := cell_center(f[1])
+				var ret := Art.tex("res://assets/ui/specials/reticle.png")
+				if ret != null:
+					var rs := cell * (1.3 - 0.3 * _ease(_t))
+					draw_set_transform(_draw_off + b5, _time * 2.0)
+					draw_texture_rect(ret, Rect2(-Vector2(rs, rs) * 0.5, Vector2(rs, rs)), false, Color(1, 1, 1, 0.9))
+					draw_set_transform(_draw_off)
+				var fp := _arc(a5, b5, _ease(_t))
+				_draw_special(fp, Board.Special.DRONE, 0, 1.0 + 0.25 * sin(PI * _t))
+				if int(f[2]) >= 0:
+					_draw_special(fp + Vector2(0, cell * 0.35), int(f[2]), 0, 0.6)
 		"bomb":
 			var tex := Art.tex("res://assets/ui/boosters/bomb.png")
 			var k := _ease(_t)
@@ -1978,6 +2074,13 @@ func _draw_booster_fx() -> void:
 			draw_line(a, b, Color(col, 0.9 * k), cell * 0.3 * k, true)
 			draw_line(a, b, Color(1, 1, 1, k), cell * 0.1 * k, true)
 			draw_circle(a, cell * 0.32 * k, Color(1, 1, 1, 0.9 * k), true, -1.0, true)
+		"merge":
+			var to := cell_center(_cur.to)
+			for k6 in _cur.from.size():
+				var fc: int = _cur.from[k6]
+				var p6 := cell_center(fc).lerp(to, _ease(_t))
+				_draw_special(p6, int(_cur.kinds[k6]), 0, 1.0 + 0.3 * _t)
+			draw_circle(to, cell * 0.6 * _t, Color(1, 1, 1, 0.5 * _t), true, -1.0, true)
 		"magnet":
 			var tex := Art.tex("res://assets/ui/boosters/magnet.png")
 			var w := cell * (1.0 + 0.15 * sin(_t * 20.0))
@@ -2095,7 +2198,7 @@ func _draw_rock(i: int) -> void:
 		var tex := Art.rock(snap.hp0[i] if snap.has("hp0") else hpv, hpv)
 		if tex != null:
 			var s := (cell - GAP) * ROCK_SIZE
-			_draw_lifted(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)))
+			_draw_lifted(tex, Rect2(c0 - Vector2(s, s) * 0.5, Vector2(s, s)), ROCK_TINT[clampi(hpv, 1, 3) - 1])
 		if scanner:
 			_draw_buried(c0, snap.buried[i])
 		return
@@ -2284,64 +2387,36 @@ func _draw_token(c: Vector2, tk: int, kind: int, sc: float, flash: float, sp := 
 
 ## A moved-special gem: its own colour's gem, a halo in the special's colour and an emblem
 ## that says what it does (a drill bit, an X of light, a cracked geode, rings).
-const SPECIAL_COL := [Color("ff4f6d"), Color("ffb347"), Color("e8f6ff"), Color("c88bff"), Color("7fe8ff")]
-const SPECIAL_ART := ["blast", "drill", "prism", "geode", "quake"]
+const SPECIAL_COL := [Color("ff4f6d"), Color("7fe8ff"), Color("ffb347"), Color("c88bff"), Color("ffd9a0")]
+const SPECIAL_ART := ["blast", "pulsar", "nova", "blackhole", "drone"]
 
 
 func _draw_special(c: Vector2, sp: int, kind: int, sc: float) -> void:
 	var s := cell * 0.33 * sc
 	var col: Color = SPECIAL_COL[sp]
-	if sp == Board.Special.GEODE:
-		col = Pal.ORE[kind]  # a geode glows in the colour it will turn its neighbours
 	var pul := 0.5 + 0.5 * sin(_time * 7.0 + c.x * 0.05)
 	draw_circle(c, s * 1.45, Color(col, 0.18 + 0.16 * pul), true, -1.0, true)
-	# a special is an object of its own, never drawn on a gem: a coloured gem would ask to be
-	# matched, and specials go off when MOVED (Royal Match's power-ups read the same way)
+	# a power-up is an object of its own, never drawn on a gem: a coloured gem would ask to be
+	# matched, and power-ups go off when MOVED (Royal Match's power-ups read the same way)
 	var tex := Art.tex("res://assets/ui/specials/%s.png" % SPECIAL_ART[sp])
 	if tex != null:
 		var size := cell * 0.86 * sc * (1.0 + 0.05 * pul)
 		if _tok_rot != 0.0:
-			# a Drill being aimed turns about its own centre
+			# a Pulsar being aimed turns about its own centre
 			draw_set_transform(_draw_off + c, _tok_rot)
+			_draw_lifted(tex, Rect2(-Vector2(size, size) * 0.5, Vector2(size, size)))
+			draw_set_transform(_draw_off)
+		elif sp == Board.Special.BLACKHOLE:
+			draw_set_transform(_draw_off + c, _time * 1.5)  # the disc turns slowly
 			_draw_lifted(tex, Rect2(-Vector2(size, size) * 0.5, Vector2(size, size)))
 			draw_set_transform(_draw_off)
 		else:
 			_draw_lifted(tex, Rect2(c - Vector2(size, size) * 0.5, Vector2(size, size)))
 		return
-	var w := maxf(3.0, s * 0.15)
-	var dark := Color(0.08, 0.02, 0.16, 0.9)
-	# no art yet: an emblem disc, dark face with the special's colour as its rim
-	var r := s * 1.0
-	draw_circle(c + Vector2(0, s * 0.06), r * 1.12, Color(0, 0, 0, 0.35), true, -1.0, true)
-	draw_circle(c, r * 1.12, col, true, -1.0, true)
-	draw_circle(c, r, dark, true, -1.0, true)
-	match sp:
-		Board.Special.DRILL:
-			# a drill bit pointing up: a cone with two grooves
-			var tip := c + Vector2(0, -r * 0.8)
-			var bl := c + Vector2(-r * 0.5, r * 0.45)
-			var br := c + Vector2(r * 0.5, r * 0.45)
-			draw_colored_polygon(PackedVector2Array([tip, br, bl]), col)
-			draw_line(c + Vector2(-r * 0.36, r * 0.05), c + Vector2(r * 0.2, -r * 0.22), dark, w * 0.7, true)
-			draw_line(c + Vector2(-r * 0.2, r * 0.32), c + Vector2(r * 0.36, r * 0.05), dark, w * 0.7, true)
-			draw_rect(Rect2(c + Vector2(-r * 0.22, r * 0.45), Vector2(r * 0.44, r * 0.3)), col.darkened(0.25))
-		Board.Special.PRISM:
-			for k in 4:
-				var a2 := PI * 0.25 + k * PI * 0.5
-				draw_line(c, c + Vector2(cos(a2), sin(a2)) * r * (0.82 + 0.12 * pul), col, w * 1.2, true)
-			draw_circle(c, r * 0.24, Color.WHITE, true, -1.0, true)
-		Board.Special.GEODE:
-			# a cracked gem: a small diamond of its colour with light breaking out
-			var gc: Color = Pal.ORE[kind].lightened(0.2)
-			draw_colored_polygon(PackedVector2Array([c + Vector2(0, -r * 0.7), c + Vector2(r * 0.6, 0), c + Vector2(0, r * 0.7), c + Vector2(-r * 0.6, 0)]), gc)
-			draw_line(c + Vector2(-r * 0.15, -r * 0.5), c + Vector2(r * 0.1, 0), dark, w * 0.6, true)
-			draw_line(c + Vector2(r * 0.1, 0), c + Vector2(-r * 0.1, r * 0.45), dark, w * 0.6, true)
-			draw_arc(c, r * 0.95, 0, TAU, 32, Color(gc, 0.5 + 0.5 * pul), w * 0.6, true)
-		Board.Special.QUAKE:
-			for k in 2:
-				var ph := fmod(_time * 1.2 + k * 0.5, 1.0)
-				draw_arc(c, r * (0.25 + 0.7 * ph), 0, TAU, 32, Color(col, 1.0 - ph), w * 0.9, true)
-			draw_circle(c, r * 0.22, col, true, -1.0, true)
+	# no art: a disc in the power-up's colour
+	draw_circle(c, s * 1.12, col, true, -1.0, true)
+	draw_circle(c, s * 0.8, Color(0.08, 0.02, 0.16, 0.9), true, -1.0, true)
+	draw_circle(c, s * 0.3, col, true, -1.0, true)
 
 ## A landed gem's squash: flat and wide on impact, springing back tall, settling (~0.25 s).
 func _squash_of(i: int) -> Vector2:
@@ -2417,12 +2492,12 @@ func _tile_outline(i: int, col: Color, grow: float) -> void:
 
 
 ## A sprite lifted off the board: its own silhouette as a soft dark shadow just below it.
-func _draw_lifted(tex: Texture2D, r: Rect2) -> void:
+func _draw_lifted(tex: Texture2D, r: Rect2, tint := Color.WHITE) -> void:
 	var lift := r.size.y * 0.035
 	for k in 3:
 		var spread := r.size.x * 0.005 * k
 		draw_texture_rect(tex, Rect2(r.position + Vector2(-spread, lift - spread * 0.5), r.size + Vector2(spread, spread) * 2.0), false, Color(0.12, 0.04, 0.02, 0.16))
-	draw_texture_rect(tex, r, false)
+	draw_texture_rect(tex, r, false, tint)
 
 
 ## The board frame hugs the playfield's real shape (every cell but bedrock), like the hero,

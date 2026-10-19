@@ -692,9 +692,10 @@ func _first_encounters() -> void:
 	# the first time each kind of special turns up, one line says what it does
 	var notes := {
 		Board.Special.BLAST: "A line of 4 leaves a blast charge. Step onto it to blow up everything around it.",
-		Board.Special.DRILL: "4 in a row made a Drill Core! Move it (swap it with the robot) and it bores on that way, up to the first rock.",
-		Board.Special.QUAKE: "An L or T match made a Quake! Move it and it shakes the ring two cells out.",
-		Board.Special.PRISM: "5 in a row made a Prism! Move it and four diagonal beams cut through everything, rock too.",
+		Board.Special.PULSAR: "4 in a row made a Pulsar! Swap with it: it fires twin beams both ways along the way it moves.",
+		Board.Special.NOVA: "An L or T made a Nova! Swap with it and it blows up everything around it.",
+		Board.Special.BLACKHOLE: "5 in a row made a Black hole! Swap with it and it swallows the most common colour.",
+		Board.Special.DRONE: "A square made a Scout drone! Swap with it: it flies to whatever helps you most.",
 	}
 	for i in Board.W * Board.H:
 		if board.token[i] != Board.Token.CHARGE:
@@ -866,10 +867,20 @@ func _on_fx(kind: String, d: Dictionary) -> void:
 			fxl.sparks(d.pos, Color("bff6ff"), 4 + int(d.n), 300.0, 14.0)
 		"debris":
 			fxl.burst(d.pos, d.color, 7, 380.0)
+		"callout":
+			# a power-up chain ("CHAIN x3") or a combo's name ("SUPERNOVA!"), over the board
+			var r2 := view.get_global_rect()
+			var at2 := Vector2(r2.get_center().x, r2.position.y + r2.size.y * 0.36)
+			var big: bool = d.get("big", false)
+			var ccol := Color("ffe27a") if not String(d.text).begins_with("CHAIN") else Color("7fe8ff")
+			fxl.callout(at2, d.text, ccol, 150 if big else 112)
+			fxl.sparks(at2, ccol, 24 if big else 14, 800.0, 30.0)
+			if big:
+				fxl.confetti(at2, 90)
 		"chain":
 			# a cascade climbing: the bigger the chain, the bigger the word
 			var tiers := {3: ["Nice!", Color("7fe8ff"), 96], 5: ["Stellar!", Color("ffe27a"), 112],
-					7: ["Cosmic!", Color("ff8ef0"), 128], 9: ["Supernova!", Color("ffb347"), 144]}
+					7: ["Cosmic!", Color("ff8ef0"), 128], 9: ["Galactic!", Color("ffb347"), 144]}
 			var tier: Array = tiers.get(int(d.n), [])
 			if not tier.is_empty():
 				var r := view.get_global_rect()

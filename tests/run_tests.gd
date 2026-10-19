@@ -306,38 +306,77 @@ func _test_campaign_shape() -> void:
 	_ok(hard_seen >= 4, "chapters 2 and 3 each have a hard and a super-hard dig")
 
 
-## Moved specials (Board.Special) with a crystal next to them: the ones that take what they hit
-## collect it (it counts toward the goal), the Geode leaves it alone (it only recolours gems).
+## Power-ups (Powers.gd): what shape makes which, what each reaches, chains and path combos.
 func _test_moved_specials() -> void:
 	var S := Board.Special
+	var b0 := _board(OPEN, DIAG)
+	var row := func(n): return range(n).map(func(x): return Board.idx(Vector2i(x, 1)))
+	_ok(Powers.by_shape(row.call(3)) == -1 and Powers.by_shape(row.call(4)) == S.PULSAR
+			and Powers.by_shape(row.call(5)) == S.BLACKHOLE, "a line: 3 nothing, 4 a Pulsar, 5 a Black hole")
+	var ell := [Board.idx(Vector2i(0, 0)), Board.idx(Vector2i(1, 0)), Board.idx(Vector2i(2, 0)),
+			Board.idx(Vector2i(0, 1)), Board.idx(Vector2i(0, 2))]
+	var square := [Board.idx(Vector2i(2, 2)), Board.idx(Vector2i(3, 2)), Board.idx(Vector2i(2, 3)), Board.idx(Vector2i(3, 3))]
+	_ok(Powers.by_shape(ell) == S.NOVA and Powers.by_shape(square) == S.DRONE, "an L makes a Nova, a 2x2 square a Scout drone")
+	var sq := _board(OPEN, _with(DIAG, {Vector2i(2, 2): "F", Vector2i(3, 2): "F", Vector2i(2, 3): "F", Vector2i(3, 3): "F"}))
+	_ok(sq.has_line() and sq.find_groups().any(func(g): return square.all(func(q): return g.cells.has(q))),
+			"a 2x2 square of one colour matches")
+	# a Pulsar fires both ways along the axis it was pushed
 	var at := Board.idx(Vector2i(3, 4))
-	var crystal := Board.idx(Vector2i(4, 5))  # diagonal: in the Geode's 8 and the Prism's rays
-	for kind in [S.GEODE, S.PRISM]:
-		var b := _board(OPEN, _with(DIAG, {Vector2i(3, 6): "R"}))
-		b.token[at] = Board.Token.CHARGE
-		b.spec[at] = kind
-		b.ore[at] = 1
-		b.token[crystal] = Board.Token.CRYSTAL
-		var steps := []
-		b._special(at, Vector2i(0, -1), steps)
-		if kind == S.GEODE:
-			_ok(b.token[crystal] == Board.Token.CRYSTAL and b.stats.crystals == 0, "Geode: a crystal next to it is left alone")
-			var turned := 0
-			for d in [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1)]:
-				var c := Board.idx(Vector2i(3, 4) + d)
-				if b.token[c] == Board.Token.ORE and b.ore[c] == 1:
-					turned += 1
-			_ok(turned == 7 and b.token[at] == Board.Token.ORE and b.ore[at] == 1, "Geode: the gems around it take its colour, and it becomes one")
-		else:
-			_ok(b.stats.crystals == 1 and b.haul[Board.RES_CRYSTAL] == 1, "Prism: a crystal on a beam is collected and counts")
-	var b2 := _board(OPEN, _with(DIAG, {Vector2i(3, 7): "R"}))
-	b2.token[at] = Board.Token.CHARGE
-	b2.spec[at] = S.DRILL
-	b2.token[Board.idx(Vector2i(3, 1))] = Board.Token.CRYSTAL
-	b2._special(at, Vector2i(0, -1), [])
-	_ok(b2.stats.crystals == 1, "Drill: a crystal in its path is collected")
-	_ok(b2._special_for([0, 1, 2, 3]) == S.DRILL and b2._special_for([0, 1, 2, 3, 4]) == S.PRISM
-			and b2._special_for([0, 1, 2, 7, 14]) == S.QUAKE, "a special by shape: 4 in a row, 5 in a row, an L")
+	var b := _board(OPEN, DIAG)
+	b.token[at] = Board.Token.CHARGE
+	b.spec[at] = S.PULSAR
+	b.token[Board.idx(Vector2i(3, 0))] = Board.Token.CRYSTAL
+	b.token[Board.idx(Vector2i(3, 7))] = Board.Token.CRYSTAL
+	Powers.fire(b, at, Vector2i(0, -1), [])
+	_ok(b.stats.crystals == 2, "Pulsar: twin beams take what is on both sides")
+	# chains: a Pulsar's beam along a row sets off another Pulsar, which fires down its column
+	var c := _board(OPEN, DIAG)
+	var other := Board.idx(Vector2i(6, 4))
+	c.token[at] = Board.Token.CHARGE
+	c.spec[at] = S.PULSAR
+	c.token[other] = Board.Token.CHARGE
+	c.spec[other] = S.PULSAR
+	c.token[Board.idx(Vector2i(6, 0))] = Board.Token.CRYSTAL
+	Powers.fire(c, at, Vector2i(1, 0), [])
+	_ok(c.token[other] == Board.Token.NONE and c.stats.crystals == 1 and c.stats.blasts == 2,
+			"chain: a power-up a beam reaches goes off too, a Pulsar across the line that hit it")
+	# a Black hole swallows the most common colour
+	var h := _board(OPEN, DIAG, {"gravity": true})
+	h.token[at] = Board.Token.CHARGE
+	h.spec[at] = S.BLACKHOLE
+	var top: int = Powers._common_colours(h, 1)[0]
+	Powers.fire(h, at, Vector2i(0, -1), [])
+	var left := 0
+	for i in Board.W * Board.H:
+		if h.token[i] == Board.Token.ORE and h.ore[i] == top:
+			left += 1
+	_ok(left == 0 and h.stats.chunks > 10, "Black hole: every gem of the most common colour is taken")
+	# a Scout drone flies to what the goal needs, not to the nearest gem
+	var rows := _with(OPEN, {Vector2i(6, 7): "1c"})
+	var d := _board(rows, DIAG)
+	d.goals = [{"type": "crystal", "n": 1}]
+	d.token[at] = Board.Token.CHARGE
+	d.spec[at] = S.DRONE
+	var rock := Board.idx(Vector2i(6, 7))
+	Powers.fire(d, at, Vector2i(0, -1), [])
+	_ok(d.terrain[rock] == Board.Terrain.GROUND, "Scout drone: it breaks the rock hiding the crystal the goal asks for")
+	# a path that drags two Pulsars merges them: row + column through the last one
+	var m := _board(OPEN, DIAG, {"path_max": 4})
+	m.robot = Board.idx(Vector2i(1, 4))
+	m.token[m.robot] = Board.Token.NONE
+	for x in [2, 3]:
+		var i := Board.idx(Vector2i(x, 4))
+		m.token[i] = Board.Token.CHARGE
+		m.spec[i] = S.PULSAR
+	m.token[Board.idx(Vector2i(2, 0))] = Board.Token.CRYSTAL
+	m.token[Board.idx(Vector2i(6, 4))] = Board.Token.CRYSTAL
+	m.record = true
+	var r := m.try_path([Vector2i(1, 0), Vector2i(1, 0)])
+	var merged: Array = r.steps.filter(func(st): return st.type == "merge")
+	_ok(merged.size() == 1 and merged[0].name == "CROSS" and m.stats.crystals == 2,
+			"path combo: two Pulsars merge into a cross, row and column")
+	_ok(Powers.combo_name([S.PULSAR, S.NOVA, S.DRONE, S.BLACKHOLE]) == "BIG BANG"
+			and Powers.combo_name([S.NOVA, S.NOVA]) == "SUPERNOVA", "combo names: four is the Big Bang")
 
 
 func _test_charge_and_blast() -> void:
@@ -507,9 +546,8 @@ func _test_bot_smoke() -> void:
 # its last move; if a layout edit breaks one, this fails before a player meets it. A string
 # is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": ["U", "U", "U"], "path": ["URR", "DRRD", "LUUR", "UUUU", "DDLL"],
-	"drill": ["UR", "ULLD", "LLU", "RUU", "DR"],
-	"battery": "DDDUUURUULLUL", "charge": "UDLDDUDU",
+	"first": ["URR", "DRDL", "DRU"], "drill": ["UR", "ULLD", "LLL", "RUU", "DRRD", "LUUL"],
+	"battery": ["DDLD", "RRUL", "LUUU", "DR", "LLUR", "URRD", "UULL"], "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
@@ -585,11 +623,8 @@ func _test_tutorial_sites() -> void:
 	var opening := {"charge": "U"}  # battery asks for any match by the rock
 	for id in opening:
 		_ok(String(TUTORIAL_SOLUTIONS[id]).begins_with(opening[id]), "%s: the solution starts with Mira's move" % id)
-	var bat := Board.new()
-	bat.record = false
-	var bi := Sites.index_of("battery")
-	bat.setup_site(Sites.get_site(bi), 0, Economy.rules(_campaign_levels(bi)))
-	_ok(bat.energy < String(TUTORIAL_SOLUTIONS.battery).length(), "battery: the route is longer than the budget without the cell")
+	var bat := _lesson_board(Sites.index_of("battery"))
+	# (with drawn paths the budget no longer forces the cell; the lesson is rebuilt in the journey)
 	for mv in _solution_moves(TUTORIAL_SOLUTIONS.battery):
 		bat.try_path(mv)
 	_ok(bat.complete and bat.stats.cells >= 1, "battery: the solution recharges from the buried cell")

@@ -23,76 +23,48 @@ extends RefCounted
 ##             "focus" cells pulse on the board. "guide" (cells from the robot on): a
 ##             hand draws that move, the board dims around it, and only it is accepted.
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
-##   "explains": specials its script teaches (["drill"]), so Mira's passing note is skipped
+##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
 const LIST := [
 	# --- Chapter 1 · Landing (docs/design/journey.md) -------------------------------------
-	# L1: the swipe. A tiny board, 3 colours; the hand shows one swipe up, a line forms and the
-	# gems that fall make two more (a cascade on the very first move). Paths are not open yet.
+	# L1: draw a path, and the first obstacle. Paths are the game, so the very first move is
+	# one: the hand draws three steps that make two lines, one right under the rocks, which
+	# crack (Royal Match also meets its first obstacle, the Box, on level 1).
 	{
-		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 13, "energy": 20,
-		"path_max": 1,
-		"goals": [{"type": "ore", "ore": 0, "n": 20}],
+		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 256, "energy": 20,
+		"goals": [{"type": "rock", "n": 14}],
 		"rows": [
+			"1 1 1 1 1 1 1",
+			". . . . . . .",
+			". . @ . . . .",
 			". . . . . . .",
 			". . . . . . .",
 			". . . . . . .",
 			". . . . . . .",
-			". . . @ . . .",
-			". . . . . . .",
-			". . . . . . .",
+			"1 1 1 1 1 1 1",
 		],
 		"ore": [
-			"F C L C F L C",
-			"C L F L C F L",
-			"L F C F L C F",
-			"C C L F C L F",
-			"L L F - F C C",
-			"F C L F L F L",
-			"C F C L C L F",
+			"- - - - - - -",
+			"F F C F L F L",
+			"C F - F C C L",
+			"L C C L C F F",
+			"F L C F F C L",
+			"C F L F C C L",
+			"F C F L F F C",
+			"- - - - - - -",
 		],
 		"script": [
-			{"say": "Hi, I'm Mira! You drive our mining robot. Swipe up: it swaps places with the gem above.",
-					"until": "match", "guide": [Vector2i(3, 4), Vector2i(3, 3)], "focus": [Vector2i(2, 4), Vector2i(4, 4)]},
-			{"say": "Gems fall into the gaps and can line up again. Collect 20 Ferrite!", "until": "move"},
+			{"say": "Hi, I'm Mira! Hold anywhere and draw: the robot swaps with every gem on its way, and the whole path is one move.",
+					"until": "match", "guide": [Vector2i(2, 2), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1)],
+					"focus": [Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 3), Vector2i(2, 4)]},
+			{"say": "A match right next to rock cracks it. Break all 14 rocks!", "until": "move"},
 		],
 	},
-	# L2: draw a path. Paths open; the hand draws three steps that make two lines at once.
+	# L2: the Pulsar. The hand lines up 4 in a row (a Pulsar), then swaps with it from above: it
+	# moves up and fires twin beams along the whole column.
 	{
-		"id": "path", "mode": "fall", "colours": 4, "guide": true, "seed": 7, "energy": 20,
-		"goals": [{"type": "ore", "ore": 1, "n": 30}, {"type": "ore", "ore": 3, "n": 30}],
-		"rows": [
-			". . . . . . . .",
-			". . . . . . . .",
-			". . . . . . . .",
-			". . . . . . . .",
-			". . . . . . . .",
-			". . . . . . . .",
-			". . @ . . . . .",
-			". . . . . . . .",
-		],
-		"ore": [
-			"L F F C L R L R",
-			"C F F C C R R C",
-			"C L L F C C R L",
-			"R L C C R R C F",
-			"F R C R R C R C",
-			"R C R C L C L C",
-			"R R - C L R C R",
-			"C R R L C F R C",
-		],
-		"script": [
-			{"say": "New move: hold anywhere and draw! The robot swaps with every gem on its way, and the whole path is one move.",
-					"until": "path", "guide": [Vector2i(2, 6), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5)],
-					"focus": [Vector2i(2, 3), Vector2i(2, 4), Vector2i(0, 6), Vector2i(1, 6)]},
-			{"say": "Two lines with one move! Long paths make big combos.", "until": "move"},
-		],
-	},
-	# L3: the Drill. The hand lines up 4 in a row (a Drill), then swaps with it from above: the
-	# Drill moves up and bores through the whole column.
-	{
-		"id": "drill", "mode": "fall", "colours": 4, "guide": true, "seed": 206, "energy": 20,
-		"explains": ["drill"],
+		"id": "drill", "mode": "fall", "colours": 4, "guide": true, "seed": 108, "energy": 20,
+		"explains": ["pulsar"],
 		"goals": [{"type": "ore", "ore": 2, "n": 30}],
 		"rows": [
 			". . . . . . . . .",
@@ -120,10 +92,31 @@ const LIST := [
 			{"say": "Line up 4 in a row and you get a power-up!", "until": "charge",
 					"guide": [Vector2i(4, 8), Vector2i(4, 7), Vector2i(5, 7)],
 					"focus": [Vector2i(2, 8), Vector2i(3, 8), Vector2i(5, 8)]},
-			{"say": "A Drill! Swap with it and it bores on the way it moves. Step onto it from above: it fires straight up.",
+			{"say": "A Pulsar! Swap with it and it fires twin beams along the way it moves. Step onto it from above: the whole column goes.",
 					"until": "blast", "guide": [Vector2i(5, 8), Vector2i(5, 7), Vector2i(4, 7), Vector2i(3, 7), Vector2i(3, 8)],
 					"focus": [Vector2i(3, 0), Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 5), Vector2i(3, 6)]},
-			{"say": "4 in a row makes a Drill. Collect 30 Lumen!", "until": "move"},
+			{"say": "4 in a row makes a Pulsar. Collect 30 Lumen!", "until": "move"},
+		],
+	},
+	# L3: practice, and the obstacle's first variant: thick rock takes two matches (Royal
+	# Match's boxes get layers the same way). Free play with a Pulsar now and then.
+	{
+		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
+		"goals": [{"type": "rock", "n": 9}],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"1 1 1 2 2 2 1 1 1",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+		],
+		"script": [
+			{"say": "Darker rock is thicker: it cracks on the first match and breaks on the second.", "until": "move",
+					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
 		],
 	},
 	{
@@ -733,10 +726,10 @@ static func get_site(i: int) -> Dictionary:
 ##   cores:    [cell]: energy cores to deliver; docks: [cell] where they are delivered
 const PROTOS := [
 	{"name": "Launch bay", "energy": 20, "collect": true,
-		"idea": "The vault is sealed. The launch pad throws power-ups into it: clear the gems under the Quake and let it drop onto the pad.",
+		"idea": "The vault is sealed. The launch pad throws power-ups into it: clear the gems under the Nova and let it drop onto the pad.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
 		"pads": [[Vector2i(4, 9), Vector2i(4, 1)]],
-		"specials": [[Vector2i(4, 7), "quake"]],
+		"specials": [[Vector2i(4, 7), "nova"]],
 		"rows": [
 			"# # 1 1 1 1 1 # #",
 			"# # 1c 1 . 1 1c # #",
@@ -770,7 +763,7 @@ const PROTOS := [
 		"idea": "A wall splits the board. End a path on a teleporter and the robot comes out of its twin; push a power-up onto one and it goes off at the twin.",
 		"goals": [{"type": "crystal", "n": 3}, {"type": "rock", "n": 9}],
 		"teleports": [[Vector2i(2, 7), Vector2i(6, 7)], [Vector2i(1, 2), Vector2i(7, 5)]],
-		"specials": [[Vector2i(2, 6), "drill"]],
+		"specials": [[Vector2i(2, 6), "pulsar"]],
 		"rows": [
 			". . . . # . . . .",
 			". . . . # . 1c . .",
@@ -784,12 +777,12 @@ const PROTOS := [
 			". . . . # . . . .",
 		]},
 	{"name": "Express belt", "energy": 20, "collect": true,
-		"idea": "The belt runs into the launch pad: a step after every move, one more for every gem you match on it. What leaves the end comes back at the start. Speed the Quake to the pad.",
+		"idea": "The belt runs into the launch pad: a step after every move, one more for every gem you match on it. What leaves the end comes back at the start. Speed the Nova to the pad.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
 		"pads": [[Vector2i(8, 9), Vector2i(4, 1)]],
 		"belts": [[Vector2i(0, 9), Vector2i(1, 9), Vector2i(2, 9), Vector2i(3, 9), Vector2i(4, 9), Vector2i(5, 9),
 			Vector2i(6, 9), Vector2i(7, 9), Vector2i(8, 9)]],
-		"specials": [[Vector2i(2, 9), "quake"]],
+		"specials": [[Vector2i(2, 9), "nova"]],
 		"rows": [
 			"# # 1 1 1 1 1 # #",
 			"# # 1c 1 . 1 1c # #",
@@ -803,11 +796,11 @@ const PROTOS := [
 			". . . . . . . . .",
 		]},
 	{"name": "Shelf belt", "energy": 30, "collect": true,
-		"idea": "A belt runs across the middle into a launch pad. Match under the Quake to drop it onto the belt, then speed it to the pad with matches on the belt.",
+		"idea": "A belt runs across the middle into a launch pad. Match under the Nova to drop it onto the belt, then speed it to the pad with matches on the belt.",
 		"goals": [{"type": "crystal", "n": 2}, {"type": "rock", "n": 10}],
 		"pads": [[Vector2i(5, 6), Vector2i(4, 1)]],
 		"belts": [[Vector2i(0, 6), Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(4, 6), Vector2i(5, 6)]],
-		"specials": [[Vector2i(2, 5), "quake"]],
+		"specials": [[Vector2i(2, 5), "nova"]],
 		"rows": [
 			"# # 1 1 1 1 1 # #",
 			"# # 1c 1 . 1 1c # #",
@@ -823,7 +816,7 @@ const PROTOS := [
 	{"name": "Big dig", "energy": 20, "collect": true,
 		"idea": "A big board, no tricks: dig down through the layers with long paths and big combos. The crystals wait at the bottom.",
 		"goals": [{"type": "rock", "n": 20}, {"type": "crystal", "n": 3}],
-		"specials": [[Vector2i(4, 2), "drill"]],
+		"specials": [[Vector2i(4, 2), "pulsar"]],
 		"rows": [
 			". . . . . . . . .",
 			". . . . @ . . . .",

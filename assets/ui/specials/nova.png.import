@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bsp5hq2pwlk8t"
-path="res://.godot/imported/drill.png-0d20aef50a3898062835608215e3fe6c.ctex"
+uid="uid://ccjsd3n61jqdc"
+path="res://.godot/imported/nova.png-1634fbb71ba09325367eda87affb5230.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/specials/drill.png"
-dest_files=["res://.godot/imported/drill.png-0d20aef50a3898062835608215e3fe6c.ctex"]
+source_file="res://assets/ui/specials/nova.png"
+dest_files=["res://.godot/imported/nova.png-1634fbb71ba09325367eda87affb5230.ctex"]
 
 [params]
 
