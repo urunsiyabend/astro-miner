@@ -351,6 +351,27 @@ func _test_moved_specials() -> void:
 		if h.token[i] == Board.Token.ORE and h.ore[i] == top:
 			left += 1
 	_ok(left == 0 and h.stats.chunks > 10, "Black hole: every gem of the most common colour is taken")
+	# brought in through a gem, it swallows that gem's colour instead
+	var hb := _board(OPEN, DIAG, {"gravity": true, "path_max": 4})
+	hb.robot = Board.idx(Vector2i(1, 4))
+	hb.token[hb.robot] = Board.Token.NONE
+	var bh := Board.idx(Vector2i(3, 4))
+	hb.token[bh] = Board.Token.CHARGE
+	hb.spec[bh] = S.BLACKHOLE
+	var via: int = hb.ore[Board.idx(Vector2i(2, 4))]  # the gem the path swaps just before it
+	var other_colour := (via + 1) % 3
+	var before_other := 0
+	for i in Board.W * Board.H:
+		if hb.token[i] == Board.Token.ORE and hb.ore[i] == other_colour:
+			before_other += 1
+	var pv := hb.preview_path([Vector2i(1, 0), Vector2i(1, 0)])
+	hb.try_path([Vector2i(1, 0), Vector2i(1, 0)])
+	var still := 0
+	for i in Board.W * Board.H:
+		if hb.token[i] == Board.Token.ORE and hb.ore[i] == other_colour:
+			still += 1
+	_ok(pv.specials.values()[0][2] == via and hb.extracted[via] >= 8 and still > 0,
+			"Black hole: drawn in through a gem, it swallows that gem's colour (and the preview says so)")
 	# a Scout drone flies to what the goal needs, not to the nearest gem
 	var rows := _with(OPEN, {Vector2i(6, 7): "1c"})
 	var d := _board(rows, DIAG)
@@ -546,7 +567,7 @@ func _test_bot_smoke() -> void:
 # its last move; if a layout edit breaks one, this fails before a player meets it. A string
 # is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": ["URR", "DRDL", "DRU"], "drill": ["UR", "ULLD", "LLL", "RUU", "DRRD", "LUUL"],
+	"first": ["URR", "DRDL", "DRU"],
 	"battery": ["DDLD", "RRUL", "LUUU", "DR", "LLUR", "URRD", "UULL"], "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",

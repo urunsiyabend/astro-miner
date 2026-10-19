@@ -8,7 +8,9 @@ extends RefCounted
 ##   Pulsar     4 in a row: twin beams both ways along the axis it was pushed, through rock
 ##              (a layer each)
 ##   Nova       an L or T: a 5x5 blast
-##   Black hole 5 in a row: swallows every gem of the most common colour
+##   Black hole 5 in a row: swallows every gem of the colour of the gem the robot swapped just
+##              before it (Royal Match's Light Ball takes the colour it is swapped with); with
+##              none (the path's first step, a chain, a pad), the most common colour
 ##   Scout drone a 2x2 square: hits its 4 neighbours, then flies to the most useful cell
 ## A power-up that another's effect reaches goes off too, one link after the other; a chained
 ## Pulsar fires across the line that hit it, so a chain never wastes it on a cleared line.
@@ -55,8 +57,19 @@ static func _run(set: Dictionary, p: Vector2i, d: Vector2i) -> int:
 
 ## The power-up on cell c goes off, pushed along `axis` (a DIRS vector), and everything it sets
 ## off after it: a queue of [cell, axis], drained in order (each one a step: link 1, 2, ...).
-static func fire(b: Board, c: int, axis: Vector2i, steps: Array) -> void:
-	_drain(b, [[c, axis]], steps)
+static func fire(b: Board, c: int, axis: Vector2i, steps: Array, colour := -1) -> void:
+	_drain(b, [[c, axis, colour]], steps)
+
+
+## The colour a Black hole swallows: the one it was brought in with, else the most common
+## (-1 for any other power-up, or a board with no gems).
+static func swallow_colour(b: Board, kind: int, colour: int) -> int:
+	if kind != S.BLACKHOLE:
+		return -1
+	if colour >= 0:
+		return colour
+	var top := _common_colours(b, 1)
+	return top[0] if not top.is_empty() else -1
 
 
 static func _drain(b: Board, queue: Array, steps: Array, link := 0) -> void:
@@ -77,7 +90,7 @@ static func _drain(b: Board, queue: Array, steps: Array, link := 0) -> void:
 		var step := _new_step(b, kind, c, job[1], link)
 		b.token[c] = Board.Token.NONE
 		b.stats.blasts += 1
-		effect(b, kind, c, job[1], step, queue, queued)
+		effect(b, kind, c, job[1], step, queue, queued, int(job[2]) if job.size() > 2 else -1)
 		b._push(steps, step)
 
 
@@ -89,7 +102,7 @@ static func _new_step(b: Board, kind: int, c: int, axis: Vector2i, link: int) ->
 
 ## What `kind` does at cell c (its token is already gone): every cell it reaches is hit, and a
 ## power-up it reaches is queued to go off next.
-static func effect(b: Board, kind: int, c: int, axis: Vector2i, step: Dictionary, queue: Array, queued: Dictionary) -> void:
+static func effect(b: Board, kind: int, c: int, axis: Vector2i, step: Dictionary, queue: Array, queued: Dictionary, colour := -1) -> void:
 	var seen := {}  # one power-up hits a multi-cell obstacle once
 	match kind:
 		S.PULSAR:
@@ -97,7 +110,9 @@ static func effect(b: Board, kind: int, c: int, axis: Vector2i, step: Dictionary
 		S.NOVA:
 			_area(b, c, 2, step, seen, queue, queued)
 		S.BLACKHOLE:
-			for k in _common_colours(b, 1):
+			var k := swallow_colour(b, kind, colour)
+			step.colour = k
+			if k >= 0:
 				_swallow(b, c, k, step, seen, queue, queued)
 		S.DRONE:
 			_drone(b, c, -1, step, seen, queue, queued)
@@ -352,7 +367,7 @@ static func _sorted(kinds: Array) -> Array:
 ## Two or more power-ups dragged on one path merge into the last one (at) and go off as one,
 ## pushed along `axis`. Two: Royal Match's combo table in our pieces; each extra one raises it
 ## a tier ("doubled"); four: the Big Bang. Then whatever they set off chains on.
-static func combo(b: Board, at: int, axis: Vector2i, kinds: Array, steps: Array) -> void:
+static func combo(b: Board, at: int, axis: Vector2i, kinds: Array, steps: Array, colour := -1) -> void:
 	var k := _sorted(kinds)
 	var tier := mini(k.size() - 1, 3)  # 1 pair, 2 three, 3 four
 	var a: int = k[0]
@@ -372,7 +387,10 @@ static func combo(b: Board, at: int, axis: Vector2i, kinds: Array, steps: Array)
 	elif a == S.BLACKHOLE:
 		# a colour (two, for three power-ups) turns into copies of the other one, and they all go off
 		var flip := false
-		for col in _common_colours(b, tier):
+		var cols := _common_colours(b, tier)
+		if colour >= 0:  # the colour it was brought in with leads, the most common follows
+			cols = ([colour] + _common_colours(b, tier + 1).filter(func(k): return k != colour)).slice(0, tier)
+		for col in cols:
 			for i in Board.W * Board.H:
 				if b.terrain[i] == Board.Terrain.GROUND and b.token[i] == Board.Token.ORE and b.ore[i] == col \
 						and not b.obs.locked(i) and i != b.robot:

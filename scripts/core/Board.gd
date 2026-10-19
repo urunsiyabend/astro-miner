@@ -441,7 +441,8 @@ func try_path(dirs: Array) -> Dictionary:
 ##   twin      the teleporter the robot will come out of, or -1
 ##   groups    [{cells, ore, special (-1: none), at}]: the lines that will match, and the
 ##             special each leaves and where
-##   specials  dragged special's cell -> [cell it goes off at, the way it fires]
+##   specials  dragged special's cell -> [cell it goes off at, the way it fires, the colour a
+##             Black hole will swallow (-1 for other power-ups)]
 ##   combo     {} or, when it dragged two or more: {at, from, kinds, name} (Powers.combo)
 func preview_path(dirs: Array) -> Dictionary:
 	var cells := path_cells(dirs)
@@ -454,11 +455,11 @@ func preview_path(dirs: Array) -> Dictionary:
 	var combo := {}
 	if moved.size() >= 2:
 		var kinds: Array = moved.map(func(m): return b.spec[m[0]])
-		combo = {"at": moved[-1][0], "from": moved.map(func(m): return m[0]), "kinds": kinds,
+		combo = {"at": moved[-1][0], "from": moved.map(func(m): return m[0]), "kinds": kinds, "colour": _combo_colour(moved),
 				"name": Powers.combo_name(kinds)}
 	else:
 		for m in moved:
-			specials[m[0]] = b.special_aim(m[0], m[1])
+			specials[m[0]] = b.special_aim(m[0], m[1]) + [Powers.swallow_colour(b, b.spec[m[0]], m[2])]
 	var end := b.robot
 	var tp := b._teleport_robot([])
 	var pivot: int = tp if tp >= 0 else w.pivot
@@ -497,12 +498,12 @@ func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
 			token[m[0]] = Token.NONE
 		_push(out.steps, {"type": "merge", "from": moved.map(func(m): return m[0]), "to": at, "kinds": kinds,
 				"name": Powers.combo_name(kinds)})
-		Powers.combo(self, at, moved[-1][1], kinds, out.steps)
+		Powers.combo(self, at, moved[-1][1], kinds, out.steps, _combo_colour(moved))
 	for m in moved if moved.size() == 1 else []:
 		if cfg.teleports.has(m[0]):
 			pushed[m[0]] = m[1]  # it travels first (_launch), still heading this way
 		elif not cfg.pads.has(m[0]):
-			Powers.fire(self, m[0], m[1], out.steps)
+			Powers.fire(self, m[0], m[1], out.steps, m[2])
 	var tp := _teleport_robot(out.steps)
 	_resolve(out.steps, tp if tp >= 0 else w.pivot)
 	_turn_end(out.steps)
@@ -512,15 +513,18 @@ func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
 
 ## The robot walks `cells`, swapping with each gem it meets (pickups are collected, a blast
 ## charge is stepped on), with no matching on the way. A special it drags is pushed back into
-## the cell the robot just left. Returns {moved: [[cell, way pushed]] the dragged specials
-## where they ended up, in order; charges: blast charges stepped on; pivot: the cell the last
-## swapped gem landed on (where a line it makes leaves its special)}.
+## the cell the robot just left. Returns {moved: [[cell, way pushed, colour]] the dragged
+## specials where they ended up, in order, with the colour of the gem the robot swapped just
+## before it (-1: none; a Black hole swallows that colour); charges: blast charges stepped on;
+## pivot: the cell the last swapped gem landed on (where a line it makes leaves its special)}.
 func _walk(dirs: Array, cells: Array, steps: Array, live: bool) -> Dictionary:
 	var moved := []
 	var charges := []
 	var pivot := -1
+	var came := -1  # the colour of the gem the robot swapped on its last step, or -1
 	for k in cells.size():
 		var fi := robot
+		var gem := -1
 		var ti: int = cells[k]
 		var d: Vector2i = dirs[k]
 		var step := {"type": "move", "from": fi, "to": ti, "swap": false, "pickup": Token.NONE}
@@ -537,6 +541,7 @@ func _walk(dirs: Array, cells: Array, steps: Array, live: bool) -> Dictionary:
 				token[ti] = Token.NONE
 				step.swap = true
 				pivot = fi
+				gem = ore[fi]
 			Token.CORE:
 				token[fi] = Token.CORE
 				token[ti] = Token.NONE
@@ -567,10 +572,19 @@ func _walk(dirs: Array, cells: Array, steps: Array, live: bool) -> Dictionary:
 						if m[0] == ti:
 							moved.erase(m)  # dragged again: it goes off where it ends up
 							break
-					moved.append([fi, -d])
+					moved.append([fi, -d, came])
+		came = gem
 		robot = ti
 		_push(steps, step)
 	return {"moved": moved, "charges": charges, "pivot": pivot}
+
+
+## The colour a combo's Black hole works on: the gem the robot swapped just before it, or -1.
+func _combo_colour(moved: Array) -> int:
+	for m in moved:
+		if spec[m[0]] == Special.BLACKHOLE and int(m[2]) >= 0:
+			return m[2]
+	return -1
 
 
 ## Where a special that came to rest on cell c, pushed along d, goes off, and the way it fires:

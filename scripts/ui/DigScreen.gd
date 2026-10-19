@@ -373,6 +373,8 @@ func _show_mission(goals: Array) -> void:
 		tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tip.custom_minimum_size.x = 620
 		v.add_child(tip)
+	elif psite.has("tip") and not supply:
+		v.add_child(_tip_row(psite.tip))
 	if not supply and not rush and not psite.get("proto", false):
 		# what clearing it pays (plus a Coin per move left)
 		var tag := Widgets.CoinTag.new(Economy.clear_coin(site_index), 0.5 + goals.size() * 0.12)
@@ -390,6 +392,30 @@ func _show_mission(goals: Array) -> void:
 	_mission.gui_input.connect(func(e: InputEvent):
 		if (e is InputEventScreenTouch and e.pressed) or (e is InputEventMouseButton and e.pressed):
 			_close_mission())
+
+
+## A level's tip on its goal card ("tip": [power-up ids..., text]): the pieces it is about,
+## then one line, e.g. a Pulsar and a Nova, "draw through both: they merge into a Flare".
+## Power-ups are taught this way and by Mira's note the first time one is made, never by a
+## level of their own.
+func _tip_row(tip: Array) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 10)
+	for k in tip.size() - 1:
+		var pic := TextureRect.new()
+		pic.texture = Art.tex("res://assets/ui/specials/%s.png" % tip[k])
+		pic.custom_minimum_size = Vector2(124, 124)
+		pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(pic)
+		if k < tip.size() - 2:
+			row.add_child(Ui.label("+", Pal.FS_SMALL, Color("ffe27a")))
+	var text := Ui.label(String(tip[-1]), Pal.FS_SMALL, Color("f3e9ff"))
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size.x = 440
+	row.add_child(text)
+	return row
 
 
 func _close_mission(force := false) -> void:
