@@ -102,8 +102,11 @@ jobs:
           if grep -q "SCRIPT ERROR" test.log; then echo "script errors during tests"; exit 1; fi
           exit $status
 
-      - name: Balance simulation (smoke)
-        run: godot --headless --path . -s res://tools/simulate.gd -- 6 | tail -5
+      # The drawn-path preview must match the move it previews (bot games on every lesson,
+      # campaign dig and prototype; exits 1 on a mismatch). ~1 min. The old balance simulation
+      # (tools/simulate.gd: one-step bots, ~7 min, never failed) is run by hand when tuning.
+      - name: Preview check
+        run: godot --headless --path . -s res://tools/preview_check.gd -- 2
 
       - name: Set version
         id: ver
