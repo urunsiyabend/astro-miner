@@ -33,6 +33,11 @@ var pitch := 130.0          # distance between rows (cell + visible band with th
 var origin := Vector2.ZERO
 var hint_dir := -1
 var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
+## A guided move (a lesson): the cells it goes through, the robot's first. A hand draws it over
+## and over, the rest of the board dims, and a path can only follow it. [] when free play.
+var guide: Array = []
+var _guide_t := 0.0
+const HAND_TIP := Vector2(0.22, 0.0)  # the fingertip in hand.png, as a share of its size
 ## Gems of a match within reach, shown after the player has been idle a while: they hop one
 ## after another with a halo and sparkles (set with set_glow, cleared on the next move).
 var glow: Array = []
@@ -42,7 +47,8 @@ var armed := -1   # Economy.Booster waiting for its target, or -1
 var classic := false  # the classic prototype: no robot, a swipe on a gem swaps it
 ## Drawn paths: hold the robot and draw up to path_max steps. While the finger is down the
 ## board shows the swaps live (a preview snap); lifting it sends the path as one move.
-var path_max := 1
+var path_max := 1     # steps a drawn path may take on this dig (a lesson may hold it to 1)
+var drag_input := false  # moves are drawn from anywhere (Settings: Path on); else a swipe on the board
 var board: Board  # the dig's board, read only: asked where a path may go and what it will do
 var pads := {}       # launch pad cell -> target cell
 var belts: Array = []  # conveyor loops of cells
@@ -669,6 +675,7 @@ func _process(delta: float) -> void:
 			_pip_pop = -1.0
 	_path_deny = maxf(0.0, _path_deny - delta / 0.3)
 	_tele_arm = maxf(0.0, _tele_arm - delta / 0.35)
+	_guide_t += delta
 	var belting: bool = not _cur.is_empty() and _cur.type == "belt"
 	_belt_run = move_toward(_belt_run, 1.0 if belting else 0.0, delta / (0.06 if belting else 0.3))
 	_belt_phase = fmod(_belt_phase + delta * 3.4 * _belt_run, 1.0)
@@ -743,7 +750,7 @@ func _gui_input(event: InputEvent) -> void:
 	if classic:
 		_classic_input(event)
 		return
-	if path_max > 1:
+	if drag_input:
 		accept_event()  # drawn paths: DigScreen takes the drag from anywhere (begin_drag)
 		return
 	if event is InputEventScreenTouch:
@@ -795,7 +802,7 @@ var _path_drill := false  # the path is a single bump into rock (the Drill)
 
 
 func begin_drag(screen_pos: Vector2) -> bool:
-	if path_max <= 1 or snap.is_empty() or snap.robot < 0 or not input_enabled or is_busy() or armed >= 0:
+	if not drag_input or snap.is_empty() or snap.robot < 0 or not input_enabled or is_busy() or armed >= 0:
 		return false
 	_drawing = true
 	_drag_start = screen_pos
@@ -910,6 +917,8 @@ func _path_step(step: Vector2i) -> bool:
 			_path_deny = 1.0
 			Sfx.play("bump", 1.3)
 		return false
+	if not guide.is_empty() and (_path_cells.size() >= guide.size() or guide[_path_cells.size()] != ni):
+		return false  # a lesson: the path follows the hand
 	if board.path_cells(_path_dirs + [step]).is_empty():
 		return false  # the Board says no: a wall, rock, an obstacle, a caged gem
 	_path_cells.append(ni)
@@ -1322,6 +1331,7 @@ func _draw() -> void:
 	_draw_robot(rp, rsc)
 	_draw_booster_fx()
 	_draw_overlays(glowing)
+	_draw_guide()
 	draw_set_transform(Vector2.ZERO)
 
 
@@ -1777,6 +1787,71 @@ func _draw_overlays(glowing: bool) -> void:
 		var col: Color = r.color
 		col.a = 1.0 - k
 		draw_arc(r.c, lerpf(r.r0, r.r1, _ease(k)), 0, TAU, 48, col, 8.0 * (1.0 - k) + 2.0, true)
+
+
+## A guided move: the board dims except the cells the lesson is about, and a hand presses on
+## the robot and draws the move, again and again, until the player does it.
+func _draw_guide() -> void:
+	if guide.is_empty() or _drawing or is_busy():
+		_guide_t = 0.0
+		return
+	var lit := {}
+	for c in guide:
+		lit[c] = true
+	for f in focus:
+		lit[Board.idx(f)] = true
+	var dim := clampf(_guide_t / 0.4, 0.0, 1.0) * 0.5
+	for i in Board.W * Board.H:
+		if not lit.has(i) and snap.terrain[i] != T.BEDROCK:
+			draw_rect(Rect2(cell_origin(Board.pos(i)), Vector2(cell, pitch)), Color(0.04, 0.0, 0.1, dim))
+	# one loop: appear, press, draw the move cell by cell, hold at the end, lift, rest
+	var steps := guide.size() - 1
+	var press := 0.45
+	var per := 0.6  # s per cell
+	var move := per * steps
+	var hold := 0.35
+	var lift := 0.35
+	var loop := 0.4 + press + move + hold + lift
+	var t := fmod(_guide_t, loop) - 0.4
+	if t < 0.0:
+		return
+	var at := cell_center(guide[0])
+	var down := 1.0
+	var alpha := 1.0
+	if t < press:
+		down = 1.0 - 0.15 * sin(PI * 0.5 * t / press)  # the finger presses on the robot
+		alpha = clampf(t / 0.12, 0.0, 1.0)
+	elif t < press + move:
+		var f := (t - press) / per
+		var k := int(f)
+		at = cell_center(guide[k]).lerp(cell_center(guide[mini(k + 1, steps)]), _ease(f - k))
+		down = 0.85
+	elif t < press + move + hold:
+		at = cell_center(guide[steps])
+		down = 0.85
+	else:
+		at = cell_center(guide[steps])
+		var e := (t - press - move - hold) / lift
+		down = 0.85 + 0.15 * e
+		alpha = 1.0 - e
+	# the trail it leaves: the move the player is to copy
+	if t > press:
+		var pts := PackedVector2Array([cell_center(guide[0])])
+		var reached := clampf((t - press) / per, 0.0, float(steps))
+		for k in int(reached):
+			pts.append(cell_center(guide[k + 1]))
+		if reached < steps:
+			pts.append(at)
+		if pts.size() >= 2:
+			draw_polyline(pts, Color(1, 1, 1, 0.55 * alpha), cell * 0.16, true)
+			draw_polyline(pts, Color(Pal.ACCENT, 0.9 * alpha), cell * 0.07, true)
+	var tex := Art.tex("res://assets/ui/tutorial/hand.png")
+	if tex == null:
+		draw_circle(at, cell * 0.2, Color(1, 1, 1, 0.8 * alpha))
+		return
+	var hs := Vector2(tex.get_width(), tex.get_height()) * (cell * 1.45 / tex.get_height()) * down
+	draw_circle(at, cell * 0.16 * (2.0 - down), Color(1, 1, 1, 0.35 * alpha))
+	draw_texture_rect(tex, Rect2(at - hs * HAND_TIP + Vector2(0, cell * 0.05), hs), false, Color(1, 1, 1, alpha))
 
 
 ## A portal: a magenta mouth under its source cell, a cyan one over its destination, both

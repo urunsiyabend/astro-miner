@@ -197,7 +197,7 @@ func continue_with(n: int) -> bool:
 	return true
 
 
-## layout: optional rows of hand-placed tokens (F C L ore, c crystal, e energy cell,
+## layout: optional rows of hand-placed tokens (F C L R ore, c crystal, e energy cell,
 ## b blast charge, - nothing) that replace the seeded fill.
 func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Array = [], layout: Array = []) -> void:
 	for k in rules:
@@ -293,6 +293,7 @@ func _place_layout(layout: Array) -> void:
 				"F": token[i] = Token.ORE; ore[i] = 0
 				"C": token[i] = Token.ORE; ore[i] = 1
 				"L": token[i] = Token.ORE; ore[i] = 2
+				"R": token[i] = Token.ORE; ore[i] = 3
 				"c": token[i] = Token.CRYSTAL
 				"e": token[i] = Token.CELL
 				"b": token[i] = Token.CHARGE

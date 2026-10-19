@@ -206,7 +206,8 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	var site := Sites.get_site(index)
 	var rules := Game.rules()
 	if String(site.get("mode", "robot")) == "fall":
-		rules.path_max = Game.path_max  # drawn paths (Settings): falling-gem digs only
+		# drawn paths (Settings): falling-gem digs only; a lesson may hold them back
+		rules.path_max = mini(Game.path_max, int(site.get("path_max", Game.path_max)))
 	board = Board.new()
 	var s := seed_value if seed_value >= 0 else randi()
 	if supply:
@@ -233,6 +234,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	view.gravity = board.cfg.gravity
 	view.board = board
 	view.path_max = board.cfg.path_max
+	view.drag_input = Game.path_max > 1 and board.cfg.gravity and not board.cfg.classic
 	view.pads = board.cfg.pads
 	view.belts = board.cfg.belts
 	view.teleports = board.cfg.teleports
@@ -270,6 +272,7 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 	view.drill = rules.drill
 	view.hint_dir = -1
 	view.focus = []
+	view.guide = []
 	view.input_enabled = true
 	view.armed = -1
 	view.show_snap(board.snapshot())
@@ -306,6 +309,9 @@ func start(index: int, is_supply := false, seed_value := -1) -> void:
 			if not seen:
 				_script.append(st)
 	Game.tips_seen[site.id] = true
+	# a lesson that teaches a special itself: no passing note about it on top
+	for kind in site.get("explains", []):
+		Game.tips_seen["first_special_%d" % Board.SPECIAL_IDS[kind]] = true
 	Game.save()
 	_step = 0
 	_refresh_reach()
@@ -414,11 +420,13 @@ func _run_script() -> void:
 		return
 	if _step >= _script.size():
 		view.focus = []
+		view.guide = []
 		_waiting = ""
 		_coach.clear()
 		return
 	var st: Dictionary = _script[_step]
 	view.focus = st.get("focus", [])
+	view.guide = _guide_cells(st)
 	if st.has("until"):
 		_waiting = st.until
 		_coach.say(st.say)
@@ -431,11 +439,30 @@ func _run_script() -> void:
 		_run_script())
 
 
+## A lesson's guided move ("guide": the cells from the robot on): its cells as board indices,
+## [] when the line has none. Only that move is accepted while it is shown.
+func _guide_cells(st: Dictionary) -> Array:
+	return st.get("guide", []).map(func(c): return Board.idx(c))
+
+
+## Does a move (its directions) follow the guided move, if one is shown?
+func _guide_ok(dirs: Array) -> bool:
+	if view.guide.is_empty():
+		return true
+	if dirs.size() != view.guide.size() - 1:
+		return false
+	for k in dirs.size():
+		if Board.pos(view.guide[k + 1]) - Board.pos(view.guide[k]) != dirs[k]:
+			return false
+	return true
+
+
 ## Which script events a turn produced, from the board's counters before and after it.
 func _turn_events(before: Dictionary) -> Dictionary:
 	var s := board.stats
 	var e := {"move": true}
 	if s.groups > before.groups: e["match"] = true
+	if s.paths > before.paths: e["path"] = true
 	if s.charges_made > before.charges_made: e["charge"] = true
 	if s.blasts > before.blasts: e["blast"] = true
 	if s.rocks_broken > before.rocks_broken: e["reveal"] = true
@@ -468,7 +495,7 @@ func _process(delta: float) -> void:
 		view.hint_dir = -1
 		if not view.glow.is_empty():
 			view.set_glow([])
-	elif board and not board.over and not view.is_busy() and not _busy_talking():
+	elif board and not board.over and not view.is_busy() and not _busy_talking() and view.guide.is_empty():
 		_idle += delta
 		if _auto_hint and _idle > AUTO_HINT_IDLE and view.hint_dir == -1 and not _reach.is_empty():
 			view.hint_dir = _reach[0]
@@ -530,6 +557,9 @@ func _on_move(dir: Vector2i) -> void:
 		return
 	if view.is_busy():
 		return  # a swipe made while the board is still moving is dropped, never queued
+	if not _guide_ok([dir]):
+		view.bump(dir)  # a lesson: only the move the hand shows
+		return
 	_do_move(dir)
 
 
@@ -537,6 +567,10 @@ func _on_move(dir: Vector2i) -> void:
 func _on_path(dirs: Array) -> void:
 	if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or view.is_busy():
 		view.cancel_path()
+		return
+	if not _guide_ok(dirs):
+		view.cancel_path()  # a lesson: only the move the hand shows (it shows it again)
+		Sfx.play("bump", 1.2)
 		return
 	_idle = 0.0
 	view.new_turn()
@@ -623,6 +657,7 @@ func _on_settled() -> void:
 		_hud.sync()
 		view.input_enabled = false
 		view.focus = []
+		view.guide = []
 		view.set_glow([])
 		_coach.clear()
 		if board.complete or _rush():
