@@ -820,6 +820,28 @@
         "attribution": "",
         "prompt_or_source_record": "A sprite sheet of 9 game pieces for a cute space-mining match-3 puzzle game, laid out on an even 3x3 grid, each piece centred in its own cell with generous empty space around it, on a flat solid pure green (#00FF00) background. The reference image only sets the art style: hand-painted stylised mobile-game art with painterly brush texture, chunky readable silhouettes, thin dark warm outlines, soft warm light from the top left, white-grey metal with orange trim and small orange lights like the reference's machine, glowing cyan/violet energy. Camera for every piece: front view seen slightly from above (like the reference's rocks and gems), NOT isometric, no diamond-shaped bases, no floor or platform under the pieces, no cast shadows on the background.\nTop row: (1) a compact square power generator machine, unpowered: chunky white-grey metal casing with orange trim, a big round dark glass dome in the middle with a dead grey coil inside, small unlit lamps on the corners, cables and bolts; it fills its square cell almost edge to edge. (2) the exact same generator powered up: the glass dome blazing with bright cyan energy and a crackling lightning coil, the corner lamps glowing orange, small sparks. (3) the same unpowered generator, with only the left half of its corner lamps lit (half charged).\nMiddle row: (4) an energy core: a glowing bright cyan-green energy orb held in a small round metal cradle with orange clamps, compact and roughly round like a gem. (5) the same energy core seen slightly differently, more glow. (6) a docking socket seen from above: a flat round metal hatch with a glowing cyan ring and an arrow pointing down into it.\nBottom row: (7) a square cage of thick riveted dark-steel bars with orange bolts at the corners, like a lock over a game tile: only a frame and bars, completely empty and open inside so the green background shows clearly through the middle and between the bars. (8) the same cage, dented and cracked, one bar bent. (9) the same cage made of icy violet crystal bars, empty and open inside.\nNo text, no letters, no numbers, no extra objects, flat solid pure green background everywhere."
       }
+    },
+    {
+      "id": "hand",
+      "role": "tutorial pointer hand (guided moves)",
+      "path": "assets/ui/tutorial/hand.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "153x256",
+        "alpha": true,
+        "anchor": "fingertip at (0.22, 0.0) of its size (BoardView.HAND_TIP)",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 7da7e9e7-87f2-4fdb-a909-8740ad7c1ddd, output 198d1457-bab8-4256-8de1-17ce77d8d8fe), source docs/art/sources/hand.png, keyed green",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-19",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A tutorial pointer hand for a cute mobile match-3 puzzle game: ONE cartoon hand in a white glove, index finger extended and pointing straight up ... flat solid pure green background"
+      }
     }
   ]
 }

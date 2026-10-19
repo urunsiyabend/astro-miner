@@ -7,6 +7,8 @@ extends Node
 func _ready() -> void:
 	Game.save_path = "user://shot_save.json"
 	Game.show_fps = OS.has_environment("ASTRO_FPS")
+	if OS.has_environment("ASTRO_NEWTIPS"):  # play every lesson as if for the first time
+		Game.tips_seen.clear()
 	if OS.has_environment("ASTRO_CLEARED"):
 		for i in int(OS.get_environment("ASTRO_CLEARED")):
 			Game.cleared[i] = true
@@ -255,6 +257,8 @@ func _run() -> void:
 				print(n.get_path(), " ", n.get_class(), " ", (n as Control).get_global_rect())
 			stack.append_array(n.get_children())
 	print("main size ", main.size, " colony ", main.colony.size, " vis ", main.colony.visible)
+	if OS.has_environment("ASTRO_WAIT"):  # ASTRO_WAIT=s: let animations run this long first
+		await get_tree().create_timer(float(OS.get_environment("ASTRO_WAIT"))).timeout
 	await RenderingServer.frame_post_draw
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(OS.get_environment("ASTRO_SHOT"))

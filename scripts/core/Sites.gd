@@ -20,68 +20,110 @@ extends RefCounted
 ##             finish, but mixes it with matching, rock and energy like any other dig
 ##   "script": what Mira says. A line without "until" waits for a tap; a line with "until"
 ##             stays up while you play and moves on when that event happens (see DigScreen).
-##             "focus" cells pulse on the board.
+##             "focus" cells pulse on the board. "guide" (cells from the robot on): a
+##             hand draws that move, the board dims around it, and only it is accepted.
+##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
+##   "explains": specials its script teaches (["drill"]), so Mira's passing note is skipped
 
 const LIST := [
+	# --- Chapter 1 · Landing (docs/design/journey.md) -------------------------------------
+	# L1: the swipe. A tiny board, 3 colours; the hand shows one swipe up, a line forms and the
+	# gems that fall make two more (a cascade on the very first move). Paths are not open yet.
 	{
-		"id": "first", "mode": "fall", "colours": 4, "guide": true, "seed": 42,
-		"goals": [{"type": "ore", "ore": 0, "n": 6}],
+		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 13, "energy": 20,
+		"path_max": 1,
+		"goals": [{"type": "ore", "ore": 0, "n": 20}],
 		"rows": [
-			"# # # # # # #",
-			"# # # # # # #",
-			"# . . . . . #",
-			"# . . . . . #",
-			"# . . @ . . #",
-			"# . . . . . #",
-			"# # # # # # #",
-			"# # # # # # #",
-		],
-		"ore": [
-			"- - - - - - -",
-			"- - - - - - -",
-			"- C L F C L -",
-			"- L C F L C -",
-			"- C F - F L -",
-			"- L C L C F -",
-			"- - - - - - -",
-			"- - - - - - -",
-		],
-		"script": [
-			{"say": "Hi, I'm Mira, chief of the Corvo IV colony. You drive our mining robot, and the colony runs on the ore you bring home."},
-			{"say": "Swipe up: the robot swaps places with the Ferrite above it, and three Ferrite line up.", "until": "match", "focus": [Vector2i(3, 3), Vector2i(3, 4), Vector2i(2, 4), Vector2i(4, 4)]},
-			{"say": "Extracted! New gems drop in from above. Line up 6 Ferrite in all."},
-		],
-	},
-	{
-		"id": "drag", "mode": "fall", "colours": 4, "tier": "intro", "energy": 18,
-		"goals": [{"type": "chunks", "n": 30}],
-		"rows": [
-			"# # # # # # #",
-			"# # . . . # #",
-			"# . . . . . #",
-			"# . . . . . #",
-			"# . . @ . . #",
-			"# . . . . . #",
-			"# # . . . # #",
-			"# # # # # # #",
-		],
-	},
-	{
-		"id": "vein", "mode": "fall", "colours": 4, "tier": "intro", "energy": 22,
-		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
-		"rows": [
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
+			". . . . . . .",
 			". . . @ . . .",
 			". . . . . . .",
 			". . . . . . .",
-			". . . . . . .",
-			". . . . . . .",
-			". . . . . . .",
-			". . . 1c . . .",
-			"# . . . . . #",
+		],
+		"ore": [
+			"F C L C F L C",
+			"C L F L C F L",
+			"L F C F L C F",
+			"C C L F C L F",
+			"L L F - F C C",
+			"F C L F L F L",
+			"C F C L C L F",
 		],
 		"script": [
-			{"say": "Gems fall into the gaps, and so does the robot! Clear the gems right under it and it drops down for free."},
-			{"say": "That crystal is at the bottom. Match under the robot to ride down to it."},
+			{"say": "Hi, I'm Mira! You drive our mining robot. Swipe up: it swaps places with the gem above.",
+					"until": "match", "guide": [Vector2i(3, 4), Vector2i(3, 3)], "focus": [Vector2i(2, 4), Vector2i(4, 4)]},
+			{"say": "Gems fall into the gaps and can line up again. Collect 20 Ferrite!", "until": "move"},
+		],
+	},
+	# L2: draw a path. Paths open; the hand draws three steps that make two lines at once.
+	{
+		"id": "path", "mode": "fall", "colours": 4, "guide": true, "seed": 7, "energy": 20,
+		"goals": [{"type": "ore", "ore": 1, "n": 30}, {"type": "ore", "ore": 3, "n": 30}],
+		"rows": [
+			". . . . . . . .",
+			". . . . . . . .",
+			". . . . . . . .",
+			". . . . . . . .",
+			". . . . . . . .",
+			". . . . . . . .",
+			". . @ . . . . .",
+			". . . . . . . .",
+		],
+		"ore": [
+			"L F F C L R L R",
+			"C F F C C R R C",
+			"C L L F C C R L",
+			"R L C C R R C F",
+			"F R C R R C R C",
+			"R C R C L C L C",
+			"R R - C L R C R",
+			"C R R L C F R C",
+		],
+		"script": [
+			{"say": "New move: hold anywhere and draw! The robot swaps with every gem on its way, and the whole path is one move.",
+					"until": "path", "guide": [Vector2i(2, 6), Vector2i(2, 5), Vector2i(3, 5), Vector2i(4, 5)],
+					"focus": [Vector2i(2, 3), Vector2i(2, 4), Vector2i(0, 6), Vector2i(1, 6)]},
+			{"say": "Two lines with one move! Long paths make big combos.", "until": "move"},
+		],
+	},
+	# L3: the Drill. The hand lines up 4 in a row (a Drill), then swaps with it from above: the
+	# Drill moves up and bores through the whole column.
+	{
+		"id": "drill", "mode": "fall", "colours": 4, "guide": true, "seed": 206, "energy": 20,
+		"explains": ["drill"],
+		"goals": [{"type": "ore", "ore": 2, "n": 30}],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+		],
+		"ore": [
+			"R F R F C F C C R",
+			"F C L C C F C F F",
+			"L F L R L C L F C",
+			"C F F L F C R C L",
+			"R L F C L R F L C",
+			"F F C R F F L C F",
+			"R R C L F R L C C",
+			"L L F R L F C L F",
+			"F C L L - L F F C",
+		],
+		"script": [
+			{"say": "Line up 4 in a row and you get a power-up!", "until": "charge",
+					"guide": [Vector2i(4, 8), Vector2i(4, 7), Vector2i(5, 7)],
+					"focus": [Vector2i(2, 8), Vector2i(3, 8), Vector2i(5, 8)]},
+			{"say": "A Drill! Swap with it and it bores on the way it moves. Step onto it from above: it fires straight up.",
+					"until": "blast", "guide": [Vector2i(5, 8), Vector2i(5, 7), Vector2i(4, 7), Vector2i(3, 7), Vector2i(3, 8)],
+					"focus": [Vector2i(3, 0), Vector2i(3, 1), Vector2i(3, 2), Vector2i(3, 3), Vector2i(3, 4), Vector2i(3, 5), Vector2i(3, 6)]},
+			{"say": "4 in a row makes a Drill. Collect 30 Lumen!", "until": "move"},
 		],
 	},
 	{

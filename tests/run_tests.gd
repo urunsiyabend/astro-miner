@@ -504,17 +504,37 @@ func _test_bot_smoke() -> void:
 
 
 # Intended solution of every hand-crafted lesson dig. Each must finish the site exactly on
-# its last move; if a layout edit breaks one, this fails before a player meets it.
+# its last move; if a layout edit breaks one, this fails before a player meets it. A string
+# is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": "UDLLURUL", "battery": "DDDUUURUULLUL", "charge": "UDLDDUDU",
+	"first": ["U", "U", "U"], "path": ["URR", "DRRD", "LUUR", "UUUU", "DDLL"],
+	"drill": ["UR", "ULLD", "LLU", "RUU", "DR"],
+	"battery": "DDDUUURUULLUL", "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",
 }
 
 
-func _test_tutorial_sites() -> void:
+## A recorded solution as moves, each a list of directions (see TUTORIAL_SOLUTIONS).
+func _solution_moves(sol) -> Array:
 	var map := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
+	var words: Array = sol if sol is Array else Array(String(sol).split("", false))
+	return words.map(func(w): return Array(String(w).split("", false)).map(func(ch): return map[ch]))
+
+
+## A lesson board as the dig sets it up: its own path limit (a lesson before paths: 1).
+func _lesson_board(i: int) -> Board:
+	var site := Sites.get_site(i)
+	var rules := Economy.rules(_campaign_levels(i))
+	rules.path_max = int(site.get("path_max", 4))
+	var b := Board.new()
+	b.record = false
+	b.setup_site(site, 0, rules)
+	return b
+
+
+func _test_tutorial_sites() -> void:
 	var guided := 0
 	for i in Sites.count():
 		var site := Sites.get_site(i)
@@ -522,18 +542,24 @@ func _test_tutorial_sites() -> void:
 			continue
 		guided += 1
 		_ok(TUTORIAL_SOLUTIONS.has(site.id), "hand-made dig %s has a recorded solution" % site.id)
-		var sol: String = TUTORIAL_SOLUTIONS.get(site.id, "")
-		var b := Board.new()
-		b.record = false
-		b.setup_site(site, 0, Economy.rules(_campaign_levels(i)))
+		var moves := _solution_moves(TUTORIAL_SOLUTIONS.get(site.id, ""))
+		var b := _lesson_board(i)
 		_ok(not b.has_line(), "%s opens without a ready-made line" % site.id)
 		var ok := true
-		for k in sol.length():
-			var r := b.try_move(map[sol[k]])
-			if not r.ok or (b.over and k < sol.length() - 1):
+		for k in moves.size():
+			var r := b.try_path(moves[k])
+			if not r.ok or (b.over and k < moves.size() - 1):
 				ok = false
 				break
-		_ok(ok and b.complete, "%s is solved by %s" % [site.id, sol])
+		_ok(ok and b.complete, "%s is solved by %s" % [site.id, TUTORIAL_SOLUTIONS.get(site.id, "")])
+		# the moves the hand shows ("guide") are the solution's moves, in order
+		var shown := []
+		for st in site.get("script", []):
+			if st.has("guide"):
+				var g: Array = st.guide
+				shown.append(range(1, g.size()).map(func(k): return g[k] - g[k - 1]))
+		for k in shown.size():
+			_ok(k < moves.size() and moves[k] == shown[k], "%s: move %d is the one the hand shows" % [site.id, k + 1])
 	_ok(guided == TUTORIAL_SOLUTIONS.size(), "every recorded solution belongs to a tutorial site")
 	# each building unlock is followed by its hand-made dig, which needs that building
 	var map2 := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
@@ -552,12 +578,11 @@ func _test_tutorial_sites() -> void:
 		var nb2 := Board.new()
 		nb2.record = false
 		nb2.setup_site(nxt, 0, Economy.rules(lv))
-		var sol: String = TUTORIAL_SOLUTIONS.get(nxt.id, "")
-		for k in sol.length():
-			nb2.try_move(map2[sol[k]])
+		for mv in _solution_moves(TUTORIAL_SOLUTIONS.get(nxt.id, "")):
+			nb2.try_path(mv)
 		_ok(not nb2.complete, "%s cannot be done without building %d" % [nxt.id, u])
 	# each lesson's solution starts with the move Mira asks for and uses what she teaches
-	var opening := {"first": "U", "charge": "U"}  # battery asks for any match by the rock
+	var opening := {"charge": "U"}  # battery asks for any match by the rock
 	for id in opening:
 		_ok(String(TUTORIAL_SOLUTIONS[id]).begins_with(opening[id]), "%s: the solution starts with Mira's move" % id)
 	var bat := Board.new()
@@ -565,8 +590,8 @@ func _test_tutorial_sites() -> void:
 	var bi := Sites.index_of("battery")
 	bat.setup_site(Sites.get_site(bi), 0, Economy.rules(_campaign_levels(bi)))
 	_ok(bat.energy < String(TUTORIAL_SOLUTIONS.battery).length(), "battery: the route is longer than the budget without the cell")
-	for ch in String(TUTORIAL_SOLUTIONS.battery):
-		bat.try_move(map[ch])
+	for mv in _solution_moves(TUTORIAL_SOLUTIONS.battery):
+		bat.try_path(mv)
 	_ok(bat.complete and bat.stats.cells >= 1, "battery: the solution recharges from the buried cell")
 
 

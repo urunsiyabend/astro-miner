@@ -1,5 +1,8 @@
 # Level plan (master sheet), v3: as built
 
+> 2026-10-19: the campaign is being rebuilt as a journey, a few levels at a time:
+> **`docs/design/journey.md` is the plan now** (levels 1–3 rebuilt). This file is history.
+
 ## Iteration 1b (2026-10-17): the first 15 digs with falling gems
 
 The prototypes picked the loop: **robot + falling gems** (prototype B). Digs 1–15 now play it
