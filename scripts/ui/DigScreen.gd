@@ -70,8 +70,9 @@ func _ready() -> void:
 
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# the board runs nearly edge to edge on a phone (BoardView caps its cell on wide screens)
 	for side in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + side, 44)
+		margin.add_theme_constant_override("margin_" + side, 14)
 	margin.add_theme_constant_override("margin_top", 110)
 	margin.add_theme_constant_override("margin_bottom", 120)
 	add_child(margin)

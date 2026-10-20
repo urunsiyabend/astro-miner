@@ -71,18 +71,25 @@ The chapter's element is rock, then the cave web at 6 (a floor layer cleared by 
 top of it: Royal Match meets grass on level 4). Thick rock is a variant; crystals in rock are
 a goal twist on rock, not a new mechanic. Every level is free play except level 1 (the path lesson).
 
-| L | Board | Goal | Element | Tip on the goal card |
-|---|---|---|---|---|
-| 1 | 7x8, rock rows top and bottom, 3 colours | 14 rock | **path + rock** (guided) | – |
-| 2 | arches: two rock bands | 11 rock | | Pulsar |
-| 3 | a rock band with a thick middle | 9 rock | **thick rock** (Mira points at it) | – |
-| 4 | spine: a wall splits two quarries | 10 rock | | Scout drone |
-| 5 | strata: a full band up top, thick rock below | 14 rock | | Nova |
-| 6 | a band of webs across the middle | 16 webs | **cave web** (floor layer; Mira, one line) | – |
-| 7 | **silk corners**: webs in the four corners behind rock shields, an open middle | 16 webs | web + rock (the pair level) | – |
-| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and a thick-rock vault | 3 crystals | (a goal twist on rock) | combo (Pulsar + Nova) |
-| 9 | **hourglass**: webs up top beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | two goals | drone + Pulsar |
-| 10 | **starfall**: a show level: thick webs flood the board, power-ups waiting | 50 webs | reward | Black hole |
+| L | Flow (rooms and gates) | Goal | Element | Tip | Bot median |
+|---|---|---|---|---|---|
+| 1 | 7x8, rock rows top and bottom, 3 colours | 14 rock | **path + rock** (guided) | – | 4 |
+| 2 | **gatehouse**: start in the left room, a rock wall shuts off the right room | 14 rock | | Pulsar | 7 |
+| 3 | **vault**: a rock vault walled at the sides, a thick door below; dig in | 11 rock | **thick rock** (Mira) | – | 12 |
+| 4 | **pockets**: rock walled in at the top corners, only drones and beams get there | 8 rock | | Scout drone | 8 |
+| 5 | **descent**: start top-left, a rock staircase down to the bottom-right, thicker deeper | 12 rock | | Nova | 13 |
+| 6 | a band of webs across the middle | 16 webs | **cave web** (Mira) | – | 6 |
+| 7 | **web garden**: start top-left, a thick gate, then the web garden bottom-right behind a second gate | 14 webs | web + rock | – | 12 |
+| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and a thick-rock vault | 3 crystals | | combo | 9 |
+| 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar | 12 |
+| 10 | **starfall**: a show level, thick webs everywhere, power-ups waiting | 50 webs | reward | Black hole | 8 |
+
+**Flow** (the user, 2026-10-20: "Royal Match levels have a flow: start top-left, break layers
+of rock bottom-right, the grass beyond it"): the robot can't walk through rock, so a board cut
+into rooms by rock walls and bedrock has an order of play built in: the robot works in its
+room, breaks a gate (thick rock) to reach the next, and the goals wait in the farthest room;
+power-ups built early can be sent ahead (beams through rock, drones over walls). A rock floor
+that breaks pours the room above into the one below. Not bands across an open board.
 
 Levels are designed with the checklist in `docs/research/royal-match-level-design.md` §6: one
 idea in one sentence, a new silhouette each level, goals at the edges or in pockets, an open

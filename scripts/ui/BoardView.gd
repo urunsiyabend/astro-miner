@@ -21,6 +21,7 @@ const PIT_STEP := 0.09      # wall width per dug layer, as a fraction of a cell
 const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 ## Painted blocks (Art): a square top face and a layered earth band below it. Rows sit
 ## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
+const MAX_CELL := 132.0      # px (of the 1080-wide layout): the largest a cell may get
 const GAP := 0.0            # px between neighbouring blocks (the cell art carries its own margin)
 const ROCK_SIZE := 1.2      # rock sprite canvas / cell (the body is ~80% of it): rock fills its tile, bigger than a gem
 ## Rock by layers left (Royal Match's boxes): every match peels one, so thick rock is dark and
@@ -232,6 +233,7 @@ func _layout() -> void:
 	# leave room around the board for its frame (rim + shadow, ~0.3 cell in all)
 	var frame := 0.3 if _art else 0.0
 	cell = floorf(minf(size.x / (Board.W + frame), size.y / (rows_h + frame)))
+	cell = minf(cell, MAX_CELL)  # a tablet (or a small 7-wide board) doesn't blow the board up
 	pitch = roundf(cell * (1.0 + Art.BAND_VISIBLE)) if _art else cell
 	var used := Vector2(cell * Board.W, pitch * Board.H + (cell * _band if _art else 0.0))
 	origin = ((size - used) * 0.5).floor()
