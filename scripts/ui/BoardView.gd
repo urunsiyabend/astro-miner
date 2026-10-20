@@ -22,7 +22,7 @@ const ROCK_STEP := 0.07     # height of one rock layer, as a fraction of a cell
 ## Painted blocks (Art): a square top face and a layered earth band below it. Rows sit
 ## `pitch` apart (a bit more than `cell`) so each row shows a strip of its band.
 const GAP := 0.0            # px between neighbouring blocks (the cell art carries its own margin)
-const ROCK_SIZE := 1.0      # rock sprite canvas / cell (the rock body is ~80% of its canvas)
+const ROCK_SIZE := 1.2      # rock sprite canvas / cell (the body is ~80% of it): rock fills its tile, bigger than a gem
 ## Rock by layers left (Royal Match's boxes): every match peels one, so thick rock is dark and
 ## turns lighter as it is worn down; the crack state (Art.rock) shows how much is gone.
 const ROCK_TINT := [Color(1, 1, 1), Color(0.62, 0.58, 0.78), Color(0.38, 0.34, 0.5)]
@@ -60,6 +60,7 @@ var docks := {}       # cells where an energy core is delivered
 const OBS_DIR := "res://assets/obstacles/"
 const CORE_COL := Color("5ff2c8")
 var _obs_jolt := {}   # obstacle index -> 1..0: it shudders when hit
+var web_tex_override: Texture2D  # dev only (DevShot ASTRO_WEBTEX): try a web design in game
 var _puffs: Array = []  # torn webs: [{c: Vector2, t: 0..1, spin}] silk bursting off the cell
 var _bursts: Array = []  # broken rock: [{c: Vector2, t: 0..1, spin, flip}] stone flying apart
 var _fly := 1.0       # a step with drones: the share of it they spend flying (what they carry goes off after)
@@ -1661,6 +1662,8 @@ func _draw_obstacles(layer: int) -> void:
 				# a webbed floor tile, painted like the soil tiles: it replaces the cell's top face (a
 				# thick web is hazier until its first layer is gone); it shivers when hit
 				var wt := Art.tex(OBS_DIR + ("web_thick.png" if int(it.left) >= 2 else "web.png"))
+				if web_tex_override != null:
+					wt = web_tex_override
 				var w := cell - GAP
 				var ws := Vector2(w, w) * (1.0 + 0.04 * sin(PI * jolt))
 				var wc := r.position + Vector2(cell, cell) * 0.5
