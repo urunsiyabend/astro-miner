@@ -952,6 +952,248 @@
         "attribution": "",
         "prompt_or_source_record": "A sprite sheet of 9 power-up pieces for a cute space-mining match-3 puzzle game ... PULSAR, NOVA, SCOUT DRONE, BLACK HOLE, TARGET LOCK reticle ... flat solid pure green background"
       }
+    },
+    {
+      "id": "web",
+      "role": "webbed floor tile (painted over the soil tile)",
+      "path": "assets/obstacles/web.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference cb57be3b-c8c0-457b-8625-5756bda0acea, output 6fdca545-4f64-4fe2-9d08-1cf53c5779f6), sheet docs/art/sources/web_tiles.png, references: board screenshot + soil tiles, style ref; keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "9 board tiles ... the same soil floor tile covered in a CAVE WEB ... soft, slightly thick, glowing pearly silk strands ... LIGHT web / THICK web ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "web_thick",
+      "role": "webbed floor tile (painted over the soil tile) , thick",
+      "path": "assets/obstacles/web_thick.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference cb57be3b-c8c0-457b-8625-5756bda0acea, output 6fdca545-4f64-4fe2-9d08-1cf53c5779f6), sheet docs/art/sources/web_tiles.png, references: board screenshot + soil tiles, style ref; keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "9 board tiles ... the same soil floor tile covered in a CAVE WEB ... soft, slightly thick, glowing pearly silk strands ... LIGHT web / THICK web ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "web_icon",
+      "role": "web goal icon",
+      "path": "assets/obstacles/web_icon.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2d4caa4f-c40c-4dd2-ba0f-c05a8c582cd1, output 9eff1964-c3d4-4343-94fa-159680806c3e), sheet docs/art/sources/webs.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 pieces ... CAVE WEB seen from straight above ... THICK WEB ... cute alien cave spider ... spider nest ... web emblem icon ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "web_puff",
+      "role": "web torn effect (spare)",
+      "path": "assets/obstacles/web_puff.png",
+      "status": "spare",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2d4caa4f-c40c-4dd2-ba0f-c05a8c582cd1, output 9eff1964-c3d4-4343-94fa-159680806c3e), sheet docs/art/sources/webs.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 pieces ... CAVE WEB seen from straight above ... THICK WEB ... cute alien cave spider ... spider nest ... web emblem icon ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "spider",
+      "role": "cave spider (for the spider nest, later)",
+      "path": "assets/obstacles/spider.png",
+      "status": "spare",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2d4caa4f-c40c-4dd2-ba0f-c05a8c582cd1, output 9eff1964-c3d4-4343-94fa-159680806c3e), sheet docs/art/sources/webs.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 pieces ... CAVE WEB seen from straight above ... THICK WEB ... cute alien cave spider ... spider nest ... web emblem icon ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "nest",
+      "role": "spider nest (spreader, later)",
+      "path": "assets/obstacles/nest.png",
+      "status": "spare",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2d4caa4f-c40c-4dd2-ba0f-c05a8c582cd1, output 9eff1964-c3d4-4343-94fa-159680806c3e), sheet docs/art/sources/webs.png, keyed with docs/art/tools/key_noscipy.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "A sprite sheet of 9 pieces ... CAVE WEB seen from straight above ... THICK WEB ... cute alien cave spider ... spider nest ... web emblem icon ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "rock_burst",
+      "role": "rock break burst (stone pieces flying apart)",
+      "path": "assets/obstacles/rock_burst.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2773b96e-fb77-44ec-b340-26989694d886, output fb33711f-0819-4329-9d34-2cbd046918cb), sheet docs/art/sources/rock_burst.png, green keyed without the largest-blob filter (scattered pieces)",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "9 effect pieces ... ROCK SHATTER BURST ... rock dust puff ... impact flash ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "rock_dust",
+      "role": "rock break dust cloud",
+      "path": "assets/obstacles/rock_dust.png",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2773b96e-fb77-44ec-b340-26989694d886, output 1682f209-e6d6-4791-89f5-f8595e4e5ded), sheet docs/art/sources/rock_fx.png, green keyed without the largest-blob filter (scattered pieces)",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "9 effect pieces ... ROCK SHATTER BURST ... rock dust puff ... impact flash ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "rock_flash",
+      "role": "impact flash (spare)",
+      "path": "assets/obstacles/rock_flash.png",
+      "status": "spare",
+      "technical": {
+        "dimensions": "256x256",
+        "alpha": true,
+        "anchor": "centre",
+        "frames": 1,
+        "filtering": "linear+mipmaps"
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference 2773b96e-fb77-44ec-b340-26989694d886, output 1682f209-e6d6-4791-89f5-f8595e4e5ded), sheet docs/art/sources/rock_fx.png, green keyed without the largest-blob filter (scattered pieces)",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "9 effect pieces ... ROCK SHATTER BURST ... rock dust puff ... impact flash ... flat solid pure green background"
+      }
+    },
+    {
+      "id": "rockbreak",
+      "role": "SFX: rockbreak (3 takes)",
+      "path": "assets/sfx/rockbreak_0..2.wav",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "44.1 kHz mono 16-bit",
+        "alpha": false,
+        "anchor": "",
+        "frames": 3,
+        "filtering": ""
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI mirelo-sfx-2 (inference 3f03a6e8-837f-4a65-862f-d4bebdc8d44d), processed with tools/audio/sfx_proc.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "Stylised mobile puzzle game sound: a chunky stone block shattering into pieces, a satisfying crunchy crack followed by small pebbles scattering and a light dusty crumble, crisp, punchy and bright, cartoon-like, short. Dry, no reverb, no music."
+      }
+    },
+    {
+      "id": "rockcrack",
+      "role": "SFX: rockcrack (3 takes)",
+      "path": "assets/sfx/rockcrack_0..2.wav",
+      "status": "in-game",
+      "technical": {
+        "dimensions": "44.1 kHz mono 16-bit",
+        "alpha": false,
+        "anchor": "",
+        "frames": 3,
+        "filtering": ""
+      },
+      "source": {
+        "kind": "generated",
+        "url_or_tool": "Layer AI mirelo-sfx-2 (inference e4601469-727e-493a-b5ac-37be75d0786d), processed with tools/audio/sfx_proc.py",
+        "creator": "Claude Code for urunsiyabend",
+        "created_at": "2026-10-20",
+        "license": "Generated in the owner's Layer workspace",
+        "attribution": "",
+        "prompt_or_source_record": "Stylised mobile puzzle game sound: a single sharp crack in a stone block, the rock splitting a little but not breaking, a crisp chunky click-crack with a tiny pebble tick, short and punchy. Dry, no reverb, no music."
+      }
     }
   ]
 }

@@ -36,6 +36,7 @@ Where an obstacle sits:
 |---|---|---|
 | `PIECE` | takes the cells instead of gems, may span cells | `Terrain.BLOCK`: solid for gravity, robot, paths; rays (Drill) stop at it |
 | `COVER` | over a gem, locks it | gem can't be swapped or fall, holds up the column; gem stays when it breaks |
+| `FLOOR` | on the cell, under whatever is there (Royal Match's grass) | blocks nothing; a hit clears a layer and goes on to the gem (`Board._strike` hits the floor first, then the rest) |
 
 Current table:
 
@@ -44,6 +45,7 @@ Current table:
 | rock (terrain) | piece | NEXT, POWER | 1–3 layers | 1x1 | opens, reveals what it hid |
 | generator | piece | NEXT, POWER | 6 | 2x2 | switches on, stays (solid) |
 | cage | cover | ON, POWER | 1 | 1x1 | breaks, the gem stays |
+| web | floor | ON, POWER | 1 (a site may set 2: thick) | 1x1 | clears; the hit goes on to the gem |
 
 Non-obstacle item: **energy core** (`Token.CORE`): falls like a gem, never matches, never
 destroyed by power-ups; the robot pushes it (a swap), pads throw it, belts carry it, teleporters

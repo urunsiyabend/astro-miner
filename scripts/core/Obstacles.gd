@@ -17,11 +17,13 @@ extends RefCounted
 ##          the robot and paths can't enter. May span several cells; it is hit as one object.
 ##   COVER  sits over the gem in its cell and locks it: the robot can't swap it, it doesn't
 ##          fall, and it holds up the cells above it. The gem stays when the cover breaks.
+##   FLOOR  lies on the cell, under whatever is on it, and blocks nothing (Royal Match's
+##          grass): a hit clears it AND goes on to the gem (a match on it takes the gem too).
 ## Rock (Board.Terrain.ROCK) keeps its own layers and hidden contents but follows the same
 ## rule: a PIECE hit by NEXT and POWER.
 
 enum Hit { ON, NEXT, POWER }
-enum Layer { PIECE, COVER }
+enum Layer { PIECE, COVER, FLOOR }
 
 ## kind -> rule.
 ##   need    hits it takes to finish
@@ -35,17 +37,22 @@ const KINDS := {
 	# a steel cage over a gem: match that gem, or hit it with a power-up, to break it
 	"cage": {"layer": Layer.COVER, "hit_by": [Hit.ON, Hit.POWER], "need": 1,
 			"size": Vector2i(1, 1), "stays": false, "goal": "cage"},
+	# a cave web on the floor: a match on top of it, or a power-up, clears a layer (a site may
+	# place a thicker one: [cell, "web", 2])
+	"web": {"layer": Layer.FLOOR, "hit_by": [Hit.ON, Hit.POWER], "need": 1,
+			"size": Vector2i(1, 1), "stays": false, "goal": "web"},
 }
 
 var items: Array = []   # {kind, cells: Array (top-left first), left: hits still needed}
 var piece := {}         # cell -> item index, while the piece is on the board
 var cover := {}         # cell -> item index, while the cover is on the board
+var floors := {}        # cell -> item index, while the floor layer is on the board
 var finished := {}      # goal type -> obstacles of that goal finished
 
 
-## Put an obstacle of `kind` with its top-left on cell `at` (a board of width w). Returns the
-## cells it takes.
-func place(kind: String, at: Vector2i, w: int) -> Array:
+## Put an obstacle of `kind` with its top-left on cell `at` (a board of width w); `layers`
+## overrides how many hits it needs (a thicker web). Returns the cells it takes.
+func place(kind: String, at: Vector2i, w: int, layers := 0) -> Array:
 	assert(KINDS.has(kind), "unknown obstacle '%s'" % kind)
 	var rule: Dictionary = KINDS[kind]
 	var cells := []
@@ -53,12 +60,20 @@ func place(kind: String, at: Vector2i, w: int) -> Array:
 		for dx in rule.size.x:
 			cells.append((at.y + dy) * w + at.x + dx)
 	var id := items.size()
-	items.append({"kind": kind, "cells": cells, "left": int(rule.need)})
-	var layer: Dictionary = piece if rule.layer == Layer.PIECE else cover
+	var need: int = layers if layers > 0 else int(rule.need)
+	items.append({"kind": kind, "cells": cells, "left": need, "need": need})
+	var layer := _layer(rule.layer)
 	for c in cells:
 		assert(not layer.has(c), "two obstacles on one layer of cell %d" % c)
 		layer[c] = id
 	return cells
+
+
+func _layer(l: int) -> Dictionary:
+	match l:
+		Layer.PIECE: return piece
+		Layer.COVER: return cover
+	return floors
 
 
 ## A cover locks the gem in cell c.
@@ -82,7 +97,27 @@ func target(c: int, h: int) -> int:
 ## multi-cell obstacle counts that source once. Returns what happened, for the view
 ## ({id, kind, cell, left, need, done, freed}), or {} when nothing here takes this hit.
 func hit(c: int, h: int, seen: Dictionary) -> Dictionary:
-	var id := target(c, h)
+	return _hit_item(target(c, h), c, seen)
+
+
+## The floor layer of cell c takes hit h (it never stops the hit: the Board carries on to
+## what lies on the cell). Same result as hit().
+func hit_floor(c: int, h: int, seen: Dictionary) -> Dictionary:
+	var id: int = floors.get(c, -1)
+	if id < 0 or int(items[id].left) <= 0 or not KINDS[items[id].kind].hit_by.has(h):
+		return {}
+	return _hit_item(id, c, seen)
+
+
+## A floor layer on cell c that hit h would clear, or -1.
+func floor_target(c: int, h: int) -> int:
+	var id: int = floors.get(c, -1)
+	if id >= 0 and int(items[id].left) > 0 and KINDS[items[id].kind].hit_by.has(h):
+		return id
+	return -1
+
+
+func _hit_item(id: int, c: int, seen: Dictionary) -> Dictionary:
 	if id < 0 or seen.has(id):
 		return {}
 	seen[id] = true
@@ -90,11 +125,11 @@ func hit(c: int, h: int, seen: Dictionary) -> Dictionary:
 	var rule: Dictionary = KINDS[it.kind]
 	it.left -= 1
 	var out := {"id": id, "kind": it.kind, "cell": c, "cells": it.cells.duplicate(),
-			"left": it.left, "need": rule.need, "done": it.left == 0, "freed": []}
+			"left": it.left, "need": it.need, "done": it.left == 0, "freed": []}
 	if it.left == 0:
 		finished[rule.goal] = int(finished.get(rule.goal, 0)) + 1
 		if not rule.stays:
-			var layer: Dictionary = piece if rule.layer == Layer.PIECE else cover
+			var layer := _layer(rule.layer)
 			for cc in it.cells:
 				layer.erase(cc)
 			if rule.layer == Layer.PIECE:
@@ -111,6 +146,7 @@ func clone() -> Obstacles:
 	o.items = items.duplicate(true)
 	o.piece = piece.duplicate()
 	o.cover = cover.duplicate()
+	o.floors = floors.duplicate()
 	o.finished = finished.duplicate()
 	return o
 

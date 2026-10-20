@@ -294,23 +294,28 @@ static func value(b: Board, i: int) -> float:
 			if int(it.left) <= 1:
 				v += 300.0
 		Board.Terrain.GROUND:
+			var web := b.obs.floor_target(i, Obstacles.Hit.POWER)
+			if web >= 0:
+				var wi: Dictionary = b.obs.items[web]
+				v = (1000.0 if _wants(b, Obstacles.KINDS[wi.kind].goal) else 300.0) + (300.0 if int(wi.left) <= 1 else 0.0)
 			if b.obs.locked(i):
 				v = (1000.0 if _wants(b, "cage") else 500.0) + 300.0
 			else:
 				match b.token[i]:
 					Board.Token.ORE:
-						v = 10.0
+						v = maxf(v, 10.0)
 						if _wants(b, "ore", b.ore[i]):
-							v = 300.0
+							v = maxf(v, 300.0)
 						var up := Board.pos(i) + Vector2i(0, -1)
 						if Board.inside(up) and b.token[Board.idx(up)] == Board.Token.CORE and _wants(b, "core"):
-							v = 1000.0
+							v = maxf(v, 1000.0)
 					Board.Token.CRYSTAL:
-						v = 1000.0 if _wants(b, "crystal") else 100.0
+						v = maxf(v, 1000.0 if _wants(b, "crystal") else 100.0)
 					Board.Token.CHARGE:
-						v = 50.0
+						v = maxf(v, 50.0)
 					_:
-						return 0.0
+						if v <= 0.0:
+							return 0.0
 	var open := false
 	for d in Board.DIRS:
 		var p: Vector2i = Board.pos(i) + d

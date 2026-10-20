@@ -132,90 +132,117 @@ const LIST := [
 			". . . . . . . . .",
 			"# . . . . . . . #",
 		],
-	},
-	# L6: crystals hidden in rock (Excavate), the chapter's new goal; one in a thick-rock vault.
+	},	# L6: cave webs, the chapter's new element (Royal Match meets grass on level 4): a floor
+	# layer under the gems, cleared by a match on top of it. A band across the middle.
 	{
-		"id": "glint1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 22,
-		"goals": [{"type": "crystal", "n": 3}],
-		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
+		"id": "webs1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
+		"goals": [{"type": "web", "n": 16}],
+		"obstacles": [
+			[Vector2i(1, 3), "web"], [Vector2i(2, 3), "web"], [Vector2i(3, 3), "web"], [Vector2i(4, 3), "web"],
+			[Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"],
+			[Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"],
+			[Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"],
+			[Vector2i(4, 2), "web"], [Vector2i(4, 5), "web"],
+		],
 		"rows": [
 			". . . . . . . . .",
-			". 1c . . . . . 1c .",
 			". . . . . . . . .",
-			". . . 1 1 1 . . .",
-			". . . 1 2c 1 . . .",
-			". . . 1 1 1 . . .",
+			". . 1 . . . 1 . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . @ . . . .",
 			". . . . . . . . .",
 			"# . . . . . . . #",
 		],
 		"script": [
-			{"say": "Some rock hides a crystal. Break it open, then draw the robot over the crystal to grab it.", "until": "crystal",
-					"focus": [Vector2i(1, 1), Vector2i(7, 1), Vector2i(4, 4)]},
+			{"say": "Cave webs! Make a match on top of a web to clear it.", "until": "match",
+					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
+		],
+	},	# L7: web + rock (the web's pair level). Idea: the webs sit in the four corners behind rock
+	# shields; break a shield, then farm its corner. Open middle to build power-ups in.
+	{
+		"id": "silk", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
+		"goals": [{"type": "web", "n": 16}],
+		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 0), "web"], [Vector2i(1, 1), "web"], [Vector2i(7, 0), "web"], [Vector2i(7, 1), "web"], [Vector2i(8, 0), "web"], [Vector2i(8, 1), "web"], [Vector2i(0, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 7), "web"], [Vector2i(1, 8), "web"], [Vector2i(7, 7), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 7), "web"], [Vector2i(8, 8), "web"]],
+		"rows": [
+			". . . . . . . . .",
+			". . 1 . . . 1 . .",
+			". 1 1 . . . 1 1 .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". 1 1 . @ . 1 1 .",
+			". . 1 . . . 1 . .",
+			". . . . . . . . .",
 		],
 	},
 
+
+	# L8: crystal vaults: crystals hidden in rock (a goal twist on rock, not a new element), one
+	# in a thick-rock vault. The goal card's tip: path combos.
 	{
-		"id": "glint", "mode": "fall", "colours": 4, "tier": "intro", "energy": 17,
-		"goals": [{"type": "crystal", "n": 1}, {"type": "chunks", "n": 15}],
+		"id": "glint1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
+		"goals": [{"type": "crystal", "n": 3}],
+		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
 		"rows": [
-			"# # # # # # #",
-			"# . . 1c . . #",
-			"# . . . . . #",
-			"# . . @ . . #",
-			"# 1 . . . 1 #",
-			"# . . . . . #",
-			"# . . . . . #",
-			"# # # # # # #",
+			"# # . . . . . # #",
+			"# 1c . . . . . 1c #",
+			". . . . . . . . .",
+			". . . 1 1 1 . . .",
+			". . . 1 2c 1 . . .",
+			". . . 1 1 1 . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			"# . . . . . . . #",
+			"# # . . . . . # #",
 		],
 		"script": [
-			{"say": "That rock glints: there's a crystal inside! Make a match next to it to crack it open.", "until": "reveal", "focus": [Vector2i(3, 1)]},
-			{"say": "Drive onto the crystal to pick it up. The colony needs crystals for its bigger buildings.", "until": "crystal", "focus": [Vector2i(3, 1)]},
+			{"say": "Some rock hides a crystal. Break it open, then draw the robot over the crystal to grab it.", "until": "crystal",
+					"focus": [Vector2i(1, 1), Vector2i(7, 1), Vector2i(4, 4)]},
 		],
-	},
+	},	# L9: the chapter's small peak (two goal types). Idea: an hourglass; the webs are up top,
+	# beyond a narrow waist, and a rock band guards the bottom. Clear a way up through the
+	# waist, then send power-ups through it.
 	{
-		"id": "nearby", "mode": "fall", "colours": 4, "tier": "normal", "energy": 16,
-		"goals": [{"type": "crystal", "n": 3}, {"type": "chunks", "n": 18}],
+		"id": "hourglass", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
+		"goals": [{"type": "web", "n": 18}, {"type": "rock", "n": 6}],
+		"tip": ["drone", "pulsar", "A drone carrying a Pulsar flies to the best line and fires it there."],
+		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(1, 0), "web"], [Vector2i(2, 0), "web"], [Vector2i(3, 0), "web"], [Vector2i(4, 0), "web"], [Vector2i(5, 0), "web"], [Vector2i(6, 0), "web"], [Vector2i(7, 0), "web"], [Vector2i(8, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(3, 1), "web"], [Vector2i(4, 1), "web"], [Vector2i(5, 1), "web"], [Vector2i(6, 1), "web"], [Vector2i(7, 1), "web"], [Vector2i(8, 1), "web"]],
 		"rows": [
-			". . . . . . .",
-			". o . . . o .",
-			". . 1c . 1c . .",
-			". . . @ . . .",
-			". o . . . o .",
-			". . 1c . 1c . .",
-			". . . . . . .",
-			"# . . . . . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+			"# # . . . . . # #",
+			"# # # . . . # # #",
+			"# # . . . . . # #",
+			"# 1 1 . . . 1 1 #",
+			"2 . . . . . . . 2",
+			". . . . @ . . . .",
+			". . . . . . . . .",
 		],
 	},
+	# L10: the chapter's reward, a show level (Royal Match floods a board with its element):
+	# thick webs everywhere and power-ups already waiting, so every move clears something.
 	{
-		"id": "rooms", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
-		"goals": [{"type": "chunks", "n": 36}],
+		"id": "starfall", "mode": "fall", "colours": 4, "tier": "reward", "energy": 20,
+		"goals": [{"type": "web", "n": 50}],
+		"tip": ["blackhole", "5 in a row makes a Black hole: it swallows the colour of the gem you bring it in with."],
+		"specials": [[Vector2i(2, 4), "pulsar"], [Vector2i(6, 4), "pulsar"], [Vector2i(4, 2), "nova"]],
+		"obstacles": [[Vector2i(0, 1), "web", 2], [Vector2i(1, 1), "web", 2], [Vector2i(2, 1), "web", 2], [Vector2i(3, 1), "web", 2], [Vector2i(4, 1), "web", 2], [Vector2i(5, 1), "web", 2], [Vector2i(6, 1), "web", 2], [Vector2i(7, 1), "web", 2], [Vector2i(8, 1), "web", 2], [Vector2i(0, 2), "web", 2], [Vector2i(1, 2), "web", 2], [Vector2i(2, 2), "web", 2], [Vector2i(3, 2), "web", 2], [Vector2i(4, 2), "web", 2], [Vector2i(5, 2), "web", 2], [Vector2i(6, 2), "web", 2], [Vector2i(7, 2), "web", 2], [Vector2i(8, 2), "web", 2], [Vector2i(0, 3), "web", 2], [Vector2i(1, 3), "web", 2], [Vector2i(2, 3), "web", 2], [Vector2i(3, 3), "web", 2], [Vector2i(4, 3), "web", 2], [Vector2i(5, 3), "web", 2], [Vector2i(6, 3), "web", 2], [Vector2i(7, 3), "web", 2], [Vector2i(8, 3), "web", 2], [Vector2i(0, 4), "web", 2], [Vector2i(1, 4), "web", 2], [Vector2i(2, 4), "web", 2], [Vector2i(3, 4), "web", 2], [Vector2i(4, 4), "web", 2], [Vector2i(5, 4), "web", 2], [Vector2i(6, 4), "web", 2], [Vector2i(7, 4), "web", 2], [Vector2i(8, 4), "web", 2], [Vector2i(0, 5), "web", 2], [Vector2i(1, 5), "web", 2], [Vector2i(2, 5), "web", 2], [Vector2i(3, 5), "web", 2], [Vector2i(4, 5), "web", 2], [Vector2i(5, 5), "web", 2], [Vector2i(6, 5), "web", 2], [Vector2i(7, 5), "web", 2], [Vector2i(8, 5), "web", 2], [Vector2i(0, 6), "web", 2], [Vector2i(1, 6), "web", 2], [Vector2i(2, 6), "web", 2], [Vector2i(3, 6), "web", 2], [Vector2i(5, 6), "web", 2], [Vector2i(6, 6), "web", 2], [Vector2i(7, 6), "web", 2], [Vector2i(8, 6), "web", 2], [Vector2i(0, 7), "web", 2], [Vector2i(1, 7), "web", 2], [Vector2i(2, 7), "web", 2], [Vector2i(3, 7), "web", 2], [Vector2i(4, 7), "web", 2], [Vector2i(5, 7), "web", 2], [Vector2i(6, 7), "web", 2], [Vector2i(7, 7), "web", 2], [Vector2i(8, 7), "web", 2]],
 		"rows": [
-			"# # # # # # #",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			": @ : 1 : : :",
-			": : : 1 : : :",
-			": : : 1 : : :",
-			"# # # # # # #",
-			"# # # # # # #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
 		],
 	},
-	{
-		"id": "lode", "mode": "fall", "colours": 4, "tier": "reward", "energy": 12,
-		"goals": [{"type": "chunks", "n": 30}],
-		"rows": [
-			"o o . o . o o",
-			"o . . o . . o",
-			". . o o o . .",
-			"o o o @ o o o",
-			". . o o o . .",
-			"o . . o . . o",
-			"o o . o . o o",
-			"# o o . o o #",
-		],
-	},
+
 	{
 		# the Bomb lesson (GDD v4, iteration 1): the Power Station has just handed out a free Bomb.
 		# Rubble clumps 2x2 are slow to crack with matches (only their outer cells touch open
@@ -900,6 +927,7 @@ static func goal_text(g: Dictionary) -> String:
 		"generator": return "Switch on %d generator%s" % [g.n, "" if g.n == 1 else "s"]
 		"core": return "Deliver %d energy core%s" % [g.n, "" if g.n == 1 else "s"]
 		"cage": return "Break %d cage%s" % [g.n, "" if g.n == 1 else "s"]
+		"web": return "Clear %d web%s" % [g.n, "" if g.n == 1 else "s"]
 	return "?"
 
 

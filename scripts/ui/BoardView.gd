@@ -60,6 +60,8 @@ var docks := {}       # cells where an energy core is delivered
 const OBS_DIR := "res://assets/obstacles/"
 const CORE_COL := Color("5ff2c8")
 var _obs_jolt := {}   # obstacle index -> 1..0: it shudders when hit
+var _puffs: Array = []  # torn webs: [{c: Vector2, t: 0..1, spin}] silk bursting off the cell
+var _bursts: Array = []  # broken rock: [{c: Vector2, t: 0..1, spin, flip}] stone flying apart
 var _fly := 1.0       # a step with drones: the share of it they spend flying (what they carry goes off after)
 var _obs_glow := {}   # obstacle index -> 1..0: the flash of finishing (a generator switching on)
 const TELE_COLS := [Color("5ff2ff"), Color("ff6bd8"), Color("b6ff5c"), Color("ffd24a")]
@@ -498,8 +500,8 @@ func _finish_phase() -> void:
 				for r in _cur.cracked:
 					_jolt[r] = 1.0
 					fx.emit("debris", {"pos": cell_global(r), "color": Pal.ROCK[1]})
-				if not _cur.cracked.is_empty():
-					Sfx.play("crack", randf_range(0.9, 1.1))
+				if _cur.cracked.any(func(r): return not _cur.revealed.has(r)):
+					Sfx.play("rockcrack", randf_range(0.92, 1.08))  # a layer off, still standing
 				_reveal_fx(_cur.revealed)
 				for c in _cur.surfaced:
 					_rise[c] = 0.0
@@ -681,8 +683,12 @@ func _draw_chest(i: int, r: Rect2) -> void:
 func _reveal_fx(cells: Array) -> void:
 	if cells.is_empty():
 		return
-	Sfx.play("reveal")
+	# rock breaks open: stone bursts apart in a puff of dust, with a crunchy shatter
+	Sfx.play("rockbreak", 1.0 + 0.04 * mini(cells.size() - 1, 6))
+	Sfx.play("reveal", 1.2)
+	add_trauma(minf(0.25, 0.06 * cells.size()))
 	for c in cells:
+		_bursts.append({"c": cell_center(c), "t": 0.0, "spin": randf_range(-0.5, 0.5), "flip": randf() < 0.5})
 		if snap.buried[c] == Board.Buried.TREASURE:
 			fx.emit("treasure", {"pos": cell_global(c)})
 		_rise[c] = 0.0
@@ -765,6 +771,12 @@ func _process(delta: float) -> void:
 		_obs_jolt[k] -= delta / 0.3
 		if _obs_jolt[k] <= 0.0:
 			_obs_jolt.erase(k)
+	for p in _puffs:
+		p.t += delta / 0.38
+	for b in _bursts:
+		b.t += delta / 0.42
+	_bursts = _bursts.filter(func(b): return b.t < 1.0)
+	_puffs = _puffs.filter(func(p): return p.t < 1.0)
 	for k in _obs_glow.keys():
 		_obs_glow[k] -= delta / 0.6
 		if _obs_glow[k] <= 0.0:
@@ -1184,6 +1196,7 @@ func _draw() -> void:
 	# ground first (pits included), then raised rock on top so its shadow falls on the ground
 	for i in Board.W * Board.H:
 		_draw_ground(i)
+	_draw_obstacles(Obstacles.Layer.FLOOR)  # on the floor, under rock and gems
 	for i in Board.W * Board.H:
 		if snap.terrain[i] == T.ROCK:
 			_draw_rock(i)
@@ -1643,6 +1656,20 @@ func _draw_obstacles(layer: int) -> void:
 		match it.kind:
 			"generator":
 				_draw_generator(it, int(rule.need), r, jolt, float(_obs_glow.get(id, 0.0)))
+			"web":
+				# a cave web on the floor; a thick one shows its extra layer until it is hit
+				# a webbed floor tile, painted like the soil tiles: it replaces the cell's top face (a
+				# thick web is hazier until its first layer is gone); it shivers when hit
+				var wt := Art.tex(OBS_DIR + ("web_thick.png" if int(it.left) >= 2 else "web.png"))
+				var w := cell - GAP
+				var ws := Vector2(w, w) * (1.0 + 0.04 * sin(PI * jolt))
+				var wc := r.position + Vector2(cell, cell) * 0.5
+				if wt != null:
+					draw_texture_rect(wt, Rect2(wc - ws * 0.5, ws), false)
+					# a faint violet sheen: the webbed area reads as one patch under the gems
+					_round_rect(Rect2(wc - ws * 0.46, ws * 0.92), Color("d9ccff", 0.16), cell * 0.16)
+				else:
+					draw_arc(wc, cell * 0.4, 0.0, TAU, 24, Color(1, 1, 1, 0.6), cell * 0.03, true)
 			"cage":
 				var tex := Art.tex(OBS_DIR + "cage.png")
 				var cs := Vector2(cell, cell) * (1.0 + 0.1 * sin(PI * jolt))
@@ -1711,6 +1738,12 @@ func _obstacle_fx(step: Dictionary) -> void:
 					Sfx.play("collect")
 				else:
 					Sfx.play("cell", 0.9 + 0.08 * have)
+			"web":
+				# torn: a burst of silk off the cell, wisps flying, a soft pop
+				_puffs.append({"c": c, "t": 0.0, "spin": randf_range(-0.6, 0.6)})
+				fx.emit("debris", {"pos": g, "color": Color("e9e0ff")})
+				_rings.append({"c": c, "r0": cell * 0.25, "r1": cell * 0.75, "t": 0.0, "dur": 0.25, "color": Color("f1ebff")})
+				Sfx.play("tap", 1.35 if r.done else 1.1)
 			"cage":
 				fx.emit("debris", {"pos": g, "color": Color(0.45, 0.47, 0.55)})
 				_rings.append({"c": c, "r0": cell * 0.3, "r1": cell * 0.9, "t": 0.0, "dur": 0.3, "color": Color(0.8, 0.82, 0.9)})
@@ -1915,6 +1948,26 @@ func _draw_overlays(glowing: bool) -> void:
 		_tile_outline(Board.idx(fc), Color(Pal.WARN, 0.9), cell * 0.012 + cell * 0.018 * (0.5 + 0.5 * sin(_time * 6.0)))
 	if _sel >= 0:
 		_tile_outline(_sel, Color(1, 1, 1, 0.85), cell * 0.03)
+	var burst := Art.tex(OBS_DIR + "rock_burst.png")
+	var dust := Art.tex(OBS_DIR + "rock_dust.png")
+	for b in _bursts:
+		var e: float = _ease(b.t)
+		if dust != null:  # the dust cloud swells behind, slower, and lingers
+			var ds := cell * (0.7 + 0.9 * e)
+			draw_texture_rect(dust, Rect2(b.c - Vector2(ds, ds) * 0.5, Vector2(ds, ds)), false, Color(1, 1, 1, 0.75 * (1.0 - b.t)))
+		if burst != null:
+			var bs := cell * (0.75 + 1.0 * e)
+			draw_set_transform(_draw_off + b.c, b.spin * e, Vector2(-1.0 if b.flip else 1.0, 1.0))
+			draw_texture_rect(burst, Rect2(-Vector2(bs, bs) * 0.5, Vector2(bs, bs)), false, Color(1, 1, 1, 1.0 - b.t * b.t * b.t))
+			draw_set_transform(_draw_off)
+	var puff := Art.tex(OBS_DIR + "web_puff.png")
+	if puff != null:
+		for p in _puffs:
+			var e: float = _ease(p.t)
+			var ps := cell * (0.55 + 0.8 * e)
+			draw_set_transform(_draw_off + p.c, p.spin * e)
+			draw_texture_rect(puff, Rect2(-Vector2(ps, ps) * 0.5, Vector2(ps, ps)), false, Color(1, 1, 1, 1.0 - p.t * p.t))
+			draw_set_transform(_draw_off)
 	for r in _rings:
 		if r.t < 0.0:
 			continue
