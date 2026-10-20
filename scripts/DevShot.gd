@@ -56,6 +56,8 @@ func _run() -> void:
 		Sfx.music("dig")
 		main.dig.force_treasure = OS.has_environment("ASTRO_TREASURE")  # hide a chest in this dig
 		main.dig.start(site, false, 12345)
+		if OS.has_environment("ASTRO_WEBTEX"):  # ASTRO_WEBTEX=/abs/file.png: a web design to try
+			main.dig.view.web_tex_override = ImageTexture.create_from_image(Image.load_from_file(OS.get_environment("ASTRO_WEBTEX")))
 		await get_tree().create_timer(0.4).timeout
 		# ASTRO_TALK=n: tap through the goal card and n of Mira's lines first (all if unset)
 		var talk := int(OS.get_environment("ASTRO_TALK")) if OS.has_environment("ASTRO_TALK") else 99

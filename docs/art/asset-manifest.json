@@ -967,12 +967,12 @@
       },
       "source": {
         "kind": "generated",
-        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference cb57be3b-c8c0-457b-8625-5756bda0acea, output 6fdca545-4f64-4fe2-9d08-1cf53c5779f6), sheet docs/art/sources/web_tiles.png, references: board screenshot + soil tiles, style ref; keyed with docs/art/tools/key_noscipy.py",
+        "url_or_tool": "Layer AI muse-image (inference d396f2d3-88b1-41be-a6d5-dc92845b1e05, output 35f4435b-e34b-4327-b37a-fe88c0d82bbb), sheet docs/art/sources/web_tiles_muse.png, option 2 (picked by the user from 18 shown in game)",
         "creator": "Claude Code for urunsiyabend",
         "created_at": "2026-10-20",
         "license": "Generated in the owner's Layer workspace",
         "attribution": "",
-        "prompt_or_source_record": "9 board tiles ... the same soil floor tile covered in a CAVE WEB ... soft, slightly thick, glowing pearly silk strands ... LIGHT web / THICK web ... flat solid pure green background"
+        "prompt_or_source_record": "9 DIFFERENT design options for one board tile ... a floor tile COMPLETELY COVERED by woven spider silk ... (2) a glowing pale lavender silk sheet with bright white web strands (3) dense fluffy cotton-candy silk, white and pink, with web strands"
       }
     },
     {
@@ -989,12 +989,12 @@
       },
       "source": {
         "kind": "generated",
-        "url_or_tool": "Layer AI gemini-3.1-flash-image (inference cb57be3b-c8c0-457b-8625-5756bda0acea, output 6fdca545-4f64-4fe2-9d08-1cf53c5779f6), sheet docs/art/sources/web_tiles.png, references: board screenshot + soil tiles, style ref; keyed with docs/art/tools/key_noscipy.py",
+        "url_or_tool": "Layer AI muse-image (inference d396f2d3-88b1-41be-a6d5-dc92845b1e05, output 35f4435b-e34b-4327-b37a-fe88c0d82bbb), sheet docs/art/sources/web_tiles_muse.png, option 3 (picked by the user from 18 shown in game)",
         "creator": "Claude Code for urunsiyabend",
         "created_at": "2026-10-20",
         "license": "Generated in the owner's Layer workspace",
         "attribution": "",
-        "prompt_or_source_record": "9 board tiles ... the same soil floor tile covered in a CAVE WEB ... soft, slightly thick, glowing pearly silk strands ... LIGHT web / THICK web ... flat solid pure green background"
+        "prompt_or_source_record": "9 DIFFERENT design options for one board tile ... a floor tile COMPLETELY COVERED by woven spider silk ... (2) a glowing pale lavender silk sheet with bright white web strands (3) dense fluffy cotton-candy silk, white and pink, with web strands"
       }
     },
     {
