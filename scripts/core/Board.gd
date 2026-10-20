@@ -158,11 +158,13 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 	# obstacles ([[top-left cell, kind], ...], Obstacles.KINDS): a piece takes its cells, a
 	# cover goes over the gem already there
 	for ob in site.get("obstacles", []):
-		var cells := obs.place(ob[1], ob[0], W)
+		var cells := obs.place(ob[1], ob[0], W, int(ob[2]) if ob.size() > 2 else 0)
 		for c in cells:
 			if Obstacles.KINDS[ob[1]].layer == Obstacles.Layer.PIECE:
 				terrain[c] = Terrain.BLOCK
 				token[c] = Token.NONE
+			elif Obstacles.KINDS[ob[1]].layer == Obstacles.Layer.FLOOR:
+				pass  # it lies under whatever the cell holds
 			else:
 				assert(token[c] == Token.ORE, "a cover needs a gem under it (cell %d)" % c)
 				for belt in cfg.belts:
@@ -1046,6 +1048,10 @@ func _charge_cell(cells: Array, pivot: int) -> int:
 ## multi-cell obstacle counts it once. Records what happened on `step` for the view. Returns
 ## true when rock or an obstacle took the hit, so it goes no further (a caged gem stays).
 func _strike(i: int, h: int, power: int, step: Dictionary, seen: Dictionary) -> bool:
+	# a floor layer (a web) takes its hit and lets it through to what lies on the cell
+	var fl := obs.hit_floor(i, h, seen)
+	if not fl.is_empty():
+		step.get_or_add("obstacles", []).append(fl)
 	var r := obs.hit(i, h, seen)
 	if not r.is_empty():
 		step.get_or_add("obstacles", []).append(r)
@@ -1743,7 +1749,7 @@ func goal_progress(g: Dictionary) -> int:
 		"crystal": return stats.crystals
 		"blast": return stats.blasts
 		"core": return stats.cores
-		"generator", "cage": return obs.count_finished(g.type)
+		"generator", "cage", "web": return obs.count_finished(g.type)
 	return 0
 
 

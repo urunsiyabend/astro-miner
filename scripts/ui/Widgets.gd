@@ -786,9 +786,9 @@ static func draw_goal_icon(ci: CanvasItem, c: Vector2, s: float, g: Dictionary) 
 				pts.append(c + Vector2(cos(a), sin(a)) * s * (0.85 + 0.08 * sin(k * 2.3)))
 			ci.draw_colored_polygon(pts, Pal.ROCK[1])
 			ci.draw_polyline(PackedVector2Array([c + Vector2(-s * 0.1, -s * 0.6), c + Vector2(s * 0.1, -s * 0.05), c + Vector2(-s * 0.15, s * 0.3), c + Vector2(s * 0.05, s * 0.7)]), Pal.ROCK[3], 5.0, true)
-		"generator", "core", "cage":
+		"generator", "core", "cage", "web":
 			# obstacle goals show the obstacle itself (a generator switched on)
-			var name: String = {"generator": "generator_on", "core": "core", "cage": "cage"}[g.type]
+			var name: String = {"generator": "generator_on", "core": "core", "cage": "cage", "web": "web_icon"}[g.type]
 			var ot := Art.tex("res://assets/obstacles/%s.png" % name)
 			if ot != null:
 				ci.draw_texture_rect(ot, Rect2(c - Vector2(s, s) * 1.1, Vector2(s, s) * 2.2), false)
@@ -877,6 +877,7 @@ static func goal_frame(g: Dictionary) -> Texture2D:
 		"ore": n = ["orange", "cyan", "yellow", "pink"][g.ore]
 		"crystal": n = "violet"
 		"rock", "cage": n = "grey"
+		"web": n = "violet"
 		"treasure": n = "yellow"
 		"generator", "core": n = "cyan"
 	return Art.tex("res://assets/ui/slot_%s.png" % n)

@@ -78,6 +78,13 @@ Rules now:
    anchors) and wire into `Art.gd`.
 4. **Verify in engine** at native tile size (~130px) before approving.
 
+## Model (2026-10-20, the user's call)
+
+Generate with **`muse-image`** (0.2 CU per image), batch 1-2. The notes above against Muse were
+about a method (a flat blockout as a heavy init image), not the model. This is prototype art;
+production art will likely be made another way. Gemini (2 CU per image) only where Muse clearly
+fails, batch 1.
+
 ## Budget
 
 Layer workspace `e8720ad0-ad91-44c4-aced-56252dafc5dc` (Siyabend's Workspace). ~232 CU left

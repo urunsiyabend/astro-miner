@@ -32,6 +32,7 @@ func _initialize() -> void:
 	_test_boosters()
 	_test_campaign_shape()
 	_test_moved_specials()
+	_test_webs()
 	_test_goals_end_dig()
 	_test_determinism()
 	_test_generator_all_sites()
@@ -400,6 +401,35 @@ func _test_moved_specials() -> void:
 			and Powers.combo_name([S.NOVA, S.NOVA]) == "SUPERNOVA", "combo names: four is the Big Bang")
 
 
+## A web (Obstacles: a FLOOR layer) lies under a gem: a match ON it clears it and the gem goes
+## too; a match next to it leaves it; a power-up clears it.
+func _test_webs() -> void:
+	var b := _board(OPEN, DIAG, {"gravity": true})
+	var w := Board.idx(Vector2i(3, 4))
+	var beside := Board.idx(Vector2i(3, 6))
+	b.obs.place("web", Vector2i(3, 4), Board.W)
+	b.obs.place("web", Vector2i(3, 6), Board.W)
+	b.goals = [{"type": "web", "n": 2}]
+	# a line through (3,4) along row 4: the web there clears, the one at (3,6) (below the row's
+	# neighbour cells) stays
+	for x in [2, 3, 4]:
+		b.ore[Board.idx(Vector2i(x, 4))] = 2
+		b.token[Board.idx(Vector2i(x, 4))] = Board.Token.ORE
+	var steps := []
+	b._resolve(steps, -1)
+	_ok(b.obs.floor_target(w, Obstacles.Hit.ON) < 0 and b.goal_progress(b.goals[0]) >= 1,
+			"web: a match on top of it clears it")
+	_ok(b.obs.floor_target(beside, Obstacles.Hit.ON) >= 0 or b.goal_progress(b.goals[0]) == 2,
+			"web: a match next to it does not clear it (only one on top)")
+	var p := _board(OPEN, DIAG, {"gravity": true})
+	p.obs.place("web", Vector2i(5, 4), Board.W, 2)
+	var at := Board.idx(Vector2i(3, 4))
+	p.token[at] = Board.Token.CHARGE
+	p.spec[at] = Board.Special.PULSAR
+	Powers.fire(p, at, Vector2i(1, 0), [])
+	_ok(p.obs.items[0].left == 1, "web: a Pulsar's beam takes one layer off a thick web")
+
+
 func _test_charge_and_blast() -> void:
 	# 4+ in a row -> charge on the pivot (the cell the robot moved ore into)
 	var ores := _with(DIAG, {Vector2i(0, 1): "L", Vector2i(1, 1): "L", Vector2i(2, 1): "L", Vector2i(3, 1): "R", Vector2i(3, 2): "L"})
@@ -554,10 +584,12 @@ func _test_save_roundtrip() -> void:
 
 
 func _test_bot_smoke() -> void:
-	var site := Sites.get_site(Sites.index_of("landing"))
+	var site := Sites.get_site(Sites.index_of("arches"))
+	var rules := Economy.rules([0, 0, 0, 0])
+	rules.path_max = 4  # the game's default: moves are drawn paths
 	var wins := 0
 	for s in 20:
-		var m := Bots.play(site, Economy.rules([0, 0, 0, 0]), 500 + s, Bots.Kind.GREEDY)
+		var m := Bots.play(site, rules, 500 + s, Bots.Kind.GREEDY)
 		if m.complete:
 			wins += 1
 	_ok(wins >= 16, "greedy bot clears the first open site in >=80%% of seeds (%d/20)" % wins)

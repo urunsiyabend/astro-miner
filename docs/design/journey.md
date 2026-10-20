@@ -49,6 +49,7 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 | 2 | Rock | obstacle | a match next to it cracks it (1–3 layers) |
 | – | power-ups | tips | Pulsar, Scout drone, Nova, Black hole, combos: a tip on a goal card, Mira's note the first time |
 | 4 | Thick rock | variant | two or three layers: a match per layer |
+| 4b | Cave web | obstacle (floor) | under the gems; a match on top of it clears it (level 6) |
 | 5 | Falling robot | verb | clear under the robot and it drops down for free |
 | 6 | Nova | power-up | an L or T; push it, a 5x5 blast |
 | 7 | Crystal in rock | goal (Excavate) | break the rock to reveal it, then pick it up |
@@ -66,8 +67,9 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 
 ### Chapter 1 · Landing (levels 1–10): rock
 
-The chapter's element is rock; its variant (thick rock) and the first new goal (crystals in
-rock, Excavate) come inside it. Every level is free play except level 1 (the path lesson).
+The chapter's element is rock, then the cave web at 6 (a floor layer cleared by a match on
+top of it: Royal Match meets grass on level 4). Thick rock is a variant; crystals in rock are
+a goal twist on rock, not a new mechanic. Every level is free play except level 1 (the path lesson).
 
 | L | Board | Goal | Element | Tip on the goal card |
 |---|---|---|---|---|
@@ -76,9 +78,16 @@ rock, Excavate) come inside it. Every level is free play except level 1 (the pat
 | 3 | a rock band with a thick middle | 9 rock | **thick rock** (Mira points at it) | – |
 | 4 | spine: a wall splits two quarries | 10 rock | | Scout drone |
 | 5 | strata: a full band up top, thick rock below | 14 rock | | Nova |
-| 6 | crystals in rock, one in a thick-rock vault | 3 crystals | **crystal in rock** (Mira, one line) | combo (Pulsar + Nova) |
-| 7–9 | *to build*: mixes, rising to a small peak at 9 | | | Black hole at 7 or 8 |
-| 10 | *to build*: reward, big cascades | | | |
+| 6 | a band of webs across the middle | 16 webs | **cave web** (floor layer; Mira, one line) | – |
+| 7 | **silk corners**: webs in the four corners behind rock shields, an open middle | 16 webs | web + rock (the pair level) | – |
+| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and a thick-rock vault | 3 crystals | (a goal twist on rock) | combo (Pulsar + Nova) |
+| 9 | **hourglass**: webs up top beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | two goals | drone + Pulsar |
+| 10 | **starfall**: a show level: thick webs flood the board, power-ups waiting | 50 webs | reward | Black hole |
+
+Levels are designed with the checklist in `docs/research/royal-match-level-design.md` §6: one
+idea in one sentence, a new silhouette each level, goals at the edges or in pockets, an open
+"workshop" in the middle for power-ups, obstacles in lines and shapes (never scatter), an order
+of play (shield, then goal), and the last goals in the hardest spot.
 
 ### Chapter 2 · The Shaft (11–20): Deliver
 11 **energy core** (one core, one dock, open board) · 12 core + rock · 13 **Black hole**; path combos ·
@@ -138,6 +147,10 @@ The loop, three levels at a time: build, measure, play on a phone, then the next
 - **Goal types beyond Collect** (`docs/design/obstacles.md`): Excavate, Deliver (energy core
   onto a dock), Activate (generators), and later Connect (our genre's own, rare elsewhere)
   and Rescue. Prototypes 7 Power grid and 8 Core run were the reference ("very much liked").
+- **Crystals in rock are not a new mechanic** (the user caught it): breaking rock is known; a
+  new element must bring a new interaction. The cave web (a floor layer, grass's role) is the
+  chapter's second element; it grows into a family: thick web, then a spider nest that
+  re-spins webs (a spreader, Royal Match's bush / Soda's chocolate).
 - **No level teaches a power-up** (the user, firmly): power-ups come through tips and Mira's
   first-time note; levels are built around the board's elements.
 - **Power-ups** (`docs/design/powerups.md`): Pulsar (4 in a row, twin beams), Nova (L/T,
