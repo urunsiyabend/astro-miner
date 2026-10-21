@@ -84,6 +84,16 @@ a goal twist on rock, not a new mechanic. Every level is free play except level 
 | 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar | 12 |
 | 10 | **starfall**: a show level, thick webs everywhere, power-ups waiting | 50 webs | reward | Black hole | 8 |
 
+**Board evolution** (the user, 2026-10-20, with Royal Match screenshots): most of the board
+starts **full of obstacles** (blocks of rock, rock over webs), and the gems only have a small
+area: a strip, a frame, a corridor. Every obstacle broken gives a cell back to the gems, so the
+playable area grows move by move: cramped → struggle → break through → relief → power (more
+room, bigger combos, more power-ups, more breaking: a positive loop). It is not shading or
+locked rooms; the obstacles themselves are the closed map. Design the board at moves 5, 10 and
+15, and measure it: `tools/lesson_design.gd -- evolve <id>` prints the share of the board the
+robot can reach then (targets: about 25-50% at the start, 70% by move 5-10, 85-95% by 15).
+The goals are the obstacles (36 rock, 25 buried webs), not gems.
+
 **Flow** (the user, 2026-10-20: "Royal Match levels have a flow: start top-left, break layers
 of rock bottom-right, the grass beyond it"): the robot can't walk through rock, so a board cut
 into rooms by rock walls and bedrock has an order of play built in: the robot works in its
