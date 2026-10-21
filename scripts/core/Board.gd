@@ -1048,10 +1048,12 @@ func _charge_cell(cells: Array, pivot: int) -> int:
 ## multi-cell obstacle counts it once. Records what happened on `step` for the view. Returns
 ## true when rock or an obstacle took the hit, so it goes no further (a caged gem stays).
 func _strike(i: int, h: int, power: int, step: Dictionary, seen: Dictionary) -> bool:
-	# a floor layer (a web) takes its hit and lets it through to what lies on the cell
-	var fl := obs.hit_floor(i, h, seen)
-	if not fl.is_empty():
-		step.get_or_add("obstacles", []).append(fl)
+	# a floor layer (a web) takes its hit and lets it through to what lies on the cell; under
+	# rock (a shielded web) it waits until the rock has gone
+	if terrain[i] == Terrain.GROUND:
+		var fl := obs.hit_floor(i, h, seen)
+		if not fl.is_empty():
+			step.get_or_add("obstacles", []).append(fl)
 	var r := obs.hit(i, h, seen)
 	if not r.is_empty():
 		step.get_or_add("obstacles", []).append(r)
@@ -1475,6 +1477,27 @@ func _square(p: Vector2i) -> Array:
 ## The cell a step from c in direction d reaches, or -1 (edge, bedrock). A portal links its
 ## source to its destination both ways: down out of the source drops into the destination,
 ## up out of the destination climbs back into the source.
+## The cells the robot can walk to from where it stands (rock, bedrock, obstacle pieces and
+## caged gems wall it in): the part of the board it can play now. A board cut into rooms opens
+## room by room as their gates break (Royal Match's board evolution). Robot-less: everything.
+func reach() -> PackedByteArray:
+	var out := PackedByteArray()
+	out.resize(W * H)
+	if robot < 0:
+		out.fill(1)
+		return out
+	var stack := [robot]
+	out[robot] = 1
+	while not stack.is_empty():
+		var c: int = stack.pop_back()
+		for d in DIRS:
+			var n := step_to(c, d)
+			if n >= 0 and out[n] == 0 and can_enter(n):
+				out[n] = 1
+				stack.append(n)
+	return out
+
+
 ## The robot (or a path) can step onto cell i: open ground, not a caged gem.
 func can_enter(i: int) -> bool:
 	return terrain[i] == Terrain.GROUND and not obs.locked(i)
@@ -1769,6 +1792,6 @@ func snapshot() -> Dictionary:
 		"robot": robot, "energy": energy, "haul": haul.duplicate(),
 		"extracted": extracted.duplicate(), "rocks": stats.rocks_broken, "chunks": stats.chunks,
 		"crystals": stats.crystals, "blasts": stats.blasts, "treasures": stats.treasures,
-		"treasure_coin": treasure_coin, "obstacles": obs.snapshot(),
+		"treasure_coin": treasure_coin, "obstacles": obs.snapshot(), "reach": reach(),
 		"progress": goals.map(func(g): return goal_progress(g)),
 	}

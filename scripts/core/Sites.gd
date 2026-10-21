@@ -60,85 +60,89 @@ const LIST := [
 			{"say": "A match right next to rock cracks it. Break all 14 rocks!", "until": "move"},
 		],
 	},
-	# L2 "gatehouse": the robot starts in the left room; a rock wall shuts it off from the right
-	# room and its rocks. Break the wall (or beam through it), then go and clear the room.
+	# L2 "quarry": the board is mostly rock (Royal Match fills its boards with boxes): the robot
+	# starts in the strip on the left and along the bottom; every rock broken opens the board up.
 	{
-		"id": "arches", "mode": "fall", "colours": 4, "tier": "intro", "energy": 22,
-		"goals": [{"type": "rock", "n": 14}],
+		"id": "arches", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
+		"goals": [{"type": "rock", "n": 36}],
 		"tip": ["pulsar", "4 in a row makes a Pulsar. Swap with it: twin beams fire both ways, through rock."],
 		"rows": [
-			". . . . 1 . . . .",
-			". . . . 1 . 1 1 .",
-			". @ . . 1 . 1 1 .",
-			". . . . 1 . . . .",
-			". . . . 1 . . . .",
-			". . . . 1 . 1 1 .",
-			". . . . 1 . . . .",
-			". . . . 1 . . . .",
-			"# . . . 1 . . . #",
+			". . . . . . . . .",
+			". . . 1 1 1 1 1 1",
+			". . . 1 1 1 1 1 1",
+			". @ . 1 1 1 1 1 1",
+			". . . 1 1 1 1 1 1",
+			". . . 1 1 1 1 1 1",
+			". . . 1 1 1 1 1 1",
+			". . . . . . . . .",
+			"# . . . . . . . #",
 		],
 	},
 
 
-	# L3 "vault": thick rock, the chapter's variant. A vault of rock sits behind a thick door:
-	# crack the door from below, then dig your way into the vault. Mira points at the door.
+
+	# L3 "crates": thick rock, the chapter's variant: a big block of rock with a thick core fills
+	# the middle; the gems run round it in a frame. Mira points at the thick core.
 	{
-		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "rock", "n": 11}],
-		"rows": [
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". # 1 1 1 1 1 # .",
-			". # # 1 1 1 # # .",
-			". . # 2 2 2 # . .",
-			". . . . . . . . .",
-			". . . . @ . . . .",
-			". . . . . . . . .",
-			"# . . . . . . . #",
-		],
+		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
+		"goals": [{"type": "rock", "n": 28}],
 		"script": [
 			{"say": "Darker rock is thicker: it cracks on the first match and breaks on the second.", "until": "move",
-					"focus": [Vector2i(3, 4), Vector2i(4, 4), Vector2i(5, 4)]},
+					"focus": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2)]},
 		],
-	},
-
-	# L4 "pockets": two rock pockets walled in at the top corners, out of reach of any match;
-	# a Scout drone (or a beam) gets in. Rock lines in the middle to build them on.
-	{
-		"id": "spine", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "rock", "n": 8}],
-		"tip": ["drone", "A 2x2 square makes a Scout drone. It flies to what helps you most, even rock you can't reach."],
 		"rows": [
-			"1 1 # . . . # 1 1",
-			"# # # . . . # # #",
 			". . . . . . . . .",
-			". . . . . . . . .",
-			". . 1 . . . 1 . .",
-			". . 1 . . . 1 . .",
+			". 1 1 1 1 1 1 1 .",
+			". 1 2 2 2 2 2 1 .",
+			". 1 1 1 1 1 1 1 .",
+			". 1 1 1 1 1 1 1 .",
+			". 1 1 1 1 1 1 1 .",
 			". . . . @ . . . .",
 			". . . . . . . . .",
 			"# . . . . . . . #",
 		],
 	},
 
-	# L5 "descent": the robot starts top-left; a rock staircase runs down to the bottom-right,
-	# thicker the deeper it goes. Break your way down it, step by step.
+
+	# L4 "towers": two towers of rock fill the sides; the robot works up the corridor between them
+	# and along the bottom. A Scout drone reaches the tops.
 	{
-		"id": "strata1", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
-		"goals": [{"type": "rock", "n": 12}],
-		"tip": ["nova", "An L or a T makes a Nova: a big blast all around it."],
+		"id": "spine", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
+		"goals": [{"type": "rock", "n": 42}],
+		"tip": ["drone", "A 2x2 square makes a Scout drone. It flies to what helps you most."],
 		"rows": [
-			". @ . . . . . . .",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . @ . 1 1 1",
 			". . . . . . . . .",
-			"1 1 1 . . . . . .",
-			"# # 1 1 1 . . . .",
-			". . # # 1 1 . . .",
-			". . . . # # 1 1 .",
-			". . . . . . # 2 2",
-			". . . . . . . # .",
 			"# . . . . . . . #",
 		],
 	},
+
+
+	# L5 "strata": only the top two rows are open; below, the rock goes down in bands, thicker the
+	# deeper. Dig down: every band broken opens the next.
+	{
+		"id": "strata1", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
+		"goals": [{"type": "rock", "n": 36}],
+		"tip": ["nova", "An L or a T makes a Nova: a big blast all around it."],
+		"rows": [
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 2 1 1 1 2 1 1",
+			"2 1 1 1 2 1 1 1 2",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+		],
+	},
+
 
 	# L6: cave webs, the chapter's new element (Royal Match meets grass on level 4): a floor
 	# layer under the gems, cleared by a match on top of it. A band across the middle.
@@ -168,52 +172,52 @@ const LIST := [
 					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
 		],
 	},
-	# L7 "web garden": start in the top-left room; a thick gate on its right opens the way down
-	# the right side, and the web garden lies at the bottom right, behind a second gate. Order
-	# of play: the first gate, the second, then the garden; power-ups built early fly ahead.
+	# L7 "buried silk": webs lie under a block of rock on the right (Royal Match hides grass under
+	# boxes): break the rock, and the web under it shows; then match on it.
 	{
 		"id": "silk", "mode": "fall", "colours": 4, "tier": "intro", "energy": 30,
-		"goals": [{"type": "web", "n": 14}],
-		"obstacles": [[Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"], [Vector2i(6, 9), "web"], [Vector2i(7, 9), "web"]],
+		"goals": [{"type": "web", "n": 25}],
+		"obstacles": [[Vector2i(4, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"], [Vector2i(8, 3), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"], [Vector2i(8, 4), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"]],
 		"rows": [
-			". . . . # . . . .",
-			". @ . . # . . . .",
-			". . . . 2 . . . .",
-			". . . . 2 . . . .",
-			"1 1 1 . # . . . .",
-			". . . . # 1 1 1 1",
-			". . . . # . . . .",
-			". . . . 1 . . . .",
-			". . . . 1 . . . .",
-			"# . . . # . . . #",
+			". . . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". @ . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". . . . 1 1 1 1 1",
+			". . . . . . . . .",
+			"# . . . . . . . #",
 		],
 	},
 
 
 
-	# L8: crystal vaults: crystals hidden in rock (a goal twist on rock, not a new element), one
-	# in a thick-rock vault. The goal card's tip: path combos.
+
+	# L8 "crystal quarry": crystals wait at the bottom of a block of rock: dig down to them. One
+	# sits behind thick rock. The goal card's tip: path combos.
 	{
 		"id": "glint1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
 		"goals": [{"type": "crystal", "n": 3}],
 		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
-		"rows": [
-			"# # . . . . . # #",
-			"# 1c . . . . . 1c #",
-			". . . . . . . . .",
-			". . . 1 1 1 . . .",
-			". . . 1 2c 1 . . .",
-			". . . 1 1 1 . . .",
-			". . . . . . . . .",
-			". . . . @ . . . .",
-			"# . . . . . . . #",
-			"# # . . . . . # #",
-		],
 		"script": [
-			{"say": "Some rock hides a crystal. Break it open, then draw the robot over the crystal to grab it.", "until": "crystal",
-					"focus": [Vector2i(1, 1), Vector2i(7, 1), Vector2i(4, 4)]},
+			{"say": "Crystals at the bottom of the rock! Dig down, then draw the robot over a crystal to grab it.", "until": "crystal",
+					"focus": [Vector2i(1, 6), Vector2i(4, 6), Vector2i(7, 6)]},
+		],
+		"rows": [
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". 1 1 1 1 1 1 1 .",
+			". 1 1 1 1 1 1 1 .",
+			". 1 1 1 2 1 1 1 .",
+			". 1 1 1 1 1 1 1 .",
+			". 1c 1 1 2c 1 1 1c .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
 		],
 	},
+
 	# L9: the chapter's small peak (two goal types). Idea: an hourglass; the webs are up top,
 	# beyond a narrow waist, and a rock band guards the bottom. Clear a way up through the
 	# waist, then send power-ups through it.

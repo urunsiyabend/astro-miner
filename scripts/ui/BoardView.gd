@@ -1211,6 +1211,7 @@ func _draw() -> void:
 	if glowing:
 		for k in glow.size():
 			_draw_glow_halo(glow[k], k)
+	var webbed := _floor_cells()
 	var falling: bool = not _cur.is_empty() and _cur.type == "fall"
 	var swapping: bool = not _cur.is_empty() and _cur.type == "swap"
 	var tok: PackedInt32Array = _cur.snap.token if falling else snap.token
@@ -1324,6 +1325,10 @@ func _draw() -> void:
 			fl = maxf(fl, 0.22 + 0.12 * hop2)
 		_tok_squash = _squash_of(i)
 		_tok_rot = float(_spec_angle.get(i, 0.0)) if _drawing and tok[i] == K.CHARGE and specs[i] == Board.Special.PULSAR else 0.0
+		if webbed.has(i) and tok[i] != K.NONE:
+			# a gem on a web stands off it: a soft dark shadow under it
+			draw_circle(at + Vector2(0, cell * 0.06), cell * 0.4 * sc, Color(0.1, 0.02, 0.2, 0.3), true, -1.0, true)
+			draw_circle(at + Vector2(0, cell * 0.05), cell * 0.33 * sc, Color(0.1, 0.02, 0.2, 0.45), true, -1.0, true)
 		_draw_token(at, tok[i], kinds[i], sc, fl, specs[i])
 		_tok_rot = 0.0
 		_tok_squash = Vector2.ONE
@@ -1643,6 +1648,16 @@ func _draw_dock_marks() -> void:
 			_chevron(c, Vector2(0, 1), CORE_COL)
 
 
+## Cells with a floor layer (a web) still on them, from the snapshot.
+func _floor_cells() -> Dictionary:
+	var out := {}
+	for it in snap.get("obstacles", []):
+		if int(it.left) > 0 and Obstacles.KINDS[it.kind].layer == Obstacles.Layer.FLOOR:
+			for c in it.cells:
+				out[c] = true
+	return out
+
+
 ## Obstacles of one layer (Obstacles.Layer): pieces under the gems' layer, covers over the gems
 ## they lock. What each looks like follows its state in the snapshot (hits left), so the view
 ## never needs to know the rules.
@@ -1673,6 +1688,11 @@ func _draw_obstacles(layer: int) -> void:
 					draw_texture_rect(wt, Rect2(wc - ws * 0.5, ws), false)
 					# a faint violet sheen: the webbed area reads as one patch under the gems
 					_round_rect(Rect2(wc - ws * 0.46, ws * 0.92), Color("d9ccff", 0.16), cell * 0.16)
+					# calm in the middle, where the gem sits: the strands show round the edges and
+					# corners, framing the cell, never behind the gem
+					var calm := Color("f2dcef") if int(it.left) >= 2 else Color("c9b7ef")
+					draw_circle(wc, cell * 0.4, Color(calm, 0.4), true, -1.0, true)
+					draw_circle(wc, cell * 0.32, Color(calm, 0.7), true, -1.0, true)
 				else:
 					draw_arc(wc, cell * 0.4, 0.0, TAU, 24, Color(1, 1, 1, 0.6), cell * 0.03, true)
 			"cage":

@@ -6,7 +6,7 @@ config_version=5
 
 config/name="Astro Miner"
 config/description="Steer a mining robot, extract ore, crack rock and grow a colony."
-config/version="0.13.5"
+config/version="0.13.6"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 boot_splash/show_image=false

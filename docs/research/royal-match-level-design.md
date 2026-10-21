@@ -368,3 +368,17 @@ Check each level before building or shipping it:
 - [Pranay: Royal Match Breakdown Part 3 (2025)](https://pranaysarepaka.substack.com/p/royal-match-breakdown-part-3)
 - [Eckmann et al., The Royal Crush: Analysis of Match-3 Mechanics (IEEE CoG 2024, Godot toolkit)](https://downloads.hci.informatik.uni-wuerzburg.de/2024-CoG-RoyalCrush.pdf)
 - [Player forum: Hard / Super Hard labels (weak source)](https://www.corada.com/voices/topics/4239)
+
+
+## Board evolution (2026-10-20, from the user's research and Royal Match screenshots)
+
+Royal Match fills most of a board with obstacles (box blocks, egg fields, cupboard columns,
+honey sheets) and gives the gems a small area; breaking obstacles frees cells, the playable area
+grows, and with it the chance of combos and power-ups (a positive feedback loop). Purposes:
+visible progress (the board changes under the player's hands), relief after constraint,
+difficulty that changes within a level (problem solving → control → speed), bigger chains late
+in the level, and attention steered by what is open. Design the board's state at moves 5, 10,
+15, not only at the start. Sources the user cited: Game Developer, "What Makes Royal Match So
+Good: Level Design" (board progression); Ekin Melis Sezer on Medium (narrow, separated areas
+make choices harder); Gamigion, Naufal Tanansyah (few colours, more power-ups); levelwinner.com
+and pranaysarepaka.substack.com screenshots (boards packed with boxes, eggs, mailboxes, grass).

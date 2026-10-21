@@ -11,6 +11,9 @@ extends SceneTree
 ##   solve  a winning move list (the guided moves, then the path bot): for TUTORIAL_SOLUTIONS
 ##   rate   40 games of the SLOPPY path bot after the guided moves: clear rate and moves used
 ##          (budget = the site's, or budget=N); a site without a pinned seed gets fresh boards
+##   evolve the board's evolution: the share of the board the robot can reach (Board.reach) at
+##          moves 0, 5, 10 and 15 of 20 bot games: a level that opens up room by room starts
+##          small and widens (design what the board looks like at moves 5, 10, 15)
 ## Then `tools/lesson_probe.gd` prints the board move by move.
 
 const MAP := {"U": Vector2i(0, -1), "D": Vector2i(0, 1), "L": Vector2i(-1, 0), "R": Vector2i(1, 0)}
@@ -36,6 +39,7 @@ func _initialize() -> void:
 		"scan": _scan(site, moves, opts)
 		"solve": _solve(site, moves)
 		"rate": _rate(site, moves)
+		"evolve": _evolve(site, moves)
 	quit(0)
 
 
@@ -123,3 +127,38 @@ func _rate(site: Dictionary, moves: Array) -> void:
 		return
 	print("%s: SLOPPY path bot cleared %d/40, moves used min %d median %d max %d (budget %d)" % [site.id,
 			wins, used[0], used[used.size() / 2], used[-1], int(site.get("energy", 20))])
+
+
+func _evolve(site: Dictionary, moves: Array) -> void:
+	var marks := [0, 5, 10, 15]
+	var sum := {}
+	var n := {}
+	for t in 20:
+		var b := _board(site, 900 + t * 13)
+		var cells := 0
+		for i in Board.W * Board.H:
+			if b.terrain[i] != Board.Terrain.BEDROCK:
+				cells += 1
+		for m in moves:
+			b.try_path(m)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 2000 + t
+		var k := 0
+		while true:
+			if marks.has(k):
+				var r := b.reach()
+				var open := 0
+				for i in r.size():
+					open += r[i]
+				sum[k] = float(sum.get(k, 0.0)) + float(open) / cells
+				n[k] = int(n.get(k, 0)) + 1
+			if b.over or k >= 15:
+				break
+			if not b.try_path(Bots.choose_path(b, Bots.Kind.SLOPPY, rng)).ok:
+				break
+			k += 1
+	var line := "%s: robot's reach" % site.id
+	for m in marks:
+		if n.has(m):
+			line += "  move %d: %d%%" % [m, int(100.0 * sum[m] / n[m])]
+	print(line)
