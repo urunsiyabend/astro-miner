@@ -99,17 +99,30 @@ var gravity := false  # falling gems: no veins, so no vein pips
 var portals: Array = []  # [[source, destination]] cells: drawn as a glowing pair of rings
 var _sel := -1        # classic: the gem tapped first (tap it, then a neighbour)
 var _touch_cell := -1
-var _fall_from := {}  # during a fall step: cell -> the cell its gem fell from
-var _fall_drop := {}  # during a fall step: new cell -> rows it drops in from above
+var _fall_route := {} # during a fall step: cell -> the route (points) its piece takes there
+var _fall_len := {}   # cell -> the route's length in cells (a diagonal step counts as one)
+var _fall_entry := {} # new gem's cell -> the y (px) of the top edge of the run it enters through
 var _reject := {"a": -1, "b": -1, "t": 0.0}  # a swap that made no line wobbles back
 # --- juice (docs/research/match3-combo-juice.md) ---
-const FALL_G := 85.0          # gravity in rows/s²: pieces gather speed as they drop
-const FALL_STAGGER := 0.022   # s between pieces starting to fall, bottom first, up a column
+# falls (docs/research/match3-fluid-falls.md, Unity's Gem Hunter Match): each piece runs its own
+# route at once, speeding up from FALL_V0 to FALL_VMAX cells/s, then lands with a squash and a hop
+const FALL_V0 := 4.0          # cells/s a piece starts falling at
+const FALL_A := 16.0          # cells/s² it gathers speed
+const FALL_VMAX := 11.0       # cells/s top speed (1 cell ~0.18 s, 3 ~0.45 s, 8 ~0.85 s)
+const FALL_STAGGER := 0.025   # s between pieces starting to fall, bottom first, up a column
+# a landing never stops a gem dead: its speed runs on into a damped spring that squashes it
+# flat (its bottom stays on the floor), springs it back up a little tall, and settles it
+const LAND_TIME := 0.36       # s a landing lasts (the spring is still by then)
+const LAND_W := 30.0          # rad/s: the spring's stiffness (a slow, soft ~0.2 s wobble)
+const LAND_DAMP := 0.45       # its damping: one gentle wobble, then still
+const LAND_MAX := 0.08        # squash of a drop at top speed (a short one less): slight
+const GEM_HALF := 0.47        # half a gem's height in cells (ORE_SIZE / 2): where its bottom is
 const CHAIN_NOTES := [0, 4, 7, 12, 16, 19, 24]  # semitones: each cascade climbs a major chord
 var _match_to := {}   # matched cell -> where its group pulls together (centre of the group)
 var _fall_delay := {} # falling cell -> s before it starts to fall
 var _fall_time := {}  # falling cell -> s its drop takes
 var _land := {}       # cell -> 1..0 landing squash after a drop
+var _land_k := {}     # cell -> cells/s it landed at (a short drop bounces less)
 var _tok_squash := Vector2.ONE  # non-uniform scale for the next gem drawn (landing squash)
 var _chain := 0       # cascades in the current turn
 var _trauma := 0.0    # screen shake: added by blasts, shake = trauma²
@@ -314,43 +327,49 @@ func _next_step() -> void:
 					"t": 0.0, "dur": 0.45, "color": Pal.ACCENT})
 			Sfx.play("pulse")
 		"fall":
-			_fall_from.clear()
-			_fall_drop.clear()
-			var far := 1
-			for m in _cur.moves:
-				_fall_from[m[1]] = m[0]
-				far = maxi(far, Board.pos(m[1]).y - Board.pos(m[0]).y)
-			for sp in _cur.spawns:
-				_fall_drop[sp[0]] = sp[1]
-				far = maxi(far, sp[1])
-			for wp in _cur.get("warps", []):
-				_fall_drop[wp[1]] = 1  # out of the portal: it drops in from just above
-			if not _cur.robot.is_empty():
-				far = maxi(far, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
-			if not _cur.get("warps", []).is_empty():
-				Sfx.play("warp", 1.2)
+			_fall_route.clear()
+			_fall_len.clear()
+			_fall_entry.clear()
 			_fall_delay.clear()
 			_fall_time.clear()
-			var cols := {}  # x -> [[dest y, cell, rows]]
-			for m in _cur.moves:
-				var dd: int = Board.pos(m[1]).y - Board.pos(m[0]).y
-				cols[Board.pos(m[1]).x] = cols.get(Board.pos(m[1]).x, []) + [[Board.pos(m[1]).y, m[1], maxi(1, dd)]]
+			var paths: Dictionary = _cur.get("paths", {})
+			for c in paths:
+				var pts := PackedVector2Array()
+				var length := 0.0
+				for k in paths[c].size():
+					var g: Vector2 = paths[c][k]
+					pts.append(origin + Vector2(g.x * cell, g.y * pitch) + Vector2(cell, cell) * 0.5)
+					if k > 0:
+						var d: Vector2 = (g - paths[c][k - 1]).abs()
+						length += maxf(d.x, d.y)
+				_fall_route[c] = pts
+				_fall_len[c] = maxf(length, 0.01)
 			for sp in _cur.spawns:
-				cols[Board.pos(sp[0]).x] = cols.get(Board.pos(sp[0]).x, []) + [[Board.pos(sp[0]).y, sp[0], maxi(1, sp[1])]]
+				_fall_entry[sp[0]] = cell_origin(Vector2i(0, sp[1])).y
 			for wp in _cur.get("warps", []):
-				cols[Board.pos(wp[1]).x] = cols.get(Board.pos(wp[1]).x, []) + [[Board.pos(wp[1]).y, wp[1], 1]]
+				# out of the portal: it drops in from just above
+				_fall_route[wp[1]] = PackedVector2Array([cell_center(wp[1]) - Vector2(0, pitch), cell_center(wp[1])])
+				_fall_len[wp[1]] = 1.0
+			if not _cur.get("warps", []).is_empty():
+				Sfx.play("warp", 1.2)
+			# bottom first, a beat apart up the column it starts in, with a faint ripple across
+			var cols := {}  # x -> [[start y, cell]]
+			for c in _fall_route:
+				var st: Vector2 = _fall_route[c][0]
+				var x := int(round((st.x - origin.x - cell * 0.5) / cell))
+				cols[x] = cols.get(x, []) + [[st.y, c]]
 			var end := 0.05
 			for x in cols:
 				var list: Array = cols[x]
-				list.sort_custom(func(a, b): return a[0] > b[0])  # bottom first
+				list.sort_custom(func(p, q): return p[0] > q[0])
 				for k in list.size():
 					var cc: int = list[k][1]
-					_fall_delay[cc] = k * FALL_STAGGER
-					_fall_time[cc] = sqrt(2.0 * float(list[k][2]) / FALL_G)
+					_fall_delay[cc] = k * FALL_STAGGER + 0.004 * float((x * 7) % 5)
+					_fall_time[cc] = _fall_secs(_fall_len[cc])
 					end = maxf(end, _fall_delay[cc] + _fall_time[cc])
 			if not _cur.robot.is_empty():
 				var rd: int = maxi(1, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
-				end = maxf(end, sqrt(2.0 * float(rd) / FALL_G))
+				end = maxf(end, _fall_secs(rd))
 			_dur = end
 		"swap":
 			_dur = 0.14
@@ -548,7 +567,7 @@ func _finish_phase() -> void:
 			_apply(_cur.snap)
 			_next_step()
 		"fall":
-			if not _fall_from.is_empty() or not _fall_drop.is_empty():
+			if not _fall_route.is_empty():
 				Sfx.play("land", randf_range(0.95, 1.1))
 			for c in _cur.collected:
 				var res: int = Board.RES_CRYSTAL if snap.token[c] == K.CRYSTAL else -1
@@ -566,8 +585,8 @@ func _finish_phase() -> void:
 				else:
 					Sfx.play("cell")
 					fx.emit("energy", {"pos": cell_global(c), "amount": 0})
-			_fall_from.clear()
-			_fall_drop.clear()
+			_fall_route.clear()
+			_fall_entry.clear()
 			_apply(_cur.snap)
 			_next_step()
 		"warp":
@@ -611,6 +630,7 @@ func _finish_phase() -> void:
 			_rings.append({"c": cell_center(_cur.to), "r0": cell * 0.2, "r1": cell * 1.4,
 					"t": 0.0, "dur": 0.32, "color": PAD_COL})
 			_land[_cur.to] = 1.0
+			_land_k[_cur.to] = 8.0  # thrown: it comes down hard and bounces
 			fx.emit("blast_done", {"cells": [cell_global(_cur.to)]})
 			Sfx.play("land", 0.8)
 			if _cur.robot:
@@ -799,9 +819,10 @@ func _process(delta: float) -> void:
 	for k in _land.keys():
 		if _land[k] >= 1.0:
 			landed_any = true
-		_land[k] -= delta / 0.26
+		_land[k] -= delta / LAND_TIME
 		if _land[k] <= 0.0:
 			_land.erase(k)
+			_land_k.erase(k)
 	if landed_any:
 		Sfx.play("step", randf_range(0.8, 1.0))
 	_armed_t += delta
@@ -1222,23 +1243,29 @@ func _draw() -> void:
 	for i in Board.W * Board.H:
 		if snap.terrain[i] != T.GROUND:
 			continue
-		if falling and (_fall_from.has(i) or _fall_drop.has(i)):
-			# gems drop with gravity, each on its own clock (bottom first, a beat apart), and
-			# squash when they land
-			var lt := clampf((_t * _dur - float(_fall_delay.get(i, 0.0))) / maxf(0.01, float(_fall_time.get(i, 0.1))), 0.0, 1.0)
-			if lt >= 1.0 and not _land.has(i):
+		if falling and _fall_route.has(i):
+			# each piece runs its own route (straight down, round a corner of rock), on its own
+			# clock (bottom first, a beat apart), stretching with speed, and squashes when it lands
+			var ft := _t * _dur - float(_fall_delay.get(i, 0.0))
+			var length: float = _fall_len[i]
+			var fs := minf(_fall_dist(ft), length) if ft > 0.0 else 0.0
+			if fs >= length and not _land.has(i):
 				_land[i] = 1.0
-			var fp: Vector2 = cell_center(_fall_from[i]) if _fall_from.has(i) else cell_center(i) - Vector2(0, pitch * _fall_drop[i])
-			var at2 := fp.lerp(cell_center(i), lt * lt)
+				_land_k[i] = _fall_speed(_fall_time[i])
+			var at2 := _route_at(_fall_route[i], fs)
 			var grow := 1.0
-			if not _fall_from.has(i):
+			if _fall_entry.has(i):
 				# a new gem enters through the top of its run: it grows in as it crosses the edge
 				# (there is nothing above the board to fall from)
-				var edge: float = cell_center(i).y - pitch * (float(_fall_drop[i]) - 0.5)
-				grow = clampf((at2.y - edge + pitch * 0.5) / pitch, 0.0, 1.0)
+				grow = clampf((at2.y - float(_fall_entry[i]) + pitch * 0.5) / pitch, 0.0, 1.0)
 				if grow <= 0.0:
 					continue
-			_tok_squash = _squash_of(i)
+			if fs < length:
+				var v := _fall_speed(ft) / FALL_VMAX if ft > 0.0 else 0.0
+				_tok_squash = Vector2(1.0 - 0.02 * v, 1.0 + 0.03 * v)
+			else:
+				_tok_squash = _squash_of(i)
+				at2.y -= _hop_of(i)
 			_draw_token(at2, tok[i], kinds[i], _depth_scale(i) * (0.5 + 0.5 * grow), 0.0, specs[i])
 			_tok_squash = Vector2.ONE
 			continue
@@ -1324,6 +1351,7 @@ func _draw() -> void:
 			sc *= 1.06 + 0.04 * hop2
 			fl = maxf(fl, 0.22 + 0.12 * hop2)
 		_tok_squash = _squash_of(i)
+		at.y -= _hop_of(i)
 		_tok_rot = float(_spec_angle.get(i, 0.0)) if _drawing and tok[i] == K.CHARGE and specs[i] == Board.Special.PULSAR else 0.0
 		if webbed.has(i) and tok[i] != K.NONE:
 			# a gem on a web stands off it: a soft dark shadow under it
@@ -1370,7 +1398,8 @@ func _draw() -> void:
 		var from_c: Vector2 = cell_center(_cur.robot[0])
 		if _cur.get("warps", []).has(_cur.robot):
 			from_c = cell_center(_cur.robot[1]) - Vector2(0, pitch)
-		rp = from_c.lerp(cell_center(_cur.robot[1]), _t * _t)
+		var rows := maxf(1.0, (cell_center(_cur.robot[1]).y - from_c.y) / pitch)
+		rp = from_c.lerp(cell_center(_cur.robot[1]), minf(1.0, _fall_dist(_t * _dur) / rows))
 	if not _cur.is_empty() and _cur.type == "belt" and not _cur.robot.is_empty():
 		rp = cell_center(_cur.robot[0]).lerp(cell_center(_cur.robot[1]), _ease(_t))
 	if not _cur.is_empty() and _cur.type == "teleport" and _cur.robot:
@@ -2583,13 +2612,58 @@ func _draw_special(c: Vector2, sp: int, kind: int, sc: float) -> void:
 	draw_circle(c, s * 0.8, Color(0.08, 0.02, 0.16, 0.9), true, -1.0, true)
 	draw_circle(c, s * 0.3, col, true, -1.0, true)
 
-## A landed gem's squash: flat and wide on impact, springing back tall, settling (~0.25 s).
-func _squash_of(i: int) -> Vector2:
+## How squashed a landed gem is (> 0 flat, < 0 tall): its fall speed carried on into a damped
+## spring, so it never stops dead. A long drop squashes hard, a short one barely.
+func _spring_of(i: int) -> float:
 	if not _land.has(i):
-		return Vector2.ONE
-	var u: float = 1.0 - _land[i]
-	var w := exp(-u * 6.0) * cos(u * 17.0)
-	return Vector2(1.0 + 0.13 * w, 1.0 - 0.13 * w)
+		return 0.0
+	var t: float = (1.0 - _land[i]) * LAND_TIME
+	var wd := LAND_W * sqrt(1.0 - LAND_DAMP * LAND_DAMP)
+	var a := LAND_MAX * clampf(float(_land_k.get(i, 0.0)) / FALL_VMAX, 0.0, 1.0)
+	return a * exp(-LAND_DAMP * LAND_W * t) * sin(wd * t) / 0.51  # / 0.51: its first peak is a
+
+
+func _squash_of(i: int) -> Vector2:
+	var q := _spring_of(i)
+	return Vector2(1.0 + 0.6 * q, 1.0 - q)
+
+
+## A landed gem's centre (px up) while it squashes: its bottom stays on the floor.
+func _hop_of(i: int) -> float:
+	return -_spring_of(i) * GEM_HALF * cell
+
+
+## Seconds a fall of `cells` takes: from FALL_V0, speeding up at FALL_A, at most FALL_VMAX.
+static func _fall_secs(cells: float) -> float:
+	var t1 := (FALL_VMAX - FALL_V0) / FALL_A
+	var d1 := FALL_V0 * t1 + 0.5 * FALL_A * t1 * t1
+	if cells <= d1:
+		return (-FALL_V0 + sqrt(FALL_V0 * FALL_V0 + 2.0 * FALL_A * cells)) / FALL_A
+	return t1 + (cells - d1) / FALL_VMAX
+
+
+## Cells a falling piece has covered after t seconds.
+static func _fall_dist(t: float) -> float:
+	var t1 := (FALL_VMAX - FALL_V0) / FALL_A
+	if t <= t1:
+		return FALL_V0 * t + 0.5 * FALL_A * t * t
+	return FALL_V0 * t1 + 0.5 * FALL_A * t1 * t1 + FALL_VMAX * (t - t1)
+
+
+static func _fall_speed(t: float) -> float:
+	return minf(FALL_V0 + FALL_A * t, FALL_VMAX)
+
+
+## The point `s` cells along a route (each step between its points, straight or diagonal, is
+## covered at the same pace, as Gem Hunter's √2 speed-up on diagonals).
+func _route_at(pts: PackedVector2Array, s: float) -> Vector2:
+	for k in range(1, pts.size()):
+		var d := (pts[k] - pts[k - 1]).abs()
+		var n := maxf(d.x / cell, d.y / pitch)
+		if s <= n or k == pts.size() - 1:
+			return pts[k - 1].lerp(pts[k], clampf(s / maxf(n, 0.001), 0.0, 1.0))
+		s -= n
+	return pts[pts.size() - 1]
 
 
 func _gem(c: Vector2, s: float, col: Color) -> void:

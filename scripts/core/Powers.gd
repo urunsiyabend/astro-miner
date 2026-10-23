@@ -14,10 +14,14 @@ extends RefCounted
 ##   Scout drone a 2x2 square: hits its 4 neighbours, then flies to the most useful cell
 ## A power-up that another's effect reaches goes off too, one link after the other; a chained
 ## Pulsar fires across the line that hit it, so a chain never wastes it on a cleared line.
+## A long chain goes off in waves of WAVE: between them the board settles and refills (Candy
+## Crush's wrapped candy waits for the drop before its second blast), so the next wave hits
+## what fell in. docs/research/match3-refill-during-combos.md
 
 const S := Board.Special
 ## which of two merged power-ups leads a combo
 const STRENGTH := {S.BLACKHOLE: 4, S.NOVA: 3, S.PULSAR: 2, S.DRONE: 1, S.BLAST: 0}
+const WAVE := 3  # power-ups in a chain that go off before the board settles again
 
 
 ## The power-up a match leaves by its shape, or -1 (a plain line of 3, or a bent 4): 5 or more
@@ -76,12 +80,24 @@ static func _drain(b: Board, queue: Array, steps: Array, link := 0) -> void:
 	var queued := {}
 	for job in queue:
 		queued[job[0]] = true
+	var fired := 0
 	while not queue.is_empty():
+		if fired >= WAVE and b.cfg.gravity:
+			# a wave is done: the board settles and refills, and what is still to go off is
+			# found where it fell to (a cell queued but already gone off can take a new one)
+			fired = 0
+			var went: Dictionary = b._gravity(steps)
+			b.claimed.clear()
+			queued.clear()
+			for jb in queue:
+				jb[0] = went.get(jb[0], jb[0])
+				queued[jb[0]] = true
 		var job: Array = queue.pop_front()
 		var c: int = job[0]
 		if b.token[c] != Board.Token.CHARGE:
 			continue
 		link += 1
+		fired += 1
 		if b.spec[c] == S.BLAST:
 			b.token[c] = Board.Token.NONE
 			b._blast(c, steps)

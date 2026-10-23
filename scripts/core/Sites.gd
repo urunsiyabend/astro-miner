@@ -31,9 +31,10 @@ const LIST := [
 	# one: the hand draws three steps that make two lines, one right under the rocks, which
 	# crack (Royal Match also meets its first obstacle, the Box, on level 1).
 	{
-		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 256, "energy": 20,
+		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 382, "energy": 20,
 		"goals": [{"type": "rock", "n": 14}],
 		"rows": [
+			". . . . . . .",
 			"1 1 1 1 1 1 1",
 			". . . . . . .",
 			". . @ . . . .",
@@ -44,6 +45,7 @@ const LIST := [
 			"1 1 1 1 1 1 1",
 		],
 		"ore": [
+			"L C F L C L F",
 			"- - - - - - -",
 			"F F C F L F L",
 			"C F - F C C L",
@@ -55,8 +57,8 @@ const LIST := [
 		],
 		"script": [
 			{"say": "Hi, I'm Mira! Hold anywhere and draw: the robot swaps with every gem on its way, and the whole path is one move.",
-					"until": "match", "guide": [Vector2i(2, 2), Vector2i(2, 1), Vector2i(3, 1), Vector2i(4, 1)],
-					"focus": [Vector2i(0, 1), Vector2i(1, 1), Vector2i(2, 3), Vector2i(2, 4)]},
+					"until": "match", "guide": [Vector2i(2, 3), Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2)],
+					"focus": [Vector2i(0, 2), Vector2i(1, 2), Vector2i(2, 4), Vector2i(2, 5)]},
 			{"say": "A match right next to rock cracks it. Break all 14 rocks!", "until": "move"},
 		],
 	},
