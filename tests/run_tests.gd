@@ -35,6 +35,8 @@ func _initialize() -> void:
 	_test_webs()
 	_test_goals_end_dig()
 	_test_determinism()
+	_test_full_clear_goals()
+	_test_refill_shapes()
 	_test_generator_all_sites()
 	_test_tutorial_sites()
 	_test_pickup_hint()
@@ -373,6 +375,13 @@ func _test_moved_specials() -> void:
 			still += 1
 	_ok(pv.specials.values()[0][2] == via and hb.extracted[via] >= 8 and still > 0,
 			"Black hole: drawn in through a gem, it swallows that gem's colour (and the preview says so)")
+	# the gems it swallows count as a match for their neighbours: rock beside one cracks
+	var hr := _board(_with(OPEN, {Vector2i(6, 7): "1"}), DIAG, {"gravity": true})
+	var beside: int = hr.ore[Board.idx(Vector2i(5, 7))]
+	hr.token[at] = Board.Token.CHARGE
+	hr.spec[at] = S.BLACKHOLE
+	Powers.fire(hr, at, Vector2i(0, -1), [], beside)
+	_ok(hr.terrain[Board.idx(Vector2i(6, 7))] == Board.Terrain.GROUND, "Black hole: rock beside a swallowed gem cracks")
 	# a Scout drone flies to what the goal needs, not to the nearest gem
 	var rows := _with(OPEN, {Vector2i(6, 7): "1c"})
 	var d := _board(rows, DIAG)
@@ -499,6 +508,59 @@ func _test_determinism() -> void:
 	_ok(c.ore != a.ore or true, "different seed accepted")
 
 
+## A journey level is a full clear: every obstacle kind on its board is a goal, and the goal is
+## all of it (clearing part of the rock means nothing).
+func _test_full_clear_goals() -> void:
+	for si in Sites.JOURNEY_BUILT:
+		var site := Sites.get_site(si)
+		var b := Board.new()
+		b.record = false
+		b.setup_site(site, 7, Economy.rules([1, 1, 1, 1]))
+		var on_board := {}
+		for i in Board.W * Board.H:
+			if b.terrain[i] == Board.Terrain.ROCK:
+				on_board["rock"] = int(on_board.get("rock", 0)) + 1
+				if b.buried[i] == Board.Buried.CRYSTAL:
+					on_board["crystal"] = int(on_board.get("crystal", 0)) + 1
+			elif b.token[i] == Board.Token.CRYSTAL:
+				on_board["crystal"] = int(on_board.get("crystal", 0)) + 1
+		for it in b.obs.items:
+			on_board[it.kind] = int(on_board.get(it.kind, 0)) + 1
+		var goals := {}
+		for g in site.goals:
+			goals[g.type] = g.n
+		_ok(goals == on_board, "%s clears its board: goals %s, on the board %s" % [site.id, goals, on_board])
+
+
+## No dead pockets: every open cell of a journey level can be refilled, straight down from
+## where its column opens to the sky or diagonally from a neighbour that can (Board._gravity).
+func _test_refill_shapes() -> void:
+	for si in Sites.JOURNEY_BUILT:
+		var site := Sites.get_site(si)
+		var b := Board.new()
+		b.record = false
+		b.setup_site(site, 7, Economy.rules([1, 1, 1, 1]))
+		var fed := {}
+		var dead := []
+		for y in Board.H:
+			for x in Board.W:
+				var i := Board.idx(Vector2i(x, y))
+				if b.terrain[i] != Board.Terrain.GROUND:
+					continue
+				var up := Vector2i(x, y - 1)
+				var ok := b._sky_above(x, y) or (y > 0 and b.terrain[Board.idx(up)] == Board.Terrain.GROUND and fed.has(Board.idx(up)))
+				if not ok and y > 0 and b.terrain[Board.idx(up)] != Board.Terrain.GROUND:
+					for dx in [-1, 1]:
+						var src := Vector2i(x + dx, y - 1)
+						if Board.inside(src) and fed.has(Board.idx(src)):
+							ok = true
+				if ok:
+					fed[i] = true
+				else:
+					dead.append(Vector2i(x, y))
+		_ok(dead.is_empty(), "%s has no cells that can never refill %s" % [site.id, dead])
+
+
 func _test_generator_all_sites() -> void:
 	var bad_line := 0
 	var bad_reach := 0
@@ -615,7 +677,7 @@ func _test_bot_smoke() -> void:
 # its last move; if a layout edit breaks one, this fails before a player meets it. A string
 # is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": ["URR", "LDRD", "URDD"],
+	"first": ["DRD", "UUUL", "RURD"],
 	"battery": ["DDLD", "RRUL", "LUUU", "DR", "LLUR", "URRD", "UULL"], "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",

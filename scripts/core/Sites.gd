@@ -25,198 +25,195 @@ extends RefCounted
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
 ##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
+## Levels 1..JOURNEY_BUILT are rebuilt as the journey (docs/design/journey.md); the rest keep
+## their old design. A journey level clears its board: every obstacle on it is a goal, all of it.
+const JOURNEY_BUILT := 10
 const LIST := [
 	# --- Chapter 1 · Landing (docs/design/journey.md) -------------------------------------
 	# L1: draw a path, and the first obstacle. Paths are the game, so the very first move is
-	# one: the hand draws three steps that make two lines, one right under the rocks, which
-	# crack (Royal Match also meets its first obstacle, the Box, on level 1).
+	# one: the hand draws three steps that make two lines, one along the rock floor, which
+	# cracks (Royal Match also meets its first obstacle, the Box, on level 1). The rock stands
+	# on the floor and in the corners, so the gems always refill.
 	{
 		"id": "first", "mode": "fall", "colours": 3, "guide": true, "seed": 382, "energy": 20,
-		"goals": [{"type": "rock", "n": 14}],
+		"goals": [{"type": "rock", "n": 15}],
 		"rows": [
+			"1 . . . . . 1",
 			". . . . . . .",
-			"1 1 1 1 1 1 1",
+			". . . . . . .",
+			". . . . . . .",
 			". . . . . . .",
 			". . @ . . . .",
-			". . . . . . .",
-			". . . . . . .",
-			". . . . . . .",
-			". . . . . . .",
+			"1 . . . . . 1",
+			"1 1 . . . 1 1",
 			"1 1 1 1 1 1 1",
 		],
 		"ore": [
-			"L C F L C L F",
-			"- - - - - - -",
-			"F F C F L F L",
-			"C F - F C C L",
-			"L C C L C F F",
-			"F L C F F C L",
-			"C F L F C C L",
-			"F C F L F F C",
+			"- F C F L C -",
+			"L F L F F C C",
+			"L C C L C F L",
+			"C C F C C L C",
+			"L F F L L C L",
+			"C L - F L F L",
+			"- C F L C C -",
+			"- - F C C - -",
 			"- - - - - - -",
 		],
 		"script": [
 			{"say": "Hi, I'm Mira! Hold anywhere and draw: the robot swaps with every gem on its way, and the whole path is one move.",
-					"until": "match", "guide": [Vector2i(2, 3), Vector2i(2, 2), Vector2i(3, 2), Vector2i(4, 2)],
-					"focus": [Vector2i(0, 2), Vector2i(1, 2), Vector2i(2, 4), Vector2i(2, 5)]},
-			{"say": "A match right next to rock cracks it. Break all 14 rocks!", "until": "move"},
+					"until": "match", "guide": [Vector2i(2, 5), Vector2i(2, 6), Vector2i(3, 6), Vector2i(3, 7)],
+					"focus": [Vector2i(2, 3), Vector2i(2, 4), Vector2i(4, 6), Vector2i(5, 6)]},
+			{"say": "A match right next to rock cracks it. Break all 15 rocks!", "until": "move"},
 		],
 	},
-	# L2 "quarry": the board is mostly rock (Royal Match fills its boards with boxes): the robot
-	# starts in the strip on the left and along the bottom; every rock broken opens the board up.
+	# L2 "bastions": four rock bastions stand in the corners, stepped like stairs; the gems hold
+	# a plus of open ground between them. Beams fired from the middle reach every corner.
 	{
 		"id": "arches", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
-		"goals": [{"type": "rock", "n": 36}],
+		"goals": [{"type": "rock", "n": 24}],
 		"tip": ["pulsar", "4 in a row makes a Pulsar. Swap with it: twin beams fire both ways, through rock."],
 		"rows": [
+			"1 1 1 . . . 1 1 1",
+			"1 1 . . . . . 1 1",
+			"1 . . . . . . . 1",
 			". . . . . . . . .",
-			". . . 1 1 1 1 1 1",
-			". . . 1 1 1 1 1 1",
-			". @ . 1 1 1 1 1 1",
-			". . . 1 1 1 1 1 1",
-			". . . 1 1 1 1 1 1",
-			". . . 1 1 1 1 1 1",
-			". . . . . . . . .",
-			"# . . . . . . . #",
-		],
-	},
-
-
-
-	# L3 "crates": thick rock, the chapter's variant: a big block of rock with a thick core fills
-	# the middle; the gems run round it in a frame. Mira points at the thick core.
-	{
-		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
-		"goals": [{"type": "rock", "n": 28}],
-		"script": [
-			{"say": "Darker rock is thicker: it cracks on the first match and breaks on the second.", "until": "move",
-					"focus": [Vector2i(3, 2), Vector2i(4, 2), Vector2i(5, 2)]},
-		],
-		"rows": [
-			". . . . . . . . .",
-			". 1 1 1 1 1 1 1 .",
-			". 1 2 2 2 2 2 1 .",
-			". 1 1 1 1 1 1 1 .",
-			". 1 1 1 1 1 1 1 .",
-			". 1 1 1 1 1 1 1 .",
 			". . . . @ . . . .",
 			". . . . . . . . .",
-			"# . . . . . . . #",
+			"1 . . . . . . . 1",
+			"1 1 . . . . . 1 1",
+			"1 1 1 . . . 1 1 1",
 		],
 	},
 
 
-	# L4 "towers": two towers of rock fill the sides; the robot works up the corridor between them
-	# and along the bottom. A Scout drone reaches the tops.
+
+	# L3 "pillars": two rock pillars on wide plinths, with thick capitals (the chapter's variant);
+	# the gems work the aisle between them and the lanes outside. Mira points at a capital.
+	{
+		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
+		"goals": [{"type": "rock", "n": 30}],
+		"script": [
+			{"say": "Darker rock is thicker: it cracks on the first match and breaks on the second.", "until": "move",
+					"focus": [Vector2i(2, 1), Vector2i(6, 1)]},
+		],
+		"rows": [
+			". . . . . . . . .",
+			". . 2 . . . 2 . .",
+			". . 1 . . . 1 . .",
+			". . 1 . @ . 1 . .",
+			". 1 1 . . . 1 1 .",
+			". 1 1 . . . 1 1 .",
+			"1 1 1 . . . 1 1 1",
+			"1 1 1 . . . 1 1 1",
+			"# 1 1 . . . 1 1 #",
+		],
+	},
+
+
+	# L4 "spine": a crowned spine of rock splits the board into two wings; pockets of rock wait
+	# in the bottom corners. Break the spine to join the wings; a Scout drone reaches the crown.
 	{
 		"id": "spine", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "rock", "n": 42}],
+		"goals": [{"type": "rock", "n": 24}],
 		"tip": ["drone", "A 2x2 square makes a Scout drone. It flies to what helps you most."],
 		"rows": [
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . @ . 1 1 1",
-			". . . . . . . . .",
-			"# . . . . . . . #",
+			". . . 1 1 1 . . .",
+			". . . . 1 . . . .",
+			". . . . 1 . . . .",
+			"1 . . . 1 . . . 1",
+			"1 1 . . 1 . . 1 1",
+			"1 1 . . 1 . . 1 1",
+			"1 1 . . . . . 1 1",
+			"1 . . . @ . . . 1",
+			"# # . . . . . # #",
 		],
 	},
 
 
-	# L5 "strata": only the top two rows are open; below, the rock goes down in bands, thicker the
-	# deeper. Dig down: every band broken opens the next.
+	# L5 "valley": the rock steps down from both sides into a V, thicker the deeper; the gems
+	# pour down the middle. Dig the steps from the top, the thick floor last.
 	{
 		"id": "strata1", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
-		"goals": [{"type": "rock", "n": 36}],
+		"goals": [{"type": "rock", "n": 38}],
 		"tip": ["nova", "An L or a T makes a Nova: a big blast all around it."],
 		"rows": [
 			". . . . @ . . . .",
 			". . . . . . . . .",
-			"1 1 1 1 1 1 1 1 1",
-			"1 1 1 1 1 1 1 1 1",
-			"1 1 2 1 1 1 2 1 1",
-			"2 1 1 1 2 1 1 1 2",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			"# . . . . . . . #",
+			"1 . . . . . . . 1",
+			"1 1 . . . . . 1 1",
+			"2 1 1 . . . 1 1 2",
+			"2 2 1 1 . 1 1 2 2",
+			"2 2 2 1 . 1 2 2 2",
+			"# 2 2 2 . 2 2 2 #",
+			"# # 2 2 . 2 2 # #",
 		],
 	},
 
 
 	# L6: cave webs, the chapter's new element (Royal Match meets grass on level 4): a floor
-	# layer under the gems, cleared by a match on top of it. A band across the middle.
+	# layer under the gems, cleared by a match on top of it. A diamond board, a diamond of webs.
 	{
 		"id": "webs1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
-		"goals": [{"type": "web", "n": 16}],
-		"obstacles": [
-			[Vector2i(1, 3), "web"], [Vector2i(2, 3), "web"], [Vector2i(3, 3), "web"], [Vector2i(4, 3), "web"],
-			[Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"],
-			[Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"],
-			[Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"],
-			[Vector2i(4, 2), "web"], [Vector2i(4, 5), "web"],
-		],
+		"goals": [{"type": "web", "n": 13}],
+		"obstacles": [[Vector2i(4, 2), "web"], [Vector2i(3, 3), "web"], [Vector2i(4, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(3, 5), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(4, 6), "web"]],
 		"rows": [
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . 1 . . . 1 . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . @ . . . .",
-			". . . . . . . . .",
+			"# # . . . . . # #",
 			"# . . . . . . . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . @ . . . #",
+			"# # . . . . . # #",
 		],
 		"script": [
 			{"say": "Cave webs! Make a match on top of a web to clear it.", "until": "match",
 					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
 		],
 	},
-	# L7 "buried silk": webs lie under a block of rock on the right (Royal Match hides grass under
-	# boxes): break the rock, and the web under it shows; then match on it.
+	# L7 "chessboard": an octagon; below the open top, a chessboard of rock lies over a web
+	# garden (Royal Match hides grass under boxes). Every rock broken shows a web; match on it.
 	{
 		"id": "silk", "mode": "fall", "colours": 4, "tier": "intro", "energy": 30,
-		"goals": [{"type": "web", "n": 25}],
-		"obstacles": [[Vector2i(4, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"], [Vector2i(8, 3), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"], [Vector2i(8, 4), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"]],
+		"goals": [{"type": "web", "n": 43}, {"type": "rock", "n": 21}],
+		"obstacles": [[Vector2i(0, 4), "web"], [Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"], [Vector2i(8, 4), "web"], [Vector2i(0, 5), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(3, 5), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(3, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"]],
 		"rows": [
-			". . . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". @ . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". . . . 1 1 1 1 1",
-			". . . . . . . . .",
 			"# . . . . . . . #",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			"1 . 1 . 1 . 1 . 1",
+			". 1 . 1 . 1 . 1 .",
+			"1 . 1 . 1 . 1 . 1",
+			". 1 . 1 . 1 . 1 .",
+			"# . 1 . 1 . 1 . #",
 		],
 	},
 
 
 
 
-	# L8 "crystal quarry": crystals wait at the bottom of a block of rock: dig down to them. One
-	# sits behind thick rock. The goal card's tip: path combos.
+	# L8 "crystal vaults": crystals wait in the two bottom-corner pockets and under a thick
+	# dome in the middle. The goal card's tip: path combos.
 	{
 		"id": "glint1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "crystal", "n": 3}],
+		"goals": [{"type": "crystal", "n": 3}, {"type": "rock", "n": 29}],
 		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
 		"script": [
 			{"say": "Crystals at the bottom of the rock! Dig down, then draw the robot over a crystal to grab it.", "until": "crystal",
-					"focus": [Vector2i(1, 6), Vector2i(4, 6), Vector2i(7, 6)]},
+					"focus": [Vector2i(0, 8), Vector2i(4, 8), Vector2i(8, 8)]},
 		],
 		"rows": [
-			". . . . @ . . . .",
-			". . . . . . . . .",
-			". 1 1 1 1 1 1 1 .",
-			". 1 1 1 1 1 1 1 .",
-			". 1 1 1 2 1 1 1 .",
-			". 1 1 1 1 1 1 1 .",
-			". 1c 1 1 2c 1 1 1c .",
-			". . . . . . . . .",
+			"# # . . @ . . # #",
 			"# . . . . . . . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"1 1 . . . . . 1 1",
+			"1 1 1 . 2 . 1 1 1",
+			"1 1 1 2 2 2 1 1 1",
+			"1c 1 1 2 2c 2 1 1 1c",
 		],
 	},
 
@@ -225,7 +222,7 @@ const LIST := [
 	# waist, then send power-ups through it.
 	{
 		"id": "hourglass", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
-		"goals": [{"type": "web", "n": 18}, {"type": "rock", "n": 6}],
+		"goals": [{"type": "web", "n": 18}, {"type": "rock", "n": 4}],
 		"tip": ["drone", "pulsar", "A drone carrying a Pulsar flies to the best line and fires it there."],
 		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(1, 0), "web"], [Vector2i(2, 0), "web"], [Vector2i(3, 0), "web"], [Vector2i(4, 0), "web"], [Vector2i(5, 0), "web"], [Vector2i(6, 0), "web"], [Vector2i(7, 0), "web"], [Vector2i(8, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(3, 1), "web"], [Vector2i(4, 1), "web"], [Vector2i(5, 1), "web"], [Vector2i(6, 1), "web"], [Vector2i(7, 1), "web"], [Vector2i(8, 1), "web"]],
 		"rows": [
@@ -235,30 +232,30 @@ const LIST := [
 			"# # . . . . . # #",
 			"# # # . . . # # #",
 			"# # . . . . . # #",
-			"# 1 1 . . . 1 1 #",
+			"# 2 . . . . . 2 #",
 			"2 . . . . . . . 2",
 			". . . . @ . . . .",
 			". . . . . . . . .",
 		],
 	},
-	# L10: the chapter's reward, a show level (Royal Match floods a board with its element):
-	# thick webs everywhere and power-ups already waiting, so every move clears something.
+	# L10: the chapter's reward, a show level (Royal Match floods a board with its element): a
+	# plus-shaped board, thick webs everywhere and power-ups already waiting.
 	{
-		"id": "starfall", "mode": "fall", "colours": 4, "tier": "reward", "energy": 20,
-		"goals": [{"type": "web", "n": 50}],
+		"id": "starfall", "mode": "fall", "colours": 4, "tier": "reward", "energy": 22,
+		"goals": [{"type": "web", "n": 54}],
 		"tip": ["blackhole", "5 in a row makes a Black hole: it swallows the colour of the gem you bring it in with."],
 		"specials": [[Vector2i(2, 4), "pulsar"], [Vector2i(6, 4), "pulsar"], [Vector2i(4, 2), "nova"]],
-		"obstacles": [[Vector2i(0, 1), "web", 2], [Vector2i(1, 1), "web", 2], [Vector2i(2, 1), "web", 2], [Vector2i(3, 1), "web", 2], [Vector2i(4, 1), "web", 2], [Vector2i(5, 1), "web", 2], [Vector2i(6, 1), "web", 2], [Vector2i(7, 1), "web", 2], [Vector2i(8, 1), "web", 2], [Vector2i(0, 2), "web", 2], [Vector2i(1, 2), "web", 2], [Vector2i(2, 2), "web", 2], [Vector2i(3, 2), "web", 2], [Vector2i(4, 2), "web", 2], [Vector2i(5, 2), "web", 2], [Vector2i(6, 2), "web", 2], [Vector2i(7, 2), "web", 2], [Vector2i(8, 2), "web", 2], [Vector2i(0, 3), "web", 2], [Vector2i(1, 3), "web", 2], [Vector2i(2, 3), "web", 2], [Vector2i(3, 3), "web", 2], [Vector2i(4, 3), "web", 2], [Vector2i(5, 3), "web", 2], [Vector2i(6, 3), "web", 2], [Vector2i(7, 3), "web", 2], [Vector2i(8, 3), "web", 2], [Vector2i(0, 4), "web", 2], [Vector2i(1, 4), "web", 2], [Vector2i(2, 4), "web", 2], [Vector2i(3, 4), "web", 2], [Vector2i(4, 4), "web", 2], [Vector2i(5, 4), "web", 2], [Vector2i(6, 4), "web", 2], [Vector2i(7, 4), "web", 2], [Vector2i(8, 4), "web", 2], [Vector2i(0, 5), "web", 2], [Vector2i(1, 5), "web", 2], [Vector2i(2, 5), "web", 2], [Vector2i(3, 5), "web", 2], [Vector2i(4, 5), "web", 2], [Vector2i(5, 5), "web", 2], [Vector2i(6, 5), "web", 2], [Vector2i(7, 5), "web", 2], [Vector2i(8, 5), "web", 2], [Vector2i(0, 6), "web", 2], [Vector2i(1, 6), "web", 2], [Vector2i(2, 6), "web", 2], [Vector2i(3, 6), "web", 2], [Vector2i(5, 6), "web", 2], [Vector2i(6, 6), "web", 2], [Vector2i(7, 6), "web", 2], [Vector2i(8, 6), "web", 2], [Vector2i(0, 7), "web", 2], [Vector2i(1, 7), "web", 2], [Vector2i(2, 7), "web", 2], [Vector2i(3, 7), "web", 2], [Vector2i(4, 7), "web", 2], [Vector2i(5, 7), "web", 2], [Vector2i(6, 7), "web", 2], [Vector2i(7, 7), "web", 2], [Vector2i(8, 7), "web", 2]],
+		"obstacles": [[Vector2i(2, 1), "web", 2], [Vector2i(3, 1), "web", 2], [Vector2i(4, 1), "web", 2], [Vector2i(5, 1), "web", 2], [Vector2i(6, 1), "web", 2], [Vector2i(0, 2), "web", 2], [Vector2i(1, 2), "web", 2], [Vector2i(2, 2), "web", 2], [Vector2i(3, 2), "web", 2], [Vector2i(4, 2), "web", 2], [Vector2i(5, 2), "web", 2], [Vector2i(6, 2), "web", 2], [Vector2i(7, 2), "web", 2], [Vector2i(8, 2), "web", 2], [Vector2i(0, 3), "web", 2], [Vector2i(1, 3), "web", 2], [Vector2i(2, 3), "web", 2], [Vector2i(3, 3), "web", 2], [Vector2i(4, 3), "web", 2], [Vector2i(5, 3), "web", 2], [Vector2i(6, 3), "web", 2], [Vector2i(7, 3), "web", 2], [Vector2i(8, 3), "web", 2], [Vector2i(0, 4), "web", 2], [Vector2i(1, 4), "web", 2], [Vector2i(2, 4), "web", 2], [Vector2i(3, 4), "web", 2], [Vector2i(4, 4), "web", 2], [Vector2i(5, 4), "web", 2], [Vector2i(6, 4), "web", 2], [Vector2i(7, 4), "web", 2], [Vector2i(8, 4), "web", 2], [Vector2i(0, 5), "web", 2], [Vector2i(1, 5), "web", 2], [Vector2i(2, 5), "web", 2], [Vector2i(3, 5), "web", 2], [Vector2i(4, 5), "web", 2], [Vector2i(5, 5), "web", 2], [Vector2i(6, 5), "web", 2], [Vector2i(7, 5), "web", 2], [Vector2i(8, 5), "web", 2], [Vector2i(0, 6), "web", 2], [Vector2i(1, 6), "web", 2], [Vector2i(2, 6), "web", 2], [Vector2i(3, 6), "web", 2], [Vector2i(5, 6), "web", 2], [Vector2i(6, 6), "web", 2], [Vector2i(7, 6), "web", 2], [Vector2i(8, 6), "web", 2], [Vector2i(2, 7), "web", 2], [Vector2i(3, 7), "web", 2], [Vector2i(4, 7), "web", 2], [Vector2i(5, 7), "web", 2], [Vector2i(6, 7), "web", 2]],
 		"rows": [
-			". . . . . . . . .",
-			". . . . . . . . .",
+			"# # . . . . . # #",
+			"# # . . . . . # #",
 			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . @ . . . .",
-			". . . . . . . . .",
-			"# . . . . . . . #",
+			"# # . . . . . # #",
+			"# # . . . . . # #",
 		],
 	},
 
