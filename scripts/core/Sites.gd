@@ -24,6 +24,7 @@ extends RefCounted
 ##             hand draws that move, the board dims around it, and only it is accepted.
 ##             "banner": true shows the line as a new element's banner over the board (Royal
 ##             Match's "Make a match next to a BOX to break it!"), the element in CAPITALS.
+##             "lit" cells stay bright while a guided move dims the board (no frame).
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
 ##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
@@ -62,10 +63,9 @@ const LIST := [
 			"- - - - - - -",
 		],
 		"script": [
-			{"say": "Hi, I'm Mira! Hold anywhere and draw: the robot swaps with every gem on its way, and the whole path is one move.",
-					"until": "match", "guide": [Vector2i(2, 5), Vector2i(2, 6), Vector2i(3, 6), Vector2i(3, 7)],
-					"focus": [Vector2i(2, 3), Vector2i(2, 4), Vector2i(4, 6), Vector2i(5, 6)]},
-			{"say": "Make a match next to ROCK\nto break it!", "until": "move", "banner": true},
+			{"say": "Make a match next to ROCK\nto break it!", "until": "match", "banner": true,
+					"guide": [Vector2i(2, 5), Vector2i(2, 6), Vector2i(3, 6), Vector2i(3, 7)],
+					"lit": [Vector2i(0, 0), Vector2i(6, 0), Vector2i(0, 6), Vector2i(6, 6), Vector2i(0, 7), Vector2i(1, 7), Vector2i(5, 7), Vector2i(6, 7), Vector2i(0, 8), Vector2i(1, 8), Vector2i(2, 8), Vector2i(3, 8), Vector2i(4, 8), Vector2i(5, 8), Vector2i(6, 8)]},
 		],
 	},
 	# L2 "bastions": four rock bastions stand in the corners, stepped like stairs; the gems hold
@@ -96,7 +96,7 @@ const LIST := [
 		"goals": [{"type": "rock", "n": 30}],
 		"script": [
 			{"say": "DARK ROCK is thick:\ntwo matches to break it!", "until": "move", "banner": true,
-					"focus": [Vector2i(2, 1), Vector2i(6, 1)]},
+					"lit": [Vector2i(2, 1), Vector2i(6, 1)]},
 		],
 		"rows": [
 			". . . . . . . . .",
@@ -171,7 +171,7 @@ const LIST := [
 		],
 		"script": [
 			{"say": "Make a match on top of\na WEB to clear it!", "until": "match", "banner": true,
-					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
+					"lit": [Vector2i(4, 2), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4), Vector2i(5, 4), Vector2i(6, 4), Vector2i(3, 5), Vector2i(4, 5), Vector2i(5, 5), Vector2i(4, 6)]},
 		],
 	},
 	# L7 "chessboard": an octagon; below the open top, a chessboard of rock lies over a web
@@ -269,7 +269,7 @@ const LIST := [
 		"docks": [Vector2i(4, 8)],
 		"script": [
 			{"say": "Clear the way and land\nthe ENERGY CORE on the DOCK!", "until": "move", "banner": true,
-					"focus": [Vector2i(4, 0), Vector2i(4, 8)]},
+					"lit": [Vector2i(4, 0), Vector2i(4, 8)]},
 		],
 		"rows": [
 			". . . . . . . . .",

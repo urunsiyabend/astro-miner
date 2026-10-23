@@ -450,6 +450,7 @@ func _run_script() -> void:
 		return
 	if _step >= _script.size():
 		view.focus = []
+		view.lit = []
 		view.guide = []
 		_waiting = ""
 		_coach.clear()
@@ -457,6 +458,7 @@ func _run_script() -> void:
 		return
 	var st: Dictionary = _script[_step]
 	view.focus = st.get("focus", [])
+	view.lit = st.get("lit", [])
 	view.guide = _guide_cells(st)
 	_banner.clear()
 	if st.has("until"):
@@ -476,8 +478,8 @@ func _run_script() -> void:
 
 
 ## The element banner sits over the board, as wide as most of it, at the top, the middle or
-## the bottom: wherever it covers the fewest of the cells Mira points at (never the very thing
-## it introduces).
+## the bottom: wherever it covers the fewest of the cells the lesson is about (focus, lit, the
+## guided move: never the very thing it introduces).
 func _place_banner() -> void:
 	var bw := view.cell * Board.W
 	var bh := view.pitch * Board.H
@@ -489,8 +491,11 @@ func _place_banner() -> void:
 	for y in [view.origin.y + view.cell * 0.3, view.origin.y + (bh - h) * 0.5, view.origin.y + bh - h - view.cell * 0.3]:
 		var r := Rect2(x - w * 0.5, y, w, h).grow(view.cell * 0.2)
 		var n := 0
-		for c in view.focus:
+		for c in view.focus + view.lit:
 			if r.has_point(view.cell_center(Board.idx(c))):
+				n += 1
+		for i in view.guide:
+			if r.has_point(view.cell_center(i)):
 				n += 1
 		if n < best:
 			best = n
