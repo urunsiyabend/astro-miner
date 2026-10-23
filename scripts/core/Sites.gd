@@ -25,6 +25,8 @@ extends RefCounted
 ##             "banner": true shows the line as a new element's banner over the board (Royal
 ##             Match's "Make a match next to a BOX to break it!"), the element in CAPITALS.
 ##             "lit" cells stay bright while a guided move dims the board (no frame).
+##   "core_feed": [column, n]: n more energy cores to come (Candy Crush's ingredients): each
+##             time one is delivered, the next drops in at the top of that column
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
 ##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
@@ -260,68 +262,78 @@ const LIST := [
 	},
 
 	# --- Chapter 2 · The Shaft (docs/design/journey.md) -------------------------------------
-	# L11: the energy core, the chapter's new element (Deliver; Royal Match meets its third
-	# element on level 11). A funnel: one core at the top, one dock at the bottom of the spout.
+	# L11: the energy core, the chapter's new element (Deliver; Gardenscapes brings its Lemonade
+	# on level 11 too). A funnel whose spout is plugged with thick rock: break the plug, then
+	# clear the way and the core drops onto the dock at the bottom.
 	{
-		"id": "funnel", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
-		"goals": [{"type": "core", "n": 1}],
+		"id": "funnel", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
+		"goals": [{"type": "core", "n": 1}, {"type": "rock", "n": 2}],
 		"cores": [Vector2i(4, 0)],
 		"docks": [Vector2i(4, 8)],
 		"script": [
-			{"say": "Clear the way and land\nthe ENERGY CORE on the DOCK!", "until": "move", "banner": true,
-					"lit": [Vector2i(4, 0), Vector2i(4, 8)]},
+			{"say": "Break the plug and land\nthe ENERGY CORE on the DOCK!", "until": "move", "banner": true,
+					"lit": [Vector2i(4, 0), Vector2i(4, 6), Vector2i(4, 7), Vector2i(4, 8)]},
 		],
 		"rows": [
 			". . . . . . . . .",
 			". . . . . . . . .",
-			". . . . . . . . .",
 			"# . . . . . . . #",
-			"# . . . . . . . #",
+			"# . . . @ . . . #",
 			"# # . . . . . # #",
-			"# # . . @ . . # #",
-			"# # # . . . # # #",
+			"# # . . . . . # #",
+			"# # # . 2 . # # #",
+			"# # # . 2 . # # #",
 			"# # # # . # # # #",
 		],
 	},
-	# L12 "posts": two cores sit on top of two rock posts, the docks at their feet. Break a post
-	# down, thick at the bottom, and its core drops home; the robot can push a core along too.
+
+	# L12 "ledges": two cores stuck on ledges of bedrock at the sides: they can't fall by
+	# themselves. Walk the robot into a core (they swap places) to drag it over the edge; a
+	# thick cap of rock sits on each dock.
 	{
-		"id": "posts", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
-		"goals": [{"type": "core", "n": 2}, {"type": "rock", "n": 12}],
-		"cores": [Vector2i(1, 0), Vector2i(7, 0)],
+		"id": "posts", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
+		"goals": [{"type": "core", "n": 2}, {"type": "rock", "n": 10}],
+		"cores": [Vector2i(0, 3), Vector2i(8, 3)],
 		"docks": [Vector2i(1, 8), Vector2i(7, 8)],
+		"script": [
+			{"say": "A core on a ledge won't fall. Walk the robot into it: they swap places, and over it goes.", "until": "move",
+					"focus": [Vector2i(0, 3), Vector2i(8, 3)]},
+		],
 		"rows": [
 			". . . . . . . . .",
 			". . . . . . . . .",
-			". 1 . . . . . 1 .",
-			". 1 . . . . . 1 .",
-			". 1 . . . . . 1 .",
-			". 2 . . . . . 2 .",
-			". 2 . . @ . . 2 .",
-			". 2 . . . . . 2 .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
 			"# . . . . . . . #",
+			"# . . 1 . 1 . . #",
+			"# . . 1 . 1 . . #",
+			"# 2 . 1 . 1 . 2 #",
+			"# . . 1 . 1 . . #",
 		],
 	},
-	# L13 "nest": an hourglass; the core comes down through the waist into a web garden that
-	# fills the bottom, its dock in the middle of it.
+
+	# L13 "relay": three cores, one at a time (Candy Crush's ingredients): one dock at the foot
+	# of a chute between two rock pillars. Every core delivered, the next drops in at the top
+	# and the chute has filled with gems again.
 	{
-		"id": "nest", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
-		"goals": [{"type": "core", "n": 1}, {"type": "web", "n": 27}],
+		"id": "nest", "mode": "fall", "colours": 4, "tier": "normal", "energy": 18,
+		"goals": [{"type": "core", "n": 3}, {"type": "rock", "n": 9}],
 		"cores": [Vector2i(4, 0)],
+		"core_feed": [4, 2],
 		"docks": [Vector2i(4, 8)],
-		"obstacles": [[Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(3, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
 		"rows": [
 			". . . . . . . . .",
 			". . . . . . . . .",
-			"# . . . . . . . #",
+			". . . . . . . . .",
+			"# 1 . . 2 . . 1 #",
 			"# # . . . . . # #",
-			"# # . . @ . . # #",
-			"# . . . . . . . #",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
+			"# . . . @ . . . #",
+			". . . 1 . 1 . . .",
+			". . . 1 . 1 . . .",
+			". . . 1 . 1 . . .",
 		],
 	},
+
 	{
 		# the Bomb lesson (GDD v4, iteration 1): the Power Station has just handed out a free Bomb.
 		# Rubble clumps 2x2 are slow to crack with matches (only their outer cells touch open

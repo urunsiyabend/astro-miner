@@ -371,6 +371,8 @@ func _next_step() -> void:
 			if not _cur.robot.is_empty():
 				var rd: int = maxi(1, Board.pos(_cur.robot[1]).y - Board.pos(_cur.robot[0]).y)
 				end = maxf(end, _fall_secs(rd))
+			if _fall_route.is_empty() and not _cur.collected.is_empty():
+				end = 0.22  # it has landed: a beat on the dock (its bounce), then it is delivered
 			_dur = end
 		"swap":
 			_dur = 0.14

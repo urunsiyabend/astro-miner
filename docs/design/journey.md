@@ -131,9 +131,12 @@ core, opens chapter 2.
 
 | L | Idea (silhouette, layout) | Goal (all of it) | Element | Tip |
 |---|---|---|---|---|
-| 11 | **funnel**: one core at the top, one dock at the bottom of the spout | 1 core | **energy core** (Mira) | – |
-| 12 | **posts**: two cores on two rock posts, thick at the foot, the docks below | 2 cores + 12 rock | core + rock | – |
-| 13 | **nest**: an hourglass; the core comes down through the waist into a web garden | 1 core + 27 webs | core + web | – |
+| 11 | **plug**: a funnel, its spout plugged with thick rock; one core at the top | 1 core + 2 rock | **energy core** (banner, spotlight) | – |
+| 12 | **ledges**: two cores stuck on bedrock ledges at the sides; walk the robot into one (they swap) to drag it off; a thick cap on each dock | 2 cores + 10 rock | core + rock; the robot drags | Mira's line |
+| 13 | **relay**: three cores one at a time (`core_feed`, Candy Crush's ingredients) down a chute between rock pillars; it fills again after each | 3 cores + 9 rock | core feed | – |
+
+Core levels have no webs: Candy Crush kept its ingredients and jelly on separate boards until
+level 1688. A core is seen landing on its dock (a fall step), then delivered in a step of its own.
 
 Next: 14 practice · 15 **cage** · 16 cores held up by cages (prototype Core run) · 17 practice ·
 18 normal+ · 19 mix · 20 reward + building.

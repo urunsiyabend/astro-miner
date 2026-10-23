@@ -32,6 +32,7 @@ func _initialize() -> void:
 	_test_boosters()
 	_test_campaign_shape()
 	_test_moved_specials()
+	_test_core_feed()
 	_test_webs()
 	_test_goals_end_dig()
 	_test_determinism()
@@ -309,6 +310,30 @@ func _test_campaign_shape() -> void:
 	_ok(hard_seen >= 4, "chapters 2 and 3 each have a hard and a super-hard dig")
 
 
+## Energy cores: one landing on its dock is seen landing (a fall step), then delivered (a step
+## of its own); with a core feed the next one drops in at the top of its column.
+func _test_core_feed() -> void:
+	var site := {"id": "t", "mode": "fall", "colours": 4, "goals": [{"type": "core", "n": 2}],
+			"cores": [Vector2i(4, 6)], "docks": [Vector2i(4, 8)], "core_feed": [4, 1],
+			"rows": [". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .",
+				". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", "@ . . . . . . . ."]}
+	var b := Board.new()
+	b.setup_site(site, 3, Economy.rules([1, 1, 1, 1]))
+	var dock := Board.idx(Vector2i(4, 8))
+	b.token[Board.idx(Vector2i(4, 7))] = Board.Token.NONE  # the gem under the core is gone
+	b.token[dock] = Board.Token.NONE
+	var steps := []
+	b._gravity(steps)
+	var landed: bool = not steps.is_empty() and steps[0].snap.token[dock] == Board.Token.CORE and steps[0].collected.is_empty()
+	var delivered := steps.filter(func(st): return st.collected.has(dock)).size() == 1
+	var next := 0
+	for i in Board.W * Board.H:
+		if b.token[i] == Board.Token.CORE:
+			next += 1
+	_ok(landed and delivered and b.stats.cores == 1 and next == 1 and b.cfg.feed_left == 0,
+			"core: seen landing on the dock, then delivered; the feed drops the next one in")
+
+
 ## Power-ups (Powers.gd): what shape makes which, what each reaches, chains and path combos.
 func _test_moved_specials() -> void:
 	var S := Board.Special
@@ -528,6 +553,8 @@ func _test_full_clear_goals() -> void:
 				on_board["core"] = int(on_board.get("core", 0)) + 1
 		for it in b.obs.items:
 			on_board[it.kind] = int(on_board.get(it.kind, 0)) + 1
+		if site.has("core_feed"):  # cores still to come count too
+			on_board["core"] = int(on_board.get("core", 0)) + int(site.core_feed[1])
 		var goals := {}
 		for g in site.goals:
 			goals[g.type] = g.n
