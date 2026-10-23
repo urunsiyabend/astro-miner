@@ -524,6 +524,8 @@ func _test_full_clear_goals() -> void:
 					on_board["crystal"] = int(on_board.get("crystal", 0)) + 1
 			elif b.token[i] == Board.Token.CRYSTAL:
 				on_board["crystal"] = int(on_board.get("crystal", 0)) + 1
+			elif b.token[i] == Board.Token.CORE:
+				on_board["core"] = int(on_board.get("core", 0)) + 1
 		for it in b.obs.items:
 			on_board[it.kind] = int(on_board.get(it.kind, 0)) + 1
 		var goals := {}

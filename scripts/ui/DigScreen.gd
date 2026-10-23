@@ -20,6 +20,7 @@ var _haul_pop: Control  # breakdown of the haul, shown for a moment when the hau
 var _chips: Array = []
 var _top_plate: Control
 var _coach: Dialog.Coach
+var _banner: Dialog.Banner
 var _dialog: Dialog.Overlay
 var _mission: Control
 var _mission_at := 0  # ticks when the goal card opened; it can't be closed right away
@@ -111,6 +112,8 @@ func _ready() -> void:
 
 	_coach = Dialog.Coach.new()
 	col.add_child(_coach)
+	_banner = Dialog.Banner.new()
+	view.add_child(_banner)
 
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 20)
@@ -450,13 +453,19 @@ func _run_script() -> void:
 		view.guide = []
 		_waiting = ""
 		_coach.clear()
+		_banner.clear()
 		return
 	var st: Dictionary = _script[_step]
 	view.focus = st.get("focus", [])
 	view.guide = _guide_cells(st)
+	_banner.clear()
 	if st.has("until"):
 		_waiting = st.until
-		_coach.say(st.say)
+		if st.get("banner", false):
+			_coach.clear()
+			_banner.say(st.say)
+		else:
+			_coach.say(st.say)
 		_refresh_reach()  # the hint follows the new focus
 		return
 	_waiting = ""
@@ -464,6 +473,29 @@ func _run_script() -> void:
 	_dialog.say([st.say], func():
 		_step += 1
 		_run_script())
+
+
+## The element banner sits over the board, as wide as most of it, at the top, the middle or
+## the bottom: wherever it covers the fewest of the cells Mira points at (never the very thing
+## it introduces).
+func _place_banner() -> void:
+	var bw := view.cell * Board.W
+	var bh := view.pitch * Board.H
+	var x := view.origin.x + bw * 0.5
+	var w := bw * 0.76
+	var h := _banner.size.y
+	var best_y := view.origin.y + view.cell * 0.3
+	var best := 1 << 30
+	for y in [view.origin.y + view.cell * 0.3, view.origin.y + (bh - h) * 0.5, view.origin.y + bh - h - view.cell * 0.3]:
+		var r := Rect2(x - w * 0.5, y, w, h).grow(view.cell * 0.2)
+		var n := 0
+		for c in view.focus:
+			if r.has_point(view.cell_center(Board.idx(c))):
+				n += 1
+		if n < best:
+			best = n
+			best_y = y
+	_banner.place(x, best_y, w)
 
 
 ## A lesson's guided move ("guide": the cells from the robot on): its cells as board indices,
@@ -512,6 +544,8 @@ func _say(text: String, secs: float) -> void:
 # --- play ---------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	if _banner.showing() or _banner.modulate.a > 0.0:
+		_place_banner()
 	if _recall_armed > 0.0:
 		_recall_armed -= delta
 		if _recall_armed <= 0.0:

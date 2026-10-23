@@ -1,9 +1,11 @@
 class_name Dialog
 extends RefCounted
 
-## Mira's two ways of talking.
+## Mira's ways of talking.
 ##   Dialog.Overlay - modal: dims the screen, tap to go through the lines, then calls back.
 ##   Dialog.Coach   - a line under the board while you keep playing (instructions, notes).
+##   Dialog.Banner  - a new element's one line, big, over the top of the board (Royal Match:
+##                    "Make a match next to a BOX to break it!"), until the player does it.
 
 
 class Overlay extends Control:
@@ -157,6 +159,89 @@ class Coach extends PanelContainer:
 			return
 		_t -= delta
 		modulate.a = clampf(_t * 2.0, 0.0, 1.0)
+
+
+## A new element's line in a big cream bubble over the top of the board, the element's name in
+## capitals in the text. It pops in, stays while the player works on it, and fades on clear().
+class Banner extends Control:
+	const CREAM := Color("fff4d6")
+	const RIM := Color("5b8fd6")
+	const INK := Color("1d2f5c")
+	var _text: Label
+	var _t := 0.0
+	var _on := false
+	var _a := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_text = Label.new()
+		_text.add_theme_font_size_override("font_size", Pal.FS)
+		_text.add_theme_color_override("font_color", INK)
+		# heavy letters: the ink outlined in itself
+		_text.add_theme_color_override("font_outline_color", INK)
+		_text.add_theme_constant_override("outline_size", 3)
+		_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_text.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_text)
+		modulate.a = 0.0
+
+	func say(text: String) -> void:
+		_text.text = text
+		_on = true
+		_t = 0.0
+		Sfx.play("pop", 1.1)
+
+	func clear() -> void:
+		_on = false
+
+	func showing() -> bool:
+		return _on
+
+	## Centre it on x, its top at y, `w` wide.
+	func place(x: float, y: float, w: float) -> void:
+		_text.size = Vector2(w - 60, 0)
+		var h := maxf(140.0, _text.get_minimum_size().y + 56.0)
+		size = Vector2(w, h)
+		position = Vector2(x - w * 0.5, y)
+		pivot_offset = size * 0.5
+		_text.position = Vector2(30, 24)
+		_text.size = Vector2(w - 60, h - 48)
+
+	func _process(delta: float) -> void:
+		_t += delta
+		_a = move_toward(_a, 1.0 if _on else 0.0, delta / (0.12 if _on else 0.2))
+		modulate.a = _a
+		# pops in (back-out), then breathes a little while it waits
+		var u := clampf(_t / 0.28, 0.0, 1.0)
+		var pop := 1.0 + 2.2 * pow(u - 1.0, 3) + 1.2 * pow(u - 1.0, 2) if _on else 1.0
+		var s := pop * (1.0 + 0.012 * sin(_t * 3.0))
+		scale = Vector2(s, s)
+		queue_redraw()
+
+	func _draw() -> void:
+		var r := Rect2(Vector2.ZERO, size)
+		var sh := StyleBoxFlat.new()
+		sh.bg_color = Color(0, 0, 0, 0.28)
+		sh.set_corner_radius_all(30)
+		draw_style_box(sh, Rect2(r.position + Vector2(0, 8), r.size))
+		var outer := StyleBoxFlat.new()
+		outer.bg_color = RIM.darkened(0.45)
+		outer.set_corner_radius_all(34)
+		draw_style_box(outer, r)
+		var box := StyleBoxFlat.new()
+		box.bg_color = CREAM
+		box.set_corner_radius_all(28)
+		box.set_border_width_all(9)
+		box.border_color = RIM
+		box.anti_aliasing = true
+		draw_style_box(box, r.grow(-5))
+		# a soft light band across the top, like a glazed tile
+		var gl := StyleBoxFlat.new()
+		gl.bg_color = Color(1, 1, 1, 0.35)
+		gl.set_corner_radius_all(22)
+		draw_style_box(gl, Rect2(r.position + Vector2(14, 10), Vector2(r.size.x - 28, r.size.y * 0.32)))
 
 
 ## Spotlight: dims everything except one button, points at it with a bouncing arrow and lets
