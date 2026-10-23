@@ -40,6 +40,7 @@ var focus: Array = []   # cells Mira is talking about; drawn as pulsing frames
 ## A guided move (a lesson): the cells it goes through, the robot's first. A hand draws it over
 ## and over, the rest of the board dims, and a path can only follow it. [] when free play.
 var guide: Array = []
+var lit: Array = []     # cells kept bright while a guided move dims the board (no frame)
 var _guide_t := 0.0
 const HAND_TIP := Vector2(0.22, 0.0)  # the fingertip in hand.png, as a share of its size
 ## Gems of a match within reach, shown after the player has been idle a while: they hop one
@@ -2031,21 +2032,25 @@ func _draw_overlays(glowing: bool) -> void:
 		draw_arc(r.c, lerpf(r.r0, r.r1, _ease(k)), 0, TAU, 48, col, 8.0 * (1.0 - k) + 2.0, true)
 
 
-## A guided move: the board dims except the cells the lesson is about, and a hand presses on
-## the robot and draws the move, again and again, until the player does it.
+## A lesson's spotlight (Royal Match's): the board dims except the cells the lesson is about
+## (the guided move, focus, lit); with a guided move a hand presses on the robot and draws it,
+## again and again, until the player does it.
 func _draw_guide() -> void:
-	if guide.is_empty() or _drawing or is_busy():
+	if (guide.is_empty() and lit.is_empty()) or _drawing or is_busy():
 		_guide_t = 0.0
 		return
 	var lit := {}
 	for c in guide:
 		lit[c] = true
-	for f in focus:
+	for f in focus + self.lit:
 		lit[Board.idx(f)] = true
-	var dim := clampf(_guide_t / 0.4, 0.0, 1.0) * 0.5
+	lit[snap.robot] = true  # the player's own piece is never in the dark
+	var dim := clampf(_guide_t / 0.4, 0.0, 1.0) * 0.6
 	for i in Board.W * Board.H:
 		if not lit.has(i) and snap.terrain[i] != T.BEDROCK:
 			draw_rect(Rect2(cell_origin(Board.pos(i)), Vector2(cell, pitch)), Color(0.04, 0.0, 0.1, dim))
+	if guide.is_empty():
+		return
 	# one loop: appear, press, draw the move cell by cell, hold at the end, lift, rest
 	var steps := guide.size() - 1
 	var press := 0.45
