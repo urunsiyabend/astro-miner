@@ -22,12 +22,14 @@ extends RefCounted
 ##             stays up while you play and moves on when that event happens (see DigScreen).
 ##             "focus" cells pulse on the board. "guide" (cells from the robot on): a
 ##             hand draws that move, the board dims around it, and only it is accepted.
+##             "banner": true shows the line as a new element's banner over the board (Royal
+##             Match's "Make a match next to a BOX to break it!"), the element in CAPITALS.
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
 ##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
 ## Levels 1..JOURNEY_BUILT are rebuilt as the journey (docs/design/journey.md); the rest keep
 ## their old design. A journey level clears its board: every obstacle on it is a goal, all of it.
-const JOURNEY_BUILT := 10
+const JOURNEY_BUILT := 13
 const LIST := [
 	# --- Chapter 1 · Landing (docs/design/journey.md) -------------------------------------
 	# L1: draw a path, and the first obstacle. Paths are the game, so the very first move is
@@ -63,7 +65,7 @@ const LIST := [
 			{"say": "Hi, I'm Mira! Hold anywhere and draw: the robot swaps with every gem on its way, and the whole path is one move.",
 					"until": "match", "guide": [Vector2i(2, 5), Vector2i(2, 6), Vector2i(3, 6), Vector2i(3, 7)],
 					"focus": [Vector2i(2, 3), Vector2i(2, 4), Vector2i(4, 6), Vector2i(5, 6)]},
-			{"say": "A match right next to rock cracks it. Break all 15 rocks!", "until": "move"},
+			{"say": "Make a match next to ROCK\nto break it!", "until": "move", "banner": true},
 		],
 	},
 	# L2 "bastions": four rock bastions stand in the corners, stepped like stairs; the gems hold
@@ -93,7 +95,7 @@ const LIST := [
 		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
 		"goals": [{"type": "rock", "n": 30}],
 		"script": [
-			{"say": "Darker rock is thicker: it cracks on the first match and breaks on the second.", "until": "move",
+			{"say": "DARK ROCK is thick:\ntwo matches to break it!", "until": "move", "banner": true,
 					"focus": [Vector2i(2, 1), Vector2i(6, 1)]},
 		],
 		"rows": [
@@ -168,7 +170,7 @@ const LIST := [
 			"# # . . . . . # #",
 		],
 		"script": [
-			{"say": "Cave webs! Make a match on top of a web to clear it.", "until": "match",
+			{"say": "Make a match on top of\na WEB to clear it!", "until": "match", "banner": true,
 					"focus": [Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3)]},
 		],
 	},
@@ -194,16 +196,13 @@ const LIST := [
 
 
 
-	# L8 "crystal vaults": crystals wait in the two bottom-corner pockets and under a thick
-	# dome in the middle. The goal card's tip: path combos.
+	# L8 "domes": webs lie under the rock in the two bottom-corner pockets and under a thick
+	# dome in the middle; the open top is the workshop. The goal card's tip: path combos.
 	{
-		"id": "glint1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "crystal", "n": 3}, {"type": "rock", "n": 29}],
+		"id": "domes", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
+		"goals": [{"type": "web", "n": 14}, {"type": "rock", "n": 29}],
 		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
-		"script": [
-			{"say": "Crystals at the bottom of the rock! Dig down, then draw the robot over a crystal to grab it.", "until": "crystal",
-					"focus": [Vector2i(0, 8), Vector2i(4, 8), Vector2i(8, 8)]},
-		],
+		"obstacles": [[Vector2i(0, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
 		"rows": [
 			"# # . . @ . . # #",
 			"# . . . . . . . #",
@@ -213,9 +212,10 @@ const LIST := [
 			"1 1 . . . . . 1 1",
 			"1 1 1 . 2 . 1 1 1",
 			"1 1 1 2 2 2 1 1 1",
-			"1c 1 1 2 2c 2 1 1 1c",
+			"1 1 1 2 2 2 1 1 1",
 		],
 	},
+
 
 	# L9: the chapter's small peak (two goal types). Idea: an hourglass; the webs are up top,
 	# beyond a narrow waist, and a rock band guards the bottom. Clear a way up through the
@@ -259,6 +259,69 @@ const LIST := [
 		],
 	},
 
+	# --- Chapter 2 · The Shaft (docs/design/journey.md) -------------------------------------
+	# L11: the energy core, the chapter's new element (Deliver; Royal Match meets its third
+	# element on level 11). A funnel: one core at the top, one dock at the bottom of the spout.
+	{
+		"id": "funnel", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
+		"goals": [{"type": "core", "n": 1}],
+		"cores": [Vector2i(4, 0)],
+		"docks": [Vector2i(4, 8)],
+		"script": [
+			{"say": "Clear the way and land\nthe ENERGY CORE on the DOCK!", "until": "move", "banner": true,
+					"focus": [Vector2i(4, 0), Vector2i(4, 8)]},
+		],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+			"# . . . . . . . #",
+			"# # . . . . . # #",
+			"# # . . @ . . # #",
+			"# # # . . . # # #",
+			"# # # # . # # # #",
+		],
+	},
+	# L12 "posts": two cores sit on top of two rock posts, the docks at their feet. Break a post
+	# down, thick at the bottom, and its core drops home; the robot can push a core along too.
+	{
+		"id": "posts", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
+		"goals": [{"type": "core", "n": 2}, {"type": "rock", "n": 12}],
+		"cores": [Vector2i(1, 0), Vector2i(7, 0)],
+		"docks": [Vector2i(1, 8), Vector2i(7, 8)],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". 1 . . . . . 1 .",
+			". 1 . . . . . 1 .",
+			". 1 . . . . . 1 .",
+			". 2 . . . . . 2 .",
+			". 2 . . @ . . 2 .",
+			". 2 . . . . . 2 .",
+			"# . . . . . . . #",
+		],
+	},
+	# L13 "nest": an hourglass; the core comes down through the waist into a web garden that
+	# fills the bottom, its dock in the middle of it.
+	{
+		"id": "nest", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
+		"goals": [{"type": "core", "n": 1}, {"type": "web", "n": 27}],
+		"cores": [Vector2i(4, 0)],
+		"docks": [Vector2i(4, 8)],
+		"obstacles": [[Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(3, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
+		"rows": [
+			". . . . . . . . .",
+			". . . . . . . . .",
+			"# . . . . . . . #",
+			"# # . . . . . # #",
+			"# # . . @ . . # #",
+			"# . . . . . . . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+		],
+	},
 	{
 		# the Bomb lesson (GDD v4, iteration 1): the Power Station has just handed out a free Bomb.
 		# Rubble clumps 2x2 are slow to crack with matches (only their outer cells touch open

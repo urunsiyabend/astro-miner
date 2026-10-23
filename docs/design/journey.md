@@ -52,7 +52,7 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 | 4b | Cave web | obstacle (floor) | under the gems; a match on top of it clears it (level 6) |
 | 5 | Falling robot | verb | clear under the robot and it drops down for free |
 | 6 | Nova | power-up | an L or T; push it, a 5x5 blast |
-| 7 | Crystal in rock | goal (Excavate) | break the rock to reveal it, then pick it up |
+| 7 | ~~Crystal in rock~~ | dropped 2026-10-23 | the energy core (8) opens chapter 2 instead |
 | 8 | Energy core + dock | goal (Deliver) | bring the core down onto the dock; the robot can push it |
 | 9 | Black hole | power-up | 5 in a row; swallows the most common colour |
 | 10 | Cage | obstacle (cover) | locks a gem; match that gem or hit it with a power-up |
@@ -68,8 +68,8 @@ teach), `docs/research/match3-goals-obstacles.md` (goal types, obstacle families
 ### Chapter 1 · Landing (levels 1–10): rock
 
 The chapter's element is rock, then the cave web at 6 (a floor layer cleared by a match on
-top of it: Royal Match meets grass on level 4). Thick rock is a variant; crystals in rock are
-a goal twist on rock, not a new mechanic. Every level is free play except level 1 (the path lesson).
+top of it: Royal Match meets grass on level 4). Thick rock is a variant (crystals in rock
+were dropped: not a good mechanic). Every level is free play except level 1 (the path lesson).
 
 Rebuilt 2026-10-23 as Royal Match boards (the user: "the levels still don't taste like Royal
 Match"; the answer was the board's shape and layout): a new silhouette every level, obstacles in
@@ -85,7 +85,7 @@ build power-ups in, the goals at the edges and in pockets.
 | 5 | **valley**: the rock steps down from both sides into a V, thicker deeper | 38 rock | | Nova |
 | 6 | **diamond**: a diamond board, a diamond of webs in the middle | 13 webs | **cave web** (Mira) | – |
 | 7 | **chessboard**: an octagon, a chessboard of rock over a web garden below | 43 webs + 21 rock | web + rock | – |
-| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and under a thick dome | 3 crystals + 29 rock | | combo |
+| 8 | **domes**: an octagon, webs under the rock of two corner pockets and a thick dome | 14 webs + 29 rock | web + rock | combo |
 | 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar |
 | 10 | **starfall**: a plus-shaped show board, thick webs everywhere, power-ups waiting | 54 webs | reward | Black hole |
 
@@ -123,9 +123,20 @@ idea in one sentence, a new silhouette each level, goals at the edges or in pock
 of play (shield, then goal), and the last goals in the hardest spot.
 
 ### Chapter 2 · The Shaft (11–20): Deliver
-11 **energy core** (one core, one dock, open board) · 12 core + rock · 13 **Black hole**; path combos ·
-14 two-layer rock · 15 **cage** · 16 cores held up by cages (prototype Core run) ·
-17 practice · 18 normal+ · 19 mix · 20 reward + building.
+
+Crystals are dropped from the journey (the user, 2026-10-23: "not a good mechanic"); old levels
+past the journey still have them until they are rebuilt. Following the pacing research (Royal
+Match: Box 1, Grass 4, Cupboard 11), chapter 1 keeps two elements and the third, the energy
+core, opens chapter 2.
+
+| L | Idea (silhouette, layout) | Goal (all of it) | Element | Tip |
+|---|---|---|---|---|
+| 11 | **funnel**: one core at the top, one dock at the bottom of the spout | 1 core | **energy core** (Mira) | – |
+| 12 | **posts**: two cores on two rock posts, thick at the foot, the docks below | 2 cores + 12 rock | core + rock | – |
+| 13 | **nest**: an hourglass; the core comes down through the waist into a web garden | 1 core + 27 webs | core + web | – |
+
+Next: 14 practice · 15 **cage** · 16 cores held up by cages (prototype Core run) · 17 practice ·
+18 normal+ · 19 mix · 20 reward + building.
 
 ### Chapter 3 · The Power Plant (21–30): Activate
 21 **generator** (one, open board) · 22 two generators + rock · 23 generators + cages ·

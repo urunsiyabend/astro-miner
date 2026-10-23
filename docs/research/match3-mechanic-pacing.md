@@ -79,3 +79,26 @@ Every game front-loads novelty; the gap roughly doubles at ~L100, L300, L1000.
 
 Royal Match 12,400+ levels (new every 2 weeks), Candy Crush ~15,900, Homescapes 21,000+.
 At ~2 min per attempt and 1.2–1.6 attempts per level, 100 levels ≈ 4–6 hours [estimate].
+
+## 7. What kind of mechanic comes when (2026-10-23)
+
+Fan wikis (royalmatch, candycrush, homescapes, gardenscapes, toonblast, candycrushsoda
+.fandom.com). Candy Crush numbers are the current boards; §1's are pre-redesign.
+
+| Game | 1st | 2nd | 3rd | 4th | First deliver (bring it down) |
+|---|---|---|---|---|---|
+| Royal Match | Box 1 (blocker) | Grass 4 (floor) | Cupboard 11 (multi-cell) | Mailbox 21 (collector) | Bird 101 |
+| Candy Crush | Frosting 2 (blocker) | Jelly 5 (floor) | Bubblegum 11 (blocker variant) | Gummi dragons 21 (deliver) | 21 (was 17) |
+| Homescapes | Carpet 6 (spreading floor) | Chains 8 (lock) | Cherries 12 (blocker) | Donuts 18 (deliver) | 18 [?: or 61] |
+| Gardenscapes | Gnomes 5 (uncover) | Boxes 9 (blocker) | Lemonade 11 (deliver) | Chain 18 (lock) | 11 [?] |
+| Toon Blast | Balloons 1 | Crates 4 | Bubbles 11 (cover) | Magic Hat 21 (collector) | Ducks 41 |
+| CC Soda | Bears under ice 1 | Bottles 2 (fill) | Cupcake 4 (blocker) | Bubble bears 16 (deliver, upward) | 16 |
+
+- The first two are always a layered blocker and a floor/uncover layer (by L9).
+- The third varies: a cover/lock on a gem (most common), a variant of the blocker, a multi-cell
+  blocker (Royal Match), or a deliver goal (Gardenscapes).
+- The deliver goal: median ~L18–21; Gardenscapes L11, Royal Match L101.
+- Covers, locks, board elements (portals, conveyors, gravity) and collectors cluster at L25–50.
+- Candy Crush kept ingredients and jelly on separate boards until L1688 (its first "mixed").
+
+Ours: rock 1, web 6, energy core 11 = Gardenscapes' order (5 → 9 → 11): early but in range.
