@@ -71,18 +71,34 @@ The chapter's element is rock, then the cave web at 6 (a floor layer cleared by 
 top of it: Royal Match meets grass on level 4). Thick rock is a variant; crystals in rock are
 a goal twist on rock, not a new mechanic. Every level is free play except level 1 (the path lesson).
 
-| L | Flow (rooms and gates) | Goal | Element | Tip | Bot median |
-|---|---|---|---|---|---|
-| 1 | 7x8, rock rows top and bottom, 3 colours | 14 rock | **path + rock** (guided) | – | 4 |
-| 2 | **gatehouse**: start in the left room, a rock wall shuts off the right room | 14 rock | | Pulsar | 7 |
-| 3 | **vault**: a rock vault walled at the sides, a thick door below; dig in | 11 rock | **thick rock** (Mira) | – | 12 |
-| 4 | **pockets**: rock walled in at the top corners, only drones and beams get there | 8 rock | | Scout drone | 8 |
-| 5 | **descent**: start top-left, a rock staircase down to the bottom-right, thicker deeper | 12 rock | | Nova | 13 |
-| 6 | a band of webs across the middle | 16 webs | **cave web** (Mira) | – | 6 |
-| 7 | **web garden**: start top-left, a thick gate, then the web garden bottom-right behind a second gate | 14 webs | web + rock | – | 12 |
-| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and a thick-rock vault | 3 crystals | | combo | 9 |
-| 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar | 12 |
-| 10 | **starfall**: a show level, thick webs everywhere, power-ups waiting | 50 webs | reward | Black hole | 8 |
+Rebuilt 2026-10-23 as Royal Match boards (the user: "the levels still don't taste like Royal
+Match"; the answer was the board's shape and layout): a new silhouette every level, obstacles in
+shapes (bastions, pillars, a spine, steps, a chessboard), never one big slab; an open middle to
+build power-ups in, the goals at the edges and in pockets.
+
+| L | Idea (silhouette, layout) | Goal (all of it) | Element | Tip |
+|---|---|---|---|---|
+| 1 | 7x9, a rock row near the top and one at the bottom, 3 colours | 14 rock | **path + rock** (guided) | – |
+| 2 | **bastions**: four stepped rock bastions in the corners, a plus of open ground | 24 rock | | Pulsar |
+| 3 | **pillars**: two rock pillars on wide plinths, thick capitals | 30 rock | **thick rock** (Mira) | – |
+| 4 | **spine**: a crowned spine splits the board in two wings, pockets in the bottom corners | 24 rock | | Scout drone |
+| 5 | **valley**: the rock steps down from both sides into a V, thicker deeper | 38 rock | | Nova |
+| 6 | **diamond**: a diamond board, a diamond of webs in the middle | 13 webs | **cave web** (Mira) | – |
+| 7 | **chessboard**: an octagon, a chessboard of rock over a web garden below | 43 webs + 21 rock | web + rock | – |
+| 8 | **crystal vaults**: an octagon, crystals in two corner pockets and under a thick dome | 3 crystals + 29 rock | | combo |
+| 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar |
+| 10 | **starfall**: a plus-shaped show board, thick webs everywhere, power-ups waiting | 54 webs | reward | Black hole |
+
+**Full clear** (the user, 2026-10-23): a level's goals are every obstacle on its board, all of
+it; clearing part of the rock means nothing. `tests/run_tests.gd` (`_test_full_clear_goals`)
+checks it for levels 1..`Sites.JOURNEY_BUILT`.
+
+**Refill shapes** (since diagonal fill): new gems fall in only where a column opens to the sky;
+under rock a cell fills diagonally from a neighbour column, or stays empty. So a rock run of 3
+or more over open cells leaves a dead pocket under its middle: rock stands on the floor (pillars,
+steps, frames), hangs as stairs that narrow downward, or sits in a chessboard.
+`_test_refill_shapes` checks that every open cell of a journey level is fed from the sky, straight
+or diagonally.
 
 **Board evolution** (the user, 2026-10-20, with Royal Match screenshots): most of the board
 starts **full of obstacles** (blocks of rock, rock over webs), and the gems only have a small

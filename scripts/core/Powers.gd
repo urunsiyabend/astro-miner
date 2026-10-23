@@ -166,12 +166,25 @@ static func _area(b: Board, c: int, r: int, step: Dictionary, seen: Dictionary, 
 				_hit(b, Board.idx(p), c, step, seen, queue, queued)
 
 
-## Every gem of colour k is pulled into the black hole.
+## Every gem of colour k is pulled into the black hole. The gems it takes count as a match
+## for what is next to them (Candy Crush's colour bomb: frosting "can't be destroyed unless a
+## candy next to it is destroyed by the colour bomb"): rock beside a swallowed gem cracks, once.
 static func _swallow(b: Board, c: int, k: int, step: Dictionary, seen: Dictionary, queue: Array, queued: Dictionary) -> void:
+	var taken := {}
 	for i in Board.W * Board.H:
 		if i != c and b.terrain[i] == Board.Terrain.GROUND and b.token[i] == Board.Token.ORE and b.ore[i] == k:
 			step.sucked.append(i)
+			taken[i] = true
 			_hit(b, i, c, step, seen, queue, queued)
+	var touched := {}
+	for i in taken:
+		for d in Board.DIRS:
+			var nb: Vector2i = Board.pos(i) + d
+			if Board.inside(nb) and not taken.has(Board.idx(nb)) and Board.idx(nb) != c:
+				touched[Board.idx(nb)] = true
+	var next_seen := {}
+	for nb in touched:
+		b._strike(nb, Obstacles.Hit.NEXT, b.cfg.crack_power, step, next_seen)
 
 
 ## The `n` most common gem colours on the board, most common first (ties: the lower colour).
@@ -225,9 +238,10 @@ static func _drone(b: Board, c: int, carry: int, step: Dictionary, seen: Diction
 	var t: int = aim[0]
 	step.flights.append([c, t, carry])
 	b.claimed[t] = true
-	if carry < 0:
-		_hit(b, t, c, step, {}, queue, queued)
-	else:
+	# it hits where it lands; carrying a power-up, that one goes off there too (Homescapes' plane
+	# "clears a Level Goal, then activates swapped Power-up")
+	_hit(b, t, c, step, {}, queue, queued)
+	if carry >= 0:
 		effect(b, carry, t, aim[1], step, queue, queued)
 
 
