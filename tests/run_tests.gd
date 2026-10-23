@@ -397,6 +397,22 @@ func _test_moved_specials() -> void:
 	var merged: Array = r.steps.filter(func(st): return st.type == "merge")
 	_ok(merged.size() == 1 and merged[0].name == "CROSS" and m.stats.crystals == 2,
 			"path combo: two Pulsars merge into a cross, row and column")
+	# a long chain goes off in waves: the board settles and refills between them, and every
+	# power-up still to go off is found where it fell to
+	var wv := _board(OPEN, DIAG, {"gravity": true})
+	wv.record = true
+	var wsteps := []
+	Powers.combo(wv, Board.idx(Vector2i(3, 4)), Vector2i(1, 0), [S.BLACKHOLE, S.PULSAR], wsteps)
+	var turned: int = wsteps[0].turned.size()
+	var kinds_seq := wsteps.map(func(st): return st.type)
+	var fired := kinds_seq.count("special")
+	var mid_fall := kinds_seq.slice(0, kinds_seq.rfind("special")).has("fall")
+	var charges_left := 0
+	for i in Board.W * Board.H:
+		if wv.token[i] == Board.Token.CHARGE:
+			charges_left += 1
+	_ok(turned > Powers.WAVE and mid_fall and fired >= turned + 1 and charges_left == 0,
+			"waves: a long chain refills between waves and every turned power-up still goes off (%d turned, %d fired)" % [turned, fired])
 	_ok(Powers.combo_name([S.PULSAR, S.NOVA, S.DRONE, S.BLACKHOLE]) == "BIG BANG"
 			and Powers.combo_name([S.NOVA, S.NOVA]) == "SUPERNOVA", "combo names: four is the Big Bang")
 
@@ -599,7 +615,7 @@ func _test_bot_smoke() -> void:
 # its last move; if a layout edit breaks one, this fails before a player meets it. A string
 # is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": ["URR", "DRDL", "DRU"],
+	"first": ["URR", "LDRD", "URDD"],
 	"battery": ["DDLD", "RRUL", "LUUU", "DR", "LLUR", "URRD", "UULL"], "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",

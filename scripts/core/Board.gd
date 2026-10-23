@@ -80,7 +80,7 @@ var cfg := {
 	"classic": false,
 	"special": -1,  # Special a line of 4 leaves; -1: by the shape of the match (Powers.by_shape)
 	"portals": [],         # [[source cell, destination cell]]: what falls out of one drops into the other
-	"spawn_top": false,    # new gems only enter runs that reach the top of the board
+	"spawn_top": false,    # new gems only enter runs that reach the top row (not under bedrock either)
 	"collect_bottom": false,  # crystals and cells are collected at the bottom of their run
 	# drawn paths (Puzzle & Dragons): hold the robot and draw up to this many steps; the robot
 	# swaps with every gem on the way and the board resolves once, at the end, for one move
@@ -1081,62 +1081,42 @@ func _open(p: Vector2i) -> bool:
 	return inside(p) and terrain[idx(p)] == Terrain.GROUND and not obs.locked(idx(p))
 
 
-## Gems drop to fill the holes, column by column, inside each run of open cells (rock and
-## bedrock split a column); new gems drop in from the top of each run. The robot is a piece of
+## Gems drop to fill the holes (`_fall_straight`), new gems drop in where the board opens to the
+## sky, and holes under rock fill diagonally (`_slide_diagonal`). The robot is a piece of
 ## the board like any gem: clear what is under it and it falls, a free move down (prototype B's
 ## core idea: matching under the robot is a way to travel). In the classic
 ## mode a crystal or energy cell that reaches the bottom of its run is collected (as Candy
-## Crush's ingredients), which opens a hole and drops again.
-func _gravity(steps: Array) -> void:
+## Crush's ingredients), which opens a hole and drops again. Returns where each piece that was
+## on the board went: {cell it was in: cell it is in now} (Powers re-aims its queue by it).
+func _gravity(steps: Array) -> Dictionary:
+	var went := {}  # cell a piece is in now -> the cell it started in
 	var shelf := _belt_shelf()
 	var dst_of := {}  # portal destination cell -> its source
 	for pp in cfg.portals:
 		dst_of[pp[1]] = pp[0]
 	for guard in 40:
+		# one step is the whole settle: straight drops, new gems, diagonal slides, again until
+		# nothing moves, and every piece's route through it (Gem Hunter Match: each piece falls
+		# along its own path at once, not a pass at a time, docs/research/match3-fluid-falls.md)
+		var trail := {}  # cell -> grid points of the route of the piece now in it, from its start
+		var fresh := {}  # cell -> the top row of the run the new gem in it came in through
+		var waves := {}  # x -> new gems dropped into the column so far: the next ones come behind
+		var robot_from := robot
+		for settle in 60:
+			if not _fall_straight(shelf, dst_of, trail, fresh, waves) and \
+					not _slide_diagonal(shelf, (guard + settle) % 2 == 0, trail, fresh):
+				break
 		var moves := []
 		var spawns := []
-		var robot_fall := []
+		var paths := {}
+		for c in trail:
+			paths[c] = trail[c]
+			if fresh.has(c):
+				spawns.append([c, fresh[c]])
+			else:
+				moves.append([idx(Vector2i(trail[c][0])), c])
+		var robot_fall := [robot_from, robot] if robot != robot_from else []
 		var warps := []
-		for x in W:
-			var y := H - 1
-			while y >= 0:
-				if not _open(Vector2i(x, y)):
-					y -= 1
-					continue
-				var bottom := y
-				# a belt is a shelf: what is on it never falls through, so a belt cell can only be
-				# the bottom of a run, and the cells under it are a run of their own
-				while y >= 0 and _open(Vector2i(x, y)) and (y == bottom or not shelf.has(idx(Vector2i(x, y)))):
-					y -= 1
-				var top := y + 1
-				var write := bottom
-				for yy in range(bottom, top - 1, -1):
-					var i := idx(Vector2i(x, yy))
-					if i == robot:
-						if yy != write:
-							robot = idx(Vector2i(x, write))
-							robot_fall = [i, robot]
-						write -= 1
-					elif token[i] != Token.NONE:
-						if yy != write:
-							var w := idx(Vector2i(x, write))
-							token[w] = token[i]
-							ore[w] = ore[i]
-							spec[w] = spec[i]
-							token[i] = Token.NONE
-							moves.append([i, w])
-						write -= 1
-				# new gems drop in at the top of the run, unless a portal feeds it, or (spawn_top)
-				# it does not reach the top of the board: those runs only get what falls into them
-				var top_cell := idx(Vector2i(x, top))
-				if dst_of.has(top_cell) or (cfg.spawn_top and top > 0):
-					continue
-				var drop := write - top + 1
-				for yy in range(write, top - 1, -1):
-					var i := idx(Vector2i(x, yy))
-					token[i] = Token.ORE
-					ore[i] = _surface_type(i)
-					spawns.append([i, drop])
 		# portals: what sits at a source drops out of the destination, the robot included
 		for pp in cfg.portals:
 			var src: int = pp[0]
@@ -1170,10 +1150,131 @@ func _gravity(steps: Array) -> void:
 						stats.cells += 1
 					token[i] = Token.NONE
 					collected.append(i)
+		for batch in [moves, warps]:  # each batch moves at once: map from before it
+			var nw := {}
+			var left := {}
+			for m in batch:
+				left[m[0]] = true
+			for now in went:
+				if not left.has(now):
+					nw[now] = went[now]
+			for m in batch:
+				nw[m[1]] = went.get(m[0], m[0])
+			went = nw
+		for c in collected:
+			went.erase(c)
 		if moves.is_empty() and spawns.is_empty() and collected.is_empty() and robot_fall.is_empty() and warps.is_empty():
-			return
-		_push(steps, {"type": "fall", "moves": moves, "spawns": spawns, "collected": collected,
-				"robot": robot_fall, "warps": warps})
+			break
+		_push(steps, {"type": "fall", "moves": moves, "spawns": spawns, "paths": paths,
+				"collected": collected, "robot": robot_fall, "warps": warps})
+	var out := {}
+	for now in went:
+		out[went[now]] = now
+	return out
+
+
+## A piece moves from cell a to cell b: its route (trail) and whether it is new go with it.
+func _carry(a: int, b: int, trail: Dictionary, fresh: Dictionary) -> void:
+	token[b] = token[a]
+	ore[b] = ore[a]
+	spec[b] = spec[a]
+	token[a] = Token.NONE
+	var route: Array = trail.get(a, [Vector2(pos(a))])
+	trail.erase(a)
+	trail[b] = route + [Vector2(pos(b))]
+	if fresh.has(a):
+		fresh[b] = fresh[a]
+		fresh.erase(a)
+
+
+## One pass of straight drops, column by column inside each run of open cells (rock and
+## bedrock split a column); new gems drop in at the top of a run that opens to the sky. True if
+## anything moved.
+func _fall_straight(shelf: Dictionary, dst_of: Dictionary, trail: Dictionary, fresh: Dictionary, waves: Dictionary) -> bool:
+	var moved := false
+	for x in W:
+		var y := H - 1
+		while y >= 0:
+			if not _open(Vector2i(x, y)):
+				y -= 1
+				continue
+			var bottom := y
+			# a belt is a shelf: what is on it never falls through, so a belt cell can only be
+			# the bottom of a run, and the cells under it are a run of their own
+			while y >= 0 and _open(Vector2i(x, y)) and (y == bottom or not shelf.has(idx(Vector2i(x, y)))):
+				y -= 1
+			var top := y + 1
+			var write := bottom
+			for yy in range(bottom, top - 1, -1):
+				var i := idx(Vector2i(x, yy))
+				if i == robot:
+					if yy != write:
+						robot = idx(Vector2i(x, write))
+						moved = true
+					write -= 1
+				elif token[i] != Token.NONE:
+					if yy != write:
+						_carry(i, idx(Vector2i(x, write)), trail, fresh)
+						moved = true
+					write -= 1
+			# new gems drop in only where the board opens to the sky: a run whose top is the top
+			# row, or has nothing but bedrock (cells cut out of the board) above it. Under rock
+			# they don't appear out of thin air: gems slide in diagonally from the neighbours
+			# (below), or wait until the rock breaks. A portal feeds its own run.
+			if dst_of.has(idx(Vector2i(x, top))) or not _sky_above(x, top):
+				continue
+			var drop := write - top + 1
+			for yy in range(write, top - 1, -1):
+				var i := idx(Vector2i(x, yy))
+				token[i] = Token.ORE
+				ore[i] = _surface_type(i)
+				trail[i] = [Vector2(x, yy - drop - int(waves.get(x, 0))), Vector2(x, yy)]
+				fresh[i] = top
+				moved = true
+			if drop > 0:
+				waves[x] = int(waves.get(x, 0)) + drop
+	return moved
+
+
+## The column above (x, y) opens to the sky: y is the top row, or every cell above is bedrock
+## (cut out of the board's silhouette). With spawn_top, only the top row.
+func _sky_above(x: int, y: int) -> bool:
+	for yy in range(y - 1, -1, -1):
+		if cfg.spawn_top or terrain[idx(Vector2i(x, yy))] != Terrain.BEDROCK:
+			return false
+	return true
+
+
+## Diagonal fill (Candy Crush, Royal Match), one pass, bottom row first: an empty open cell
+## whose cell above can't feed it (rock, bedrock, a caged gem, the robot) takes a gem from
+## above-left or above-right that can't fall straight itself. `left_first` alternates the side,
+## so neither drifts. Runs only once straight drops are done. True if anything slid.
+func _slide_diagonal(shelf: Dictionary, left_first: bool, trail: Dictionary, fresh: Dictionary) -> bool:
+	var taken := {}
+	for y in range(H - 1, 0, -1):
+		for x in W:
+			var to := Vector2i(x, y)
+			var ti := idx(to)
+			if not _open(to) or ti == robot or token[ti] != Token.NONE or shelf.has(ti):
+				continue
+			var up := to + Vector2i(0, -1)
+			if _open(up) and idx(up) != robot:
+				continue  # it fills straight from above
+			for dx in ([-1, 1] if left_first else [1, -1]):
+				var from := to + Vector2i(dx, -1)
+				if not _open(from):
+					continue
+				var fi := idx(from)
+				if fi == robot or taken.has(fi) or token[fi] == Token.NONE or shelf.has(fi):
+					continue
+				var below := from + Vector2i(0, 1)
+				if _open(below) and idx(below) != robot and token[idx(below)] == Token.NONE:
+					continue  # it falls straight instead
+				_carry(fi, ti, trail, fresh)
+				taken[ti] = true
+				taken[fi] = true
+				break
+	return not taken.is_empty()
 
 
 # --- classic swap (prototype "classic") ------------------------------------------------

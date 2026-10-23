@@ -28,6 +28,13 @@ rising note, "CHAIN xN" from 3). How a chained one fires:
 - Nova: blasts. Black hole: swallows the most common colour.
 All in Board: an effect that reaches a CHARGE queues it; the queue drains in order.
 
+**Waves** (2026-10-21): a long chain or combo (a Black hole turning a colour into Pulsars) goes
+off in waves of `Powers.WAVE` (3). Between waves the board settles and refills
+(`Board._gravity`, which returns where each piece fell), and the power-ups still queued are
+found where they fell to. The next wave hits what fell in, so the board keeps flowing during
+a big combo, as Candy Crush's wrapped candy waits for the drop before its second blast.
+Research: `docs/research/match3-refill-during-combos.md`.
+
 ## Combos on a path
 
 The robot's path is our swap: **a path that drags two or more power-ups merges them**: they
