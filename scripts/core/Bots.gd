@@ -275,6 +275,10 @@ static func _value(b: Board, plan: bool) -> float:
 			# route to it): distance along the board, walls and rock included
 			var target := b.token[i] == Board.Token.CRYSTAL or b.token[i] == Board.Token.CHARGE \
 					or (b.terrain[i] == Board.Terrain.ROCK and b.buried[i] == Board.Buried.CRYSTAL)
+			# an energy core that can't fall by itself (on a ledge): the robot has to go and drag
+			# it off, each one a job of its own (so freeing one never looks worse for the next)
+			if b.token[i] == Board.Token.CORE and not b.cfg.docks.has(i) and not b._open(Board.pos(i) + Vector2i(0, 1)):
+				v -= 12.0 + 3.0 * (dist[i] if dist[i] >= 0 else 12)
 			if target and dist[i] >= 0:
 				nearest = mini(nearest, dist[i])
 		v += dmg * (1.5 if wants_rock else 0.3)

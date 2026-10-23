@@ -94,6 +94,9 @@ var cfg := {
 	                  # puts the robot on the twin; a special that comes to rest on one appears on
 	                  # the twin and goes off there
 	"docks": {},    # cells where an energy core that comes to rest is delivered
+	# more cores still to come (Candy Crush's ingredients): each time one is delivered, the next
+	# drops in at the top of column feed_x with the new gems
+	"feed_x": -1, "feed_left": 0, "feed_due": 0,
 }
 
 var record := true  # build per-step snapshots for the view; sims switch this off
@@ -171,6 +174,10 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 					assert(not belt.has(c), "a cover can't ride a belt (cell %d)" % c)
 	for c in site.get("cores", []):
 		token[idx(c)] = Token.CORE
+	if site.has("core_feed"):  # [column, how many more]
+		cfg.feed_x = int(site.core_feed[0])
+		cfg.feed_left = int(site.core_feed[1])
+		cfg.feed_due = 0
 	# pre-placed specials ([[cell, "drill"], ...]): a gem that already carries one, as Royal
 	# Match seeds a TNT to show what a level wants
 	for sp in site.get("specials", []):
@@ -1133,23 +1140,6 @@ func _gravity(steps: Array) -> Dictionary:
 				spec[dst] = spec[src]
 				token[src] = Token.NONE
 				warps.append([src, dst])
-		var collected := []
-		for i in cfg.docks:
-			if token[i] == Token.CORE:  # a core at rest on a dock is delivered
-				token[i] = Token.NONE
-				stats.cores += 1
-				collected.append(i)
-		if cfg.classic or cfg.collect_bottom:
-			for i in W * H:
-				if (token[i] == Token.CRYSTAL or token[i] == Token.CELL) and not _open(pos(i) + Vector2i(0, 1)):
-					if token[i] == Token.CRYSTAL:
-						haul[RES_CRYSTAL] += 1
-						stats.crystals += 1
-					else:
-						energy += cfg.cell_energy
-						stats.cells += 1
-					token[i] = Token.NONE
-					collected.append(i)
 		for batch in [moves, warps]:  # each batch moves at once: map from before it
 			var nw := {}
 			var left := {}
@@ -1161,12 +1151,40 @@ func _gravity(steps: Array) -> Dictionary:
 			for m in batch:
 				nw[m[1]] = went.get(m[0], m[0])
 			went = nw
+		var moved := not (moves.is_empty() and spawns.is_empty() and robot_fall.is_empty() and warps.is_empty())
+		if moved:
+			_push(steps, {"type": "fall", "moves": moves, "spawns": spawns, "paths": paths,
+					"collected": [], "robot": robot_fall, "warps": warps})
+		# what has come to rest where it is collected goes only now, in a step of its own: it is
+		# seen landing first (a core drops onto its dock, then it is delivered)
+		var collected := []
+		for i in cfg.docks:
+			if token[i] == Token.CORE:  # a core at rest on a dock is delivered
+				token[i] = Token.NONE
+				stats.cores += 1
+				collected.append(i)
+				if cfg.feed_left > 0:  # and the next one is on its way
+					cfg.feed_left -= 1
+					cfg.feed_due += 1
+		if cfg.classic or cfg.collect_bottom:
+			for i in W * H:
+				if (token[i] == Token.CRYSTAL or token[i] == Token.CELL) and not _open(pos(i) + Vector2i(0, 1)):
+					if token[i] == Token.CRYSTAL:
+						haul[RES_CRYSTAL] += 1
+						stats.crystals += 1
+					else:
+						energy += cfg.cell_energy
+						stats.cells += 1
+					token[i] = Token.NONE
+					collected.append(i)
 		for c in collected:
 			went.erase(c)
-		if moves.is_empty() and spawns.is_empty() and collected.is_empty() and robot_fall.is_empty() and warps.is_empty():
-			break
-		_push(steps, {"type": "fall", "moves": moves, "spawns": spawns, "paths": paths,
-				"collected": collected, "robot": robot_fall, "warps": warps})
+		if collected.is_empty():
+			if not moved:
+				break
+			continue
+		_push(steps, {"type": "fall", "moves": [], "spawns": [], "paths": {}, "collected": collected,
+				"robot": [], "warps": []})
 	var out := {}
 	for now in went:
 		out[went[now]] = now
@@ -1228,6 +1246,9 @@ func _fall_straight(shelf: Dictionary, dst_of: Dictionary, trail: Dictionary, fr
 				var i := idx(Vector2i(x, yy))
 				token[i] = Token.ORE
 				ore[i] = _surface_type(i)
+				if x == cfg.feed_x and yy == write and cfg.feed_due > 0:
+					token[i] = Token.CORE  # the next core comes in first, the new gems behind it
+					cfg.feed_due -= 1
 				trail[i] = [Vector2(x, yy - drop - int(waves.get(x, 0))), Vector2(x, yy)]
 				fresh[i] = top
 				moved = true
