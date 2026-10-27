@@ -290,6 +290,11 @@ static func _value(b: Board, plan: bool) -> float:
 			for i in Board.W * Board.H:
 				if b.token[i] == Board.Token.CORE:
 					v += Board.pos(i).y * 4.0
+					# and over a dock: a core dragged off its dock's column has a long way back
+					var off := Board.W
+					for d in b.cfg.docks:
+						off = mini(off, absi(Board.pos(d).x - Board.pos(i).x))
+					v -= off * 5.0
 		if nearest < 99:
 			# a crystal still owed to the goal is worth heading for: each step closer must beat the
 			# move it costs, or the bot spends the budget on stray matches and stalls in sight of it

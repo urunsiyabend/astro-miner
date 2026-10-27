@@ -88,6 +88,10 @@ static func _drain(b: Board, queue: Array, steps: Array, link := 0) -> void:
 			fired = 0
 			var went: Dictionary = b._gravity(steps)
 			b.claimed.clear()
+			var kept := {}
+			for f in b.fresh:
+				kept[went.get(f, f)] = true  # the new power-ups fell too
+			b.fresh = kept
 			queued.clear()
 			for jb in queue:
 				jb[0] = went.get(jb[0], jb[0])
@@ -120,6 +124,8 @@ static func _new_step(b: Board, kind: int, c: int, axis: Vector2i, link: int) ->
 ## power-up it reaches is queued to go off next.
 static func effect(b: Board, kind: int, c: int, axis: Vector2i, step: Dictionary, queue: Array, queued: Dictionary, colour := -1) -> void:
 	var seen := {}  # one power-up hits a multi-cell obstacle once
+	# its own cell too: a power-up that fell onto a web clears it as it goes off
+	b._strike(c, Obstacles.Hit.POWER, 1, step, seen)
 	match kind:
 		S.PULSAR:
 			_lines(b, c, axis, 1, step, seen, queue, queued)
@@ -146,11 +152,14 @@ static func _lines(b: Board, c: int, axis: Vector2i, width: int, step: Dictionar
 		if k != 0:
 			_hit(b, s, c, step, seen, queue, queued)
 		for d in [axis, -axis]:
+			# to the board's edge, across gaps in it too (Royal Match's rocket, Candy Crush's
+			# striped candy): a gap is skipped, not a wall
 			var p: Vector2i = start + d
 			var last := s
-			while Board.inside(p) and b.terrain[Board.idx(p)] != Board.Terrain.BEDROCK:
-				last = Board.idx(p)
-				_hit(b, last, c, step, seen, queue, queued)
+			while Board.inside(p):
+				if b.terrain[Board.idx(p)] != Board.Terrain.BEDROCK:
+					last = Board.idx(p)
+					_hit(b, last, c, step, seen, queue, queued)
 				p += d
 			step.rays.append([s, last])
 
@@ -204,7 +213,7 @@ static func _common_colours(b: Board, n: int) -> Array:
 ## power-up there is queued to go off (a Pulsar across the line from src); a gem or pickup is
 ## taken. The robot is never hit.
 static func _hit(b: Board, i: int, src: int, step: Dictionary, seen: Dictionary, queue: Array, queued: Dictionary) -> void:
-	if i == b.robot:
+	if i == b.robot or b.fresh.has(i):
 		return
 	b.claimed[i] = true
 	if b._strike(i, Obstacles.Hit.POWER, 1, step, seen):
@@ -253,7 +262,7 @@ static func target(b: Board, carry := -1) -> Array:
 	var best := []
 	var best_v := 0.0
 	for i in Board.W * Board.H:
-		if b.claimed.has(i) or i == b.robot or b.terrain[i] == Board.Terrain.BEDROCK:
+		if b.claimed.has(i) or b.fresh.has(i) or i == b.robot or b.terrain[i] == Board.Terrain.BEDROCK:
 			continue
 		var axis := Vector2i(0, -1)
 		var v := 0.0
@@ -414,6 +423,7 @@ static func combo(b: Board, at: int, axis: Vector2i, kinds: Array, steps: Array,
 	var seen := {}
 	var queue := []
 	var queued := {}
+	b._strike(at, Obstacles.Hit.POWER, 1, step, seen)  # the cell they merge on, as effect()
 	if tier >= 3 or (a == S.BLACKHOLE and c == S.BLACKHOLE):
 		for i in Board.W * Board.H:  # the whole board, a layer off every obstacle
 			if Board.inside(Board.pos(i)) and i != at:

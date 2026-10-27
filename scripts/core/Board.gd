@@ -94,14 +94,13 @@ var cfg := {
 	                  # puts the robot on the twin; a special that comes to rest on one appears on
 	                  # the twin and goes off there
 	"docks": {},    # cells where an energy core that comes to rest is delivered
-	# more cores still to come (Candy Crush's ingredients): each time one is delivered, the next
-	# drops in at the top of column feed_x with the new gems
-	"feed_x": -1, "feed_left": 0, "feed_due": 0,
 }
 
 var record := true  # build per-step snapshots for the view; sims switch this off
+var _hollow := {}  # cells that start empty ("-"): only read while setting up
 var pushed := {}  # teleporter cell -> the way the special on it was pushed (this move)
 var claimed := {}  # cells power-ups already reached this move (a drone looks elsewhere)
+var fresh := {}  # power-ups the move's own lines just made: the ones it dragged leave them be
 
 
 static func idx(c: Vector2i) -> int:
@@ -174,10 +173,6 @@ func setup_site(site: Dictionary, seed_value: int, rules: Dictionary = {}) -> vo
 					assert(not belt.has(c), "a cover can't ride a belt (cell %d)" % c)
 	for c in site.get("cores", []):
 		token[idx(c)] = Token.CORE
-	if site.has("core_feed"):  # [column, how many more]
-		cfg.feed_x = int(site.core_feed[0])
-		cfg.feed_left = int(site.core_feed[1])
-		cfg.feed_due = 0
 	# pre-placed specials ([[cell, "drill"], ...]): a gem that already carries one, as Royal
 	# Match seeds a TNT to show what a level wants
 	for sp in site.get("specials", []):
@@ -207,6 +202,7 @@ func continue_with(n: int) -> bool:
 ## layout: optional rows of hand-placed tokens (F C L R ore, c crystal, e energy cell,
 ## b blast charge, - nothing) that replace the seeded fill.
 func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Array = [], layout: Array = []) -> void:
+	_hollow.clear()
 	for k in rules:
 		cfg[k] = rules[k]
 	goals = site_goals.duplicate(true)
@@ -242,7 +238,7 @@ func setup(rows: Array, seed_value: int, rules: Dictionary = {}, site_goals: Arr
 		return
 	if cfg.gravity:
 		for i in n:  # every open cell holds a gem when gems fall (no empty floor, no veins)
-			if terrain[i] == Terrain.GROUND and i != robot and token[i] == Token.NONE:
+			if terrain[i] == Terrain.GROUND and i != robot and token[i] == Token.NONE and not _hollow.has(i):
 				token[i] = Token.ORE
 	# Seeded fill; retry until the opening offers a match within 2 steps (classic: a swap).
 	var s := seed_value
@@ -265,6 +261,11 @@ func _parse_cell(i: int, code: String) -> void:
 			reserve[i] = 4; token[i] = Token.ORE
 		"_":
 			reserve[i] = 0
+		"-":
+			# open ground with nothing in it, even when gems fall: a room that starts empty and
+			# fills when the wall above it breaks (Royal Match level 38)
+			reserve[i] = 0
+			_hollow[i] = true
 		"@":
 			# "@_": robot on ground with no vein below (tutorial sites)
 			reserve[i] = 0 if code == "@_" else 2
@@ -498,6 +499,12 @@ func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
 	for c in w.charges:
 		_blast(c, out.steps)
 	var moved: Array = w.moved.filter(func(m): return token[m[0]] == Token.CHARGE)
+	# the lines the path made match first and leave their power-ups (what the preview shows);
+	# only then do the power-ups it dragged go off, and they leave the new ones be
+	var tp := _teleport_robot(out.steps)
+	var pivot: int = tp if tp >= 0 else w.pivot
+	if not moved.is_empty() and _match_pass(out.steps, pivot, false, fresh):
+		pivot = -1
 	if moved.size() >= 2:
 		# a path that dragged two or more power-ups merges them into the last one (Powers.combo)
 		var at: int = moved[-1][0]
@@ -513,8 +520,8 @@ func _move(dirs: Array, cells: Array, live: bool) -> Dictionary:
 			pushed[m[0]] = m[1]  # it travels first (_launch), still heading this way
 		elif not cfg.pads.has(m[0]):
 			Powers.fire(self, m[0], m[1], out.steps, m[2])
-	var tp := _teleport_robot(out.steps)
-	_resolve(out.steps, tp if tp >= 0 else w.pivot)
+	fresh.clear()
+	_resolve(out.steps, pivot)
 	_turn_end(out.steps)
 	_finish_turn()
 	return out
@@ -973,63 +980,73 @@ func _resolve(steps: Array, pivot: int) -> void:
 		if (not cfg.pads.is_empty() or not cfg.teleports.is_empty()) and _launch(steps):
 			pass_no += 1
 			continue  # what flew left holes and blasts: settle again before matching
-		var groups := find_groups()
-		if groups.is_empty():
+		if not _match_pass(steps, pivot, pass_no > 0):
 			return
-		var step := {"type": "match", "groups": [], "cracked": [], "revealed": [],
-				"surfaced": [], "charges": [], "energy": 0, "cascade": pass_no > 0, "obstacles": []}
-		var to_dig := []
-		for g in groups:
-			var cells: Array = g.cells
-			var kind: int = g.ore
-			var n := cells.size()
-			stats.groups += 1
-			if pass_no > 0:
-				stats.cascade_groups += 1
-			for belt in cfg.belts:
-				for c in cells:
-					if belt.has(c):
-						belt_boost += 1  # a match on a belt pushes it on (_turn_end)
-			stats.chunks += n
-			extracted[kind] += n
-			haul[kind] += n + cfg.yield_bonus
-			var gain: int = cfg.refund_base + (n - 3) * cfg.refund_extra
-			step.energy += gain
-			step.groups.append({"cells": cells, "ore": kind})
-			var charge_at := -1
-			var made := _special_kind(cells)
-			if made >= 0:
-				charge_at = _charge_cell(cells, pivot)
-				if charge_at >= 0:
-					stats.charges_made += 1
-			# the group hits what is on its own cells (a cage keeps its gem: the hit breaks the
-			# cage instead) and, once each, every rock and obstacle next to it
-			var seen := {}
-			for c in cells:
-				if _strike(c, Obstacles.Hit.ON, cfg.crack_power, step, seen):
-					continue
-				if c == charge_at:
-					token[c] = Token.CHARGE
-					spec[c] = made
-					step.charges.append(c)
-				else:
-					to_dig.append(c)
-			var touched := {}
-			for c in cells:
-				for d in DIRS:
-					var nb: Vector2i = pos(c) + d
-					if inside(nb) and not cells.has(idx(nb)):
-						touched[idx(nb)] = true
-			for nb in touched:
-				_strike(nb, Obstacles.Hit.NEXT, cfg.crack_power, step, seen)
-		energy = mini(cfg.capacity, energy + step.energy)
-		stats.energy_refunded += step.energy
-		for c in to_dig:
-			if _dig(c):
-				step.surfaced.append(c)
-		_push(steps, step)
 		pivot = -1
 		pass_no += 1
+
+
+## One pass of matching: every group on the board is cleared, hits what it touches and leaves
+## its power-up (on `pivot`, the gem the move swapped in, when the group holds it). False when
+## nothing matched. `made_at` collects the cells of the power-ups it made.
+func _match_pass(steps: Array, pivot: int, cascade: bool, made_at := {}) -> bool:
+	var groups := find_groups()
+	if groups.is_empty():
+		return false
+	var step := {"type": "match", "groups": [], "cracked": [], "revealed": [],
+			"surfaced": [], "charges": [], "energy": 0, "cascade": cascade, "obstacles": []}
+	var to_dig := []
+	for g in groups:
+		var cells: Array = g.cells
+		var kind: int = g.ore
+		var n := cells.size()
+		stats.groups += 1
+		if cascade:
+			stats.cascade_groups += 1
+		for belt in cfg.belts:
+			for c in cells:
+				if belt.has(c):
+					belt_boost += 1  # a match on a belt pushes it on (_turn_end)
+		stats.chunks += n
+		extracted[kind] += n
+		haul[kind] += n + cfg.yield_bonus
+		var gain: int = cfg.refund_base + (n - 3) * cfg.refund_extra
+		step.energy += gain
+		step.groups.append({"cells": cells, "ore": kind})
+		var charge_at := -1
+		var made := _special_kind(cells)
+		if made >= 0:
+			charge_at = _charge_cell(cells, pivot)
+			if charge_at >= 0:
+				stats.charges_made += 1
+		# the group hits what is on its own cells (a cage keeps its gem: the hit breaks the
+		# cage instead) and, once each, every rock and obstacle next to it
+		var seen := {}
+		for c in cells:
+			if _strike(c, Obstacles.Hit.ON, cfg.crack_power, step, seen):
+				continue
+			if c == charge_at:
+				token[c] = Token.CHARGE
+				spec[c] = made
+				step.charges.append(c)
+				made_at[c] = true
+			else:
+				to_dig.append(c)
+		var touched := {}
+		for c in cells:
+			for d in DIRS:
+				var nb: Vector2i = pos(c) + d
+				if inside(nb) and not cells.has(idx(nb)):
+					touched[idx(nb)] = true
+		for nb in touched:
+			_strike(nb, Obstacles.Hit.NEXT, cfg.crack_power, step, seen)
+	energy = mini(cfg.capacity, energy + step.energy)
+	stats.energy_refunded += step.energy
+	for c in to_dig:
+		if _dig(c):
+			step.surfaced.append(c)
+	_push(steps, step)
+	return true
 
 
 # --- moved specials --------------------------------------------------------------------
@@ -1163,9 +1180,6 @@ func _gravity(steps: Array) -> Dictionary:
 				token[i] = Token.NONE
 				stats.cores += 1
 				collected.append(i)
-				if cfg.feed_left > 0:  # and the next one is on its way
-					cfg.feed_left -= 1
-					cfg.feed_due += 1
 		if cfg.classic or cfg.collect_bottom:
 			for i in W * H:
 				if (token[i] == Token.CRYSTAL or token[i] == Token.CELL) and not _open(pos(i) + Vector2i(0, 1)):
@@ -1205,8 +1219,10 @@ func _carry(a: int, b: int, trail: Dictionary, fresh: Dictionary) -> void:
 		fresh.erase(a)
 
 
-## One pass of straight drops, column by column inside each run of open cells (rock and
-## bedrock split a column); new gems drop in at the top of a run that opens to the sky. True if
+## One pass of straight drops, column by column inside each run of open cells. A run is split
+## by rock, a locked (caged) gem or a belt shelf, not by bedrock: bedrock is only where the
+## board has no cell, so a piece falls through a gap in the board to the part below (Royal
+## Match's split boards). New gems drop in at the top of a run that opens to the sky. True if
 ## anything moved.
 func _fall_straight(shelf: Dictionary, dst_of: Dictionary, trail: Dictionary, fresh: Dictionary, waves: Dictionary) -> bool:
 	var moved := false
@@ -1216,40 +1232,49 @@ func _fall_straight(shelf: Dictionary, dst_of: Dictionary, trail: Dictionary, fr
 			if not _open(Vector2i(x, y)):
 				y -= 1
 				continue
-			var bottom := y
-			# a belt is a shelf: what is on it never falls through, so a belt cell can only be
-			# the bottom of a run, and the cells under it are a run of their own
-			while y >= 0 and _open(Vector2i(x, y)) and (y == bottom or not shelf.has(idx(Vector2i(x, y)))):
-				y -= 1
-			var top := y + 1
-			var write := bottom
-			for yy in range(bottom, top - 1, -1):
+			# the run's cells, bottom first, across gaps of bedrock; a belt cell is only ever the
+			# bottom of a run (what is on it never falls through)
+			var cells := [y]
+			var k := y - 1
+			while k >= 0:
+				var p := Vector2i(x, k)
+				if terrain[idx(p)] == Terrain.BEDROCK:
+					k -= 1
+					continue
+				if not _open(p) or shelf.has(idx(p)):
+					break
+				cells.append(k)
+				k -= 1
+			y = k
+			var top: int = cells[-1]
+			var write := 0  # the next free place in the run, counted from its bottom
+			for yy in cells:
 				var i := idx(Vector2i(x, yy))
-				if i == robot:
-					if yy != write:
-						robot = idx(Vector2i(x, write))
-						moved = true
-					write -= 1
-				elif token[i] != Token.NONE:
-					if yy != write:
-						_carry(i, idx(Vector2i(x, write)), trail, fresh)
-						moved = true
-					write -= 1
+				if token[i] == Token.NONE and i != robot:
+					continue
+				var w := idx(Vector2i(x, cells[write]))
+				if i != w:
+					if i == robot:
+						robot = w
+					else:
+						_carry(i, w, trail, fresh)
+					moved = true
+				write += 1
 			# new gems drop in only where the board opens to the sky: a run whose top is the top
 			# row, or has nothing but bedrock (cells cut out of the board) above it. Under rock
 			# they don't appear out of thin air: gems slide in diagonally from the neighbours
 			# (below), or wait until the rock breaks. A portal feeds its own run.
 			if dst_of.has(idx(Vector2i(x, top))) or not _sky_above(x, top):
 				continue
-			var drop := write - top + 1
-			for yy in range(write, top - 1, -1):
+			var drop: int = cells.size() - write
+			for j in range(write, cells.size()):
+				var yy: int = cells[j]
 				var i := idx(Vector2i(x, yy))
 				token[i] = Token.ORE
 				ore[i] = _surface_type(i)
-				if x == cfg.feed_x and yy == write and cfg.feed_due > 0:
-					token[i] = Token.CORE  # the next core comes in first, the new gems behind it
-					cfg.feed_due -= 1
-				trail[i] = [Vector2(x, yy - drop - int(waves.get(x, 0))), Vector2(x, yy)]
+				# they come in one behind the other from above the run's top, the lowest first
+				var from_top := cells.size() - 1 - j
+				trail[i] = [Vector2(x, top - drop + from_top - int(waves.get(x, 0))), Vector2(x, yy)]
 				fresh[i] = top
 				moved = true
 			if drop > 0:
@@ -1418,6 +1443,11 @@ func _damage_rock(r: int, amount: int, revealed: Array) -> void:
 	stats.rocks_broken += 1
 	revealed.append(r)
 	match buried[r]:
+		Buried.ORE when cfg.gravity:
+			# nothing waits behind the rock (Royal Match's box): the cell is left empty and the
+			# gems above fall into it (_gravity)
+			reserve[r] = 0
+			token[r] = Token.NONE
 		Buried.ORE:
 			reserve[r] = cfg.reveal_reserve
 			token[r] = Token.ORE

@@ -477,6 +477,16 @@ func _run_script() -> void:
 		_run_script())
 
 
+## A lesson's line (the banner, Mira's instruction under the board) goes as soon as the player
+## touches the screen or a move plays (Royal Match's bubble): it has been read. The lesson still
+## waits for its event; the spotlight comes back between moves.
+func _dismiss_lesson_line() -> void:
+	if _banner.showing():
+		_banner.clear()
+	if _waiting != "":
+		_coach.clear()
+
+
 ## The element banner sits over the board, as wide as most of it, at the top, the middle or
 ## the bottom: wherever it covers the fewest of the cells the lesson is about (focus, lit, the
 ## guided move: never the very thing it introduces).
@@ -549,6 +559,8 @@ func _say(text: String, secs: float) -> void:
 # --- play ---------------------------------------------------------------------
 
 func _process(delta: float) -> void:
+	if view != null and (view.is_drawing() or view.is_busy()):
+		_dismiss_lesson_line()  # a move under way: the board must be clear to see
 	if _banner.showing() or _banner.modulate.a > 0.0:
 		_place_banner()
 	if _recall_armed > 0.0:
@@ -588,6 +600,7 @@ func _input(event: InputEvent) -> void:
 		return
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			_dismiss_lesson_line()
 			if board == null or board.over or _result != null or _busy_talking() or view.armed >= 0 or board.cfg.classic:
 				return
 			if _hud.get_global_rect().has_point(event.position) or (_boosters.visible and _boosters.get_global_rect().has_point(event.position)):

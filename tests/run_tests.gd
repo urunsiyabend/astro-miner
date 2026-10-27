@@ -32,7 +32,7 @@ func _initialize() -> void:
 	_test_boosters()
 	_test_campaign_shape()
 	_test_moved_specials()
-	_test_core_feed()
+	_test_core_landing()
 	_test_webs()
 	_test_goals_end_dig()
 	_test_determinism()
@@ -311,10 +311,10 @@ func _test_campaign_shape() -> void:
 
 
 ## Energy cores: one landing on its dock is seen landing (a fall step), then delivered (a step
-## of its own); with a core feed the next one drops in at the top of its column.
-func _test_core_feed() -> void:
-	var site := {"id": "t", "mode": "fall", "colours": 4, "goals": [{"type": "core", "n": 2}],
-			"cores": [Vector2i(4, 6)], "docks": [Vector2i(4, 8)], "core_feed": [4, 1],
+## of its own).
+func _test_core_landing() -> void:
+	var site := {"id": "t", "mode": "fall", "colours": 4, "goals": [{"type": "core", "n": 1}],
+			"cores": [Vector2i(4, 6)], "docks": [Vector2i(4, 8)],
 			"rows": [". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .",
 				". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", ". . . . . . . . .", "@ . . . . . . . ."]}
 	var b := Board.new()
@@ -326,12 +326,8 @@ func _test_core_feed() -> void:
 	b._gravity(steps)
 	var landed: bool = not steps.is_empty() and steps[0].snap.token[dock] == Board.Token.CORE and steps[0].collected.is_empty()
 	var delivered := steps.filter(func(st): return st.collected.has(dock)).size() == 1
-	var next := 0
-	for i in Board.W * Board.H:
-		if b.token[i] == Board.Token.CORE:
-			next += 1
-	_ok(landed and delivered and b.stats.cores == 1 and next == 1 and b.cfg.feed_left == 0,
-			"core: seen landing on the dock, then delivered; the feed drops the next one in")
+	_ok(landed and delivered and b.stats.cores == 1 and b.token[dock] != Board.Token.CORE,
+			"core: seen landing on the dock, then delivered")
 
 
 ## Power-ups (Powers.gd): what shape makes which, what each reaches, chains and path combos.
@@ -357,6 +353,14 @@ func _test_moved_specials() -> void:
 	b.token[Board.idx(Vector2i(3, 7))] = Board.Token.CRYSTAL
 	Powers.fire(b, at, Vector2i(0, -1), [])
 	_ok(b.stats.crystals == 2, "Pulsar: twin beams take what is on both sides")
+	# the beams cross a gap in the board; a web under the power-up's own cell is cleared too
+	var gp := _board(_with(OPEN, {Vector2i(5, 4): "#", Vector2i(6, 4): "1"}), DIAG)
+	gp.token[at] = Board.Token.CHARGE
+	gp.spec[at] = S.PULSAR
+	gp.obs.place("web", Vector2i(3, 4), Board.W)
+	Powers.fire(gp, at, Vector2i(1, 0), [])
+	_ok(gp.terrain[Board.idx(Vector2i(6, 4))] == Board.Terrain.GROUND, "Pulsar: the beam crosses a gap and breaks the rock beyond")
+	_ok(gp.obs.floor_target(at, Obstacles.Hit.ON) < 0, "a power-up clears the web on its own cell")
 	# chains: a Pulsar's beam along a row sets off another Pulsar, which fires down its column
 	var c := _board(OPEN, DIAG)
 	var other := Board.idx(Vector2i(6, 4))
@@ -416,6 +420,21 @@ func _test_moved_specials() -> void:
 	var rock := Board.idx(Vector2i(6, 7))
 	Powers.fire(d, at, Vector2i(0, -1), [])
 	_ok(d.terrain[rock] == Board.Terrain.GROUND, "Scout drone: it breaks the rock hiding the crystal the goal asks for")
+	# a path that drags a Pulsar and lines up 4 in the beam's row: the line matches first and
+	# its new Pulsar stays (the dragged one's beam leaves it be)
+	var lp := _board(OPEN, _with(DIAG, {Vector2i(3, 4): "L", Vector2i(4, 4): "L", Vector2i(5, 4): "L",
+			Vector2i(2, 5): "L", Vector2i(2, 3): "F"}), {"gravity": true, "path_max": 4})
+	lp.robot = Board.idx(Vector2i(1, 4))
+	lp.token[lp.robot] = Board.Token.NONE
+	lp.token[Board.idx(Vector2i(2, 4))] = Board.Token.CHARGE
+	lp.spec[Board.idx(Vector2i(2, 4))] = S.PULSAR
+	lp.try_path([Vector2i(1, 0), Vector2i(0, 1)])
+	var left_charges := 0
+	for i in Board.W * Board.H:
+		if lp.token[i] == Board.Token.CHARGE:
+			left_charges += 1
+	_ok(lp.stats.charges_made >= 1 and left_charges >= 1,
+			"a line the path makes leaves its power-up even when a dragged one fires along it")
 	# a path that drags two Pulsars merges them: row + column through the last one
 	var m := _board(OPEN, DIAG, {"path_max": 4})
 	m.robot = Board.idx(Vector2i(1, 4))
@@ -553,16 +572,23 @@ func _test_full_clear_goals() -> void:
 				on_board["core"] = int(on_board.get("core", 0)) + 1
 		for it in b.obs.items:
 			on_board[it.kind] = int(on_board.get(it.kind, 0)) + 1
-		if site.has("core_feed"):  # cores still to come count too
-			on_board["core"] = int(on_board.get("core", 0)) + int(site.core_feed[1])
 		var goals := {}
 		for g in site.goals:
 			goals[g.type] = g.n
 		_ok(goals == on_board, "%s clears its board: goals %s, on the board %s" % [site.id, goals, on_board])
+		# nothing waits under the rock (Royal Match hides nothing behind a box): no web under it
+		var hidden := []
+		for it in b.obs.items:
+			for c in it.cells:
+				if it.kind == "web" and b.terrain[c] == Board.Terrain.ROCK:
+					hidden.append(Board.pos(c))
+		_ok(hidden.is_empty(), "%s has no web under rock %s" % [site.id, hidden])
 
 
-## No dead pockets: every open cell of a journey level can be refilled, straight down from
-## where its column opens to the sky or diagonally from a neighbour that can (Board._gravity).
+## No dead pockets: every open cell of a journey level can be refilled: straight down from
+## where its column opens to the sky (through gaps of bedrock, which only mark where the board
+## has no cell), or diagonally from a neighbour that can (Board._gravity). A cell that can't
+## must start empty ("-"): a room that fills when its wall breaks.
 func _test_refill_shapes() -> void:
 	for si in Sites.JOURNEY_BUILT:
 		var site := Sites.get_site(si)
@@ -576,18 +602,29 @@ func _test_refill_shapes() -> void:
 				var i := Board.idx(Vector2i(x, y))
 				if b.terrain[i] != Board.Terrain.GROUND:
 					continue
-				var up := Vector2i(x, y - 1)
-				var ok := b._sky_above(x, y) or (y > 0 and b.terrain[Board.idx(up)] == Board.Terrain.GROUND and fed.has(Board.idx(up)))
-				if not ok and y > 0 and b.terrain[Board.idx(up)] != Board.Terrain.GROUND:
+				var yy := y - 1  # the first cell above that is part of the board
+				while yy >= 0 and b.terrain[Board.idx(Vector2i(x, yy))] == Board.Terrain.BEDROCK:
+					yy -= 1
+				var ok := yy < 0 or (b.terrain[Board.idx(Vector2i(x, yy))] == Board.Terrain.GROUND and fed.has(Board.idx(Vector2i(x, yy))))
+				if not ok and yy >= 0 and b.terrain[Board.idx(Vector2i(x, yy))] != Board.Terrain.GROUND:
 					for dx in [-1, 1]:
 						var src := Vector2i(x + dx, y - 1)
 						if Board.inside(src) and fed.has(Board.idx(src)):
 							ok = true
 				if ok:
 					fed[i] = true
-				else:
-					dead.append(Vector2i(x, y))
+				elif b.token[i] != Board.Token.NONE or i == b.robot:
+					dead.append(Vector2i(x, y))  # a room that starts empty waits for its wall
 		_ok(dead.is_empty(), "%s has no cells that can never refill %s" % [site.id, dead])
+	# a gap in the board (bedrock) doesn't stop a fall: the gem goes through to the part below
+	var g := _board([". . . . . . .", ". . . . . . .", "# # # # # # #", ". . . . . . .", ". . . . . . .",
+			". . . . . . .", ". . . . . . .", ". . . . . . ."], DIAG, {"gravity": true})
+	var low := Board.idx(Vector2i(3, 3))
+	var above := Board.idx(Vector2i(3, 1))
+	var kind: int = g.ore[above]
+	g.token[low] = Board.Token.NONE
+	g._gravity([])
+	_ok(g.token[low] == Board.Token.ORE and g.ore[low] == kind, "a gem falls through a gap in the board to the part below")
 
 
 func _test_generator_all_sites() -> void:
@@ -691,7 +728,7 @@ func _test_save_roundtrip() -> void:
 
 
 func _test_bot_smoke() -> void:
-	var site := Sites.get_site(Sites.index_of("arches"))
+	var site := Sites.get_site(Sites.index_of("wall"))
 	var rules := Economy.rules([0, 0, 0, 0])
 	rules.path_max = 4  # the game's default: moves are drawn paths
 	var wins := 0
@@ -706,8 +743,8 @@ func _test_bot_smoke() -> void:
 # its last move; if a layout edit breaks one, this fails before a player meets it. A string
 # is one step per letter; an array is one move per entry (a drawn path: "ULLD").
 const TUTORIAL_SOLUTIONS := {
-	"first": ["DRD", "UUUL", "RURD"],
-	"battery": ["DDLD", "RRUL", "LUUU", "DR", "LLUR", "URRD", "UULL"], "charge": "UDLDDUDU",
+	"first": ["DRD", "URUU", "LULL"],
+	"battery": ["DDLD", "RRUU", "LURR", "LLUL", "DRRR", "ULDL"], "charge": "UDLDDUDU",
 	"longhaul": "LLLDLUUUURRRDRUUULLLULL",
 	"vaults": "UUUUULLLUUUUUDDRRRRRRUUUUU",
 	"readings": "UULLUUUDLUURDDURDRDRLDRRRULUUUUUUUU",

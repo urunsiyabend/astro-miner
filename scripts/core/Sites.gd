@@ -25,14 +25,12 @@ extends RefCounted
 ##             "banner": true shows the line as a new element's banner over the board (Royal
 ##             Match's "Make a match next to a BOX to break it!"), the element in CAPITALS.
 ##             "lit" cells stay bright while a guided move dims the board (no frame).
-##   "core_feed": [column, n]: n more energy cores to come (Candy Crush's ingredients): each
-##             time one is delivered, the next drops in at the top of that column
 ##   "path_max": the longest drawn path this dig allows (a lesson before paths: 1)
 ##   "explains": specials its script teaches (["pulsar"]), so Mira's passing note is skipped
 
 ## Levels 1..JOURNEY_BUILT are rebuilt as the journey (docs/design/journey.md); the rest keep
 ## their old design. A journey level clears its board: every obstacle on it is a goal, all of it.
-const JOURNEY_BUILT := 13
+const JOURNEY_BUILT := 15
 const LIST := [
 	# --- Chapter 1 · Landing (docs/design/journey.md) -------------------------------------
 	# L1: draw a path, and the first obstacle. Paths are the game, so the very first move is
@@ -70,176 +68,168 @@ const LIST := [
 					"lit": [Vector2i(0, 0), Vector2i(6, 0), Vector2i(0, 6), Vector2i(6, 6), Vector2i(0, 7), Vector2i(1, 7), Vector2i(5, 7), Vector2i(6, 7), Vector2i(0, 8), Vector2i(1, 8), Vector2i(2, 8), Vector2i(3, 8), Vector2i(4, 8), Vector2i(5, 8), Vector2i(6, 8)]},
 		],
 	},
-	# L2 "bastions": four rock bastions stand in the corners, stepped like stairs; the gems hold
-	# a plus of open ground between them. Beams fired from the middle reach every corner.
+	# L2 "wall" (Royal Match level 6): the bottom half of the board is a wall of rock and the
+	# gems sit on top of it. Every rock broken makes room, so the board grows as you dig.
 	{
-		"id": "arches", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
-		"goals": [{"type": "rock", "n": 24}],
+		"id": "wall", "mode": "fall", "colours": 4, "tier": "intro", "energy": 22,
+		"goals": [{"type": "rock", "n": 45}],
 		"tip": ["pulsar", "4 in a row makes a Pulsar. Swap with it: twin beams fire both ways, through rock."],
 		"rows": [
-			"1 1 1 . . . 1 1 1",
-			"1 1 . . . . . 1 1",
-			"1 . . . . . . . 1",
+			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . @ . . . .",
 			". . . . . . . . .",
-			"1 . . . . . . . 1",
-			"1 1 . . . . . 1 1",
-			"1 1 1 . . . 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
+			"1 1 1 1 1 1 1 1 1",
 		],
 	},
 
-
-
-	# L3 "pillars": two rock pillars on wide plinths, with thick capitals (the chapter's variant);
-	# the gems work the aisle between them and the lanes outside. Mira points at a capital.
+	# L3 "edges" (Royal Match level 7): rock along the left edge, a step in the top-right corner
+	# and a thick block in the bottom-right one, the chapter's variant. Mira points at the block.
 	{
-		"id": "layers", "mode": "fall", "colours": 4, "tier": "intro", "energy": 26,
-		"goals": [{"type": "rock", "n": 30}],
+		"id": "edges", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
+		"goals": [{"type": "rock", "n": 26}],
 		"script": [
 			{"say": "DARK ROCK is thick:\ntwo matches to break it!", "until": "move", "banner": true,
-					"lit": [Vector2i(2, 1), Vector2i(6, 1)]},
+					"lit": [Vector2i(6, 6), Vector2i(7, 6), Vector2i(8, 6), Vector2i(6, 7), Vector2i(7, 7), Vector2i(8, 7), Vector2i(6, 8), Vector2i(7, 8), Vector2i(8, 8)]},
 		],
 		"rows": [
-			". . . . . . . . .",
-			". . 2 . . . 2 . .",
-			". . 1 . . . 1 . .",
-			". . 1 . @ . 1 . .",
-			". 1 1 . . . 1 1 .",
-			". 1 1 . . . 1 1 .",
-			"1 1 1 . . . 1 1 1",
-			"1 1 1 . . . 1 1 1",
-			"# 1 1 . . . 1 1 #",
+			". . . . . . . 1 1",
+			". . . . . . . . 1",
+			"1 1 . . . . . . .",
+			"1 1 . . @ . . . .",
+			"1 1 . . . . . . .",
+			"1 1 . . . . . . .",
+			"1 1 . . . . 2 2 2",
+			"1 1 . . . . 2 2 2",
+			"1 1 . . . . 2 2 2",
 		],
 	},
 
-
-	# L4 "spine": a crowned spine of rock splits the board into two wings; pockets of rock wait
-	# in the bottom corners. Break the spine to join the wings; a Scout drone reaches the crown.
+	# L4 "pyramid" (Royal Match level 8): an upside-down pyramid of rock, and the board narrows
+	# with it. Its tip is deep and one cell wide; a Scout drone gets there first.
 	{
-		"id": "spine", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
-		"goals": [{"type": "rock", "n": 24}],
+		"id": "pyramid", "mode": "fall", "colours": 4, "tier": "intro", "energy": 24,
+		"goals": [{"type": "rock", "n": 26}],
 		"tip": ["drone", "A 2x2 square makes a Scout drone. It flies to what helps you most."],
 		"rows": [
-			". . . 1 1 1 . . .",
-			". . . . 1 . . . .",
-			". . . . 1 . . . .",
-			"1 . . . 1 . . . 1",
-			"1 1 . . 1 . . 1 1",
-			"1 1 . . 1 . . 1 1",
-			"1 1 . . . . . 1 1",
-			"1 . . . @ . . . 1",
-			"# # . . . . . # #",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			"1 1 1 1 1 1 1 1 1",
+			"# 1 1 1 1 1 1 1 #",
+			"# # 1 1 1 1 1 # #",
+			"# # # 1 1 1 # # #",
+			"# # # # 1 # # # #",
+			"# # # # 1 # # # #",
 		],
 	},
 
-
-	# L5 "valley": the rock steps down from both sides into a V, thicker the deeper; the gems
-	# pour down the middle. Dig the steps from the top, the thick floor last.
+	# L5 "plus" (Royal Match level 12): a plus of rock splits the board in four; the two rooms
+	# below it start empty and fill once the arm above them breaks.
 	{
-		"id": "strata1", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
-		"goals": [{"type": "rock", "n": 38}],
+		"id": "plus", "mode": "fall", "colours": 4, "tier": "normal", "energy": 12,
+		"goals": [{"type": "rock", "n": 17}],
 		"tip": ["nova", "An L or a T makes a Nova: a big blast all around it."],
 		"rows": [
-			". . . . @ . . . .",
-			". . . . . . . . .",
-			"1 . . . . . . . 1",
-			"1 1 . . . . . 1 1",
-			"2 1 1 . . . 1 1 2",
-			"2 2 1 1 . 1 1 2 2",
-			"2 2 2 1 . 1 2 2 2",
-			"# 2 2 2 . 2 2 2 #",
-			"# # 2 2 . 2 2 # #",
+			". . . . 1 . . . .",
+			". . @ . 1 . . . .",
+			". . . . 1 . . . .",
+			". . . . 1 . . . .",
+			"1 1 1 1 1 1 1 1 1",
+			"- - - - 1 - - - -",
+			"- - - - 1 - - - -",
+			"- - - - 1 - - - -",
+			"- - - - 1 - - - -",
 		],
 	},
 
-
-	# L6: cave webs, the chapter's new element (Royal Match meets grass on level 4): a floor
-	# layer under the gems, cleared by a match on top of it. A diamond board, a diamond of webs.
+	# L6 "four gardens": cave webs, the chapter's new element (Royal Match meets grass on level
+	# 4): a floor layer under the gems, cleared by a match on top of it. Four 3x3 patches.
 	{
-		"id": "webs1", "mode": "fall", "colours": 4, "tier": "intro", "energy": 20,
-		"goals": [{"type": "web", "n": 13}],
-		"obstacles": [[Vector2i(4, 2), "web"], [Vector2i(3, 3), "web"], [Vector2i(4, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(3, 5), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(4, 6), "web"]],
-		"rows": [
-			"# # . . . . . # #",
-			"# . . . . . . . #",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			"# . . . @ . . . #",
-			"# # . . . . . # #",
-		],
+		"id": "gardens", "mode": "fall", "colours": 4, "tier": "intro", "energy": 14,
+		"goals": [{"type": "web", "n": 36}],
 		"script": [
 			{"say": "Make a match on top of\na WEB to clear it!", "until": "match", "banner": true,
-					"lit": [Vector2i(4, 2), Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(2, 4), Vector2i(3, 4), Vector2i(4, 4), Vector2i(5, 4), Vector2i(6, 4), Vector2i(3, 5), Vector2i(4, 5), Vector2i(5, 5), Vector2i(4, 6)]},
+					"lit": [Vector2i(1, 1), Vector2i(2, 1), Vector2i(3, 1), Vector2i(5, 1), Vector2i(6, 1), Vector2i(7, 1), Vector2i(1, 2), Vector2i(2, 2), Vector2i(3, 2), Vector2i(5, 2), Vector2i(6, 2), Vector2i(7, 2), Vector2i(1, 3), Vector2i(2, 3), Vector2i(3, 3), Vector2i(5, 3), Vector2i(6, 3), Vector2i(7, 3), Vector2i(1, 5), Vector2i(2, 5), Vector2i(3, 5), Vector2i(5, 5), Vector2i(6, 5), Vector2i(7, 5), Vector2i(1, 6), Vector2i(2, 6), Vector2i(3, 6), Vector2i(5, 6), Vector2i(6, 6), Vector2i(7, 6), Vector2i(1, 7), Vector2i(2, 7), Vector2i(3, 7), Vector2i(5, 7), Vector2i(6, 7), Vector2i(7, 7)]},
 		],
-	},
-	# L7 "chessboard": an octagon; below the open top, a chessboard of rock lies over a web
-	# garden (Royal Match hides grass under boxes). Every rock broken shows a web; match on it.
-	{
-		"id": "silk", "mode": "fall", "colours": 4, "tier": "intro", "energy": 30,
-		"goals": [{"type": "web", "n": 43}, {"type": "rock", "n": 21}],
-		"obstacles": [[Vector2i(0, 4), "web"], [Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"], [Vector2i(8, 4), "web"], [Vector2i(0, 5), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(3, 5), "web"], [Vector2i(4, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(4, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(3, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"]],
+		"obstacles": [[Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(3, 1), "web"], [Vector2i(5, 1), "web"], [Vector2i(6, 1), "web"], [Vector2i(7, 1), "web"], [Vector2i(1, 2), "web"], [Vector2i(2, 2), "web"], [Vector2i(3, 2), "web"], [Vector2i(5, 2), "web"], [Vector2i(6, 2), "web"], [Vector2i(7, 2), "web"], [Vector2i(1, 3), "web"], [Vector2i(2, 3), "web"], [Vector2i(3, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(3, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"]],
 		"rows": [
-			"# . . . . . . . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
 			". . . . . . . . .",
 			". . . . @ . . . .",
 			". . . . . . . . .",
-			"1 . 1 . 1 . 1 . 1",
-			". 1 . 1 . 1 . 1 .",
-			"1 . 1 . 1 . 1 . 1",
-			". 1 . 1 . 1 . 1 .",
-			"# . 1 . 1 . 1 . #",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
 		],
 	},
 
-
-
-
-	# L8 "domes": webs lie under the rock in the two bottom-corner pockets and under a thick
-	# dome in the middle; the open top is the workshop. The goal card's tip: path combos.
+	# L7 "notched carpet" (Royal Match level 10): webs nearly everywhere, the board notched at
+	# the top and the bottom.
 	{
-		"id": "domes", "mode": "fall", "colours": 4, "tier": "normal", "energy": 24,
-		"goals": [{"type": "web", "n": 14}, {"type": "rock", "n": 29}],
+		"id": "carpet", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
+		"goals": [{"type": "web", "n": 59}],
+		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(1, 0), "web"], [Vector2i(2, 0), "web"], [Vector2i(6, 0), "web"], [Vector2i(7, 0), "web"], [Vector2i(8, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(6, 1), "web"], [Vector2i(7, 1), "web"], [Vector2i(8, 1), "web"], [Vector2i(0, 2), "web"], [Vector2i(1, 2), "web"], [Vector2i(2, 2), "web"], [Vector2i(6, 2), "web"], [Vector2i(7, 2), "web"], [Vector2i(8, 2), "web"], [Vector2i(0, 3), "web"], [Vector2i(1, 3), "web"], [Vector2i(2, 3), "web"], [Vector2i(3, 3), "web"], [Vector2i(5, 3), "web"], [Vector2i(6, 3), "web"], [Vector2i(7, 3), "web"], [Vector2i(8, 3), "web"], [Vector2i(0, 4), "web"], [Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(4, 4), "web"], [Vector2i(5, 4), "web"], [Vector2i(6, 4), "web"], [Vector2i(7, 4), "web"], [Vector2i(8, 4), "web"], [Vector2i(0, 5), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
+		"rows": [
+			". . . # # # . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . @ . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . . . . . . .",
+			". . . # # # . . .",
+			". . . # # # . . .",
+		],
+	},
+
+	# L8 "split" (Royal Match level 11): a bedrock gap splits the top: webs on the left, stairs
+	# of rock on the right over a room that starts empty; the halves meet at the bottom. The goal card's tip: path combos.
+	{
+		"id": "split", "mode": "fall", "colours": 4, "tier": "normal", "energy": 28,
+		"goals": [{"type": "web", "n": 28}, {"type": "rock", "n": 14}],
 		"tip": ["pulsar", "nova", "Draw a path through two power-ups: they merge into one big combo."],
-		"obstacles": [[Vector2i(0, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(4, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(4, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
+		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(1, 0), "web"], [Vector2i(2, 0), "web"], [Vector2i(3, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(3, 1), "web"], [Vector2i(0, 2), "web"], [Vector2i(1, 2), "web"], [Vector2i(2, 2), "web"], [Vector2i(3, 2), "web"], [Vector2i(0, 3), "web"], [Vector2i(1, 3), "web"], [Vector2i(2, 3), "web"], [Vector2i(3, 3), "web"], [Vector2i(0, 4), "web"], [Vector2i(1, 4), "web"], [Vector2i(2, 4), "web"], [Vector2i(3, 4), "web"], [Vector2i(0, 5), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(3, 5), "web"], [Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"]],
 		"rows": [
-			"# # . . @ . . # #",
-			"# . . . . . . . #",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			". . . . . . . . .",
-			"1 1 . . . . . 1 1",
-			"1 1 1 . 2 . 1 1 1",
-			"1 1 1 2 2 2 1 1 1",
-			"1 1 1 2 2 2 1 1 1",
+			". . . . # . . . .",
+			". . . . # . . . .",
+			". . . . # . . . 1",
+			". . . . # . . 1 1",
+			". . . . # . 1 1 1",
+			". . . . # 1 1 1 1",
+			". . . . # 1 1 1 1",
+			". . . . @ - - - -",
+			". . . . . - - - -",
 		],
 	},
 
-
-	# L9: the chapter's small peak (two goal types). Idea: an hourglass; the webs are up top,
-	# beyond a narrow waist, and a rock band guards the bottom. Clear a way up through the
-	# waist, then send power-ups through it.
+	# L9 "garden cross", the chapter's small peak (two goal types; Royal Match level 12): a thick
+	# plus of rock; the rooms below it start empty, with webs on their floor. Break an arm and the
+	# room under it fills; then clear its webs.
 	{
-		"id": "hourglass", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
-		"goals": [{"type": "web", "n": 18}, {"type": "rock", "n": 4}],
+		"id": "crossgarden", "mode": "fall", "colours": 4, "tier": "normal", "energy": 20,
+		"goals": [{"type": "web", "n": 32}, {"type": "rock", "n": 17}],
 		"tip": ["drone", "pulsar", "A drone carrying a Pulsar flies to the best line and fires it there."],
-		"obstacles": [[Vector2i(0, 0), "web"], [Vector2i(1, 0), "web"], [Vector2i(2, 0), "web"], [Vector2i(3, 0), "web"], [Vector2i(4, 0), "web"], [Vector2i(5, 0), "web"], [Vector2i(6, 0), "web"], [Vector2i(7, 0), "web"], [Vector2i(8, 0), "web"], [Vector2i(0, 1), "web"], [Vector2i(1, 1), "web"], [Vector2i(2, 1), "web"], [Vector2i(3, 1), "web"], [Vector2i(4, 1), "web"], [Vector2i(5, 1), "web"], [Vector2i(6, 1), "web"], [Vector2i(7, 1), "web"], [Vector2i(8, 1), "web"]],
+		"obstacles": [[Vector2i(0, 5), "web"], [Vector2i(1, 5), "web"], [Vector2i(2, 5), "web"], [Vector2i(3, 5), "web"], [Vector2i(5, 5), "web"], [Vector2i(6, 5), "web"], [Vector2i(7, 5), "web"], [Vector2i(8, 5), "web"], [Vector2i(0, 6), "web"], [Vector2i(1, 6), "web"], [Vector2i(2, 6), "web"], [Vector2i(3, 6), "web"], [Vector2i(5, 6), "web"], [Vector2i(6, 6), "web"], [Vector2i(7, 6), "web"], [Vector2i(8, 6), "web"], [Vector2i(0, 7), "web"], [Vector2i(1, 7), "web"], [Vector2i(2, 7), "web"], [Vector2i(3, 7), "web"], [Vector2i(5, 7), "web"], [Vector2i(6, 7), "web"], [Vector2i(7, 7), "web"], [Vector2i(8, 7), "web"], [Vector2i(0, 8), "web"], [Vector2i(1, 8), "web"], [Vector2i(2, 8), "web"], [Vector2i(3, 8), "web"], [Vector2i(5, 8), "web"], [Vector2i(6, 8), "web"], [Vector2i(7, 8), "web"], [Vector2i(8, 8), "web"]],
 		"rows": [
-			". . . . . . . . .",
-			". . . . . . . . .",
-			"# . . . . . . . #",
-			"# # . . . . . # #",
-			"# # # . . . # # #",
-			"# # . . . . . # #",
-			"# 2 . . . . . 2 #",
-			"2 . . . . . . . 2",
-			". . . . @ . . . .",
-			". . . . . . . . .",
+			". . . . 2 . . . .",
+			". . @ . 2 . . . .",
+			". . . . 2 . . . .",
+			". . . . 2 . . . .",
+			"2 2 2 2 2 2 2 2 2",
+			"- - - - 2 - - - -",
+			"- - - - 2 - - - -",
+			"- - - - 2 - - - -",
+			"- - - - 2 - - - -",
 		],
 	},
+
 	# L10: the chapter's reward, a show level (Royal Match floods a board with its element): a
 	# plus-shaped board, thick webs everywhere and power-ups already waiting.
 	{
@@ -312,25 +302,65 @@ const LIST := [
 		],
 	},
 
-	# L13 "relay": three cores, one at a time (Candy Crush's ingredients): one dock at the foot
-	# of a chute between two rock pillars. Every core delivered, the next drops in at the top
-	# and the chute has filled with gems again.
+	# L13 "two rooms" (Royal Match level 38): the top room has the core and a floor of thick
+	# rock; the room below it starts empty. Act one: break the floor (from either side, once the
+	# robot is down). Then the gems pour down and fill the room below, and act two is landing
+	# the core on its dock.
 	{
-		"id": "nest", "mode": "fall", "colours": 4, "tier": "normal", "energy": 18,
-		"goals": [{"type": "core", "n": 3}, {"type": "rock", "n": 9}],
+		"id": "rooms", "mode": "fall", "colours": 4, "tier": "normal", "energy": 22,
+		"goals": [{"type": "core", "n": 1}, {"type": "rock", "n": 9}],
 		"cores": [Vector2i(4, 0)],
-		"core_feed": [4, 2],
 		"docks": [Vector2i(4, 8)],
 		"rows": [
 			". . . . . . . . .",
 			". . . . . . . . .",
+			". . @ . . . . . .",
+			"2 2 2 2 2 2 2 2 2",
+			"- - - - - - - - -",
+			"- - - - - - - - -",
+			"- - - - - - - - -",
+			"- - - - - - - - -",
+			"# - - - - - - - #",
+		],
+	},
+
+	# L14 "backbone", a breather without a core (Royal Match level 18): a spine of thick rock
+	# down the middle, shielded by thin rock on both sides. The shields go first, then the spine.
+	# Nothing waits under the rock (no webs: Royal Match hides nothing behind a box).
+	{
+		"id": "backbone", "mode": "fall", "colours": 4, "tier": "breather", "energy": 20,
+		"goals": [{"type": "rock", "n": 14}],
+		"rows": [
+			". . . 1 2 1 . . .",
+			". . . 1 2 1 . . .",
+			". . . . 2 . . . .",
+			". . . . @ . . . .",
+			". . . 1 2 1 . . .",
+			". . . 1 2 1 . . .",
+			". . . . 2 . . . .",
 			". . . . . . . . .",
-			"# 1 . . 2 . . 1 #",
-			"# # . . . . . # #",
-			"# . . . @ . . . #",
-			". . . 1 . 1 . . .",
-			". . . 1 . 1 . . .",
-			". . . 1 . 1 . . .",
+			"# . . . . . . . #",
+		],
+	},
+
+	# L15 "the room" (Royal Match level 23): an L; the robot starts in the open tower on the
+	# right, the room on the left is packed with rock. The core waits on top of it in the corner,
+	# its dock at the bottom: eat into the room from the tower side until the core's column opens.
+	{
+		"id": "tower", "mode": "fall", "colours": 4, "tier": "normal", "energy": 26,
+		"goals": [{"type": "core", "n": 1}, {"type": "rock", "n": 22}],
+		"cores": [Vector2i(0, 3)],
+		"docks": [Vector2i(0, 8)],
+		"rows": [
+			"# # # # . . . . .",
+			"# # # # . . @ . .",
+			"# # # # . . . . .",
+			". 1 1 1 . . . . .",
+			"1 1 1 1 . . . . .",
+			"1 1 1 1 . . . . .",
+			"1 1 1 1 . . . . .",
+			"1 1 1 1 . . . . .",
+			"- 1 1 1 . . . . #",
 		],
 	},
 
@@ -810,12 +840,10 @@ const LIST := [
 static func count() -> int:
 	return LIST.size()
 
-
 static func get_site(i: int) -> Dictionary:
 	if i >= LIST.size() and i - LIST.size() < protos().size():
 		return protos()[i - LIST.size()]
 	return LIST[clampi(i, 0, LIST.size() - 1)]
-
 
 # --- prototypes ------------------------------------------------------------------------
 ## Movement prototypes (Settings > Prototypes), to find the fun in drawn paths plus board
@@ -984,7 +1012,6 @@ const PROTO_ENERGY := [30, 14, 22, 30, 30, 22, 26, 22]
 
 static var _protos: Array = []
 
-
 static func protos() -> Array:
 	if _protos.is_empty():
 		for k in PROTOS.size():
@@ -999,14 +1026,12 @@ static func protos() -> Array:
 			_protos.append(site)
 	return _protos
 
-
 ## The prototype picker's buttons: [title, campaign index].
 static func proto_list() -> Array:
 	var out := []
 	for i in protos().size():
 		out.append([String(protos()[i].title), LIST.size() + i])
 	return out
-
 
 static func goal_text(g: Dictionary) -> String:
 	match g.type:
@@ -1021,7 +1046,6 @@ static func goal_text(g: Dictionary) -> String:
 		"web": return "Clear %d web%s" % [g.n, "" if g.n == 1 else "s"]
 	return "?"
 
-
 ## The number a dig is known by (gold rush bonus digs sit between digs and have none, so
 ## inserting one does not renumber the campaign); 0 for a gold rush.
 static func dig_number(i: int) -> int:
@@ -1032,7 +1056,6 @@ static func dig_number(i: int) -> int:
 		if not LIST[j].get("gold_rush", false):
 			n += 1
 	return n
-
 
 static func index_of(id: String) -> int:
 	for i in LIST.size():

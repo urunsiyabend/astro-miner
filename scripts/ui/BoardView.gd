@@ -1263,6 +1263,12 @@ func _draw() -> void:
 				grow = clampf((at2.y - float(_fall_entry[i]) + pitch * 0.5) / pitch, 0.0, 1.0)
 				if grow <= 0.0:
 					continue
+			# through a gap in the board (bedrock) it goes out of sight: it slips in at the gap's
+			# top edge and out at its bottom edge, as through the top of its run
+			var gv := _gap_vis(int(round((at2.x - origin.x - cell * 0.5) / cell)), (at2.y - origin.y - cell * 0.5) / pitch)
+			if gv <= 0.0:
+				continue
+			grow = minf(grow, gv)
 			if fs < length:
 				var v := _fall_speed(ft) / FALL_VMAX if ft > 0.0 else 0.0
 				_tok_squash = Vector2(1.0 - 0.02 * v, 1.0 + 0.03 * v)
@@ -1695,6 +1701,7 @@ func _floor_cells() -> Dictionary:
 ## never needs to know the rules.
 func _draw_obstacles(layer: int) -> void:
 	var list: Array = snap.get("obstacles", [])
+
 	for id in list.size():
 		var it: Dictionary = list[id]
 		var rule: Dictionary = Obstacles.KINDS[it.kind]
@@ -2638,6 +2645,18 @@ func _squash_of(i: int) -> Vector2:
 ## A landed gem's centre (px up) while it squashes: its bottom stays on the floor.
 func _hop_of(i: int) -> float:
 	return -_spring_of(i) * GEM_HALF * cell
+
+
+## How much of a piece at grid row `gy` (centre, in rows) of column x is outside the gaps of
+## bedrock in the board: 1 in the open, 0 hidden inside a gap, between as it crosses an edge.
+func _gap_vis(x: int, gy: float) -> float:
+	if x < 0 or x >= Board.W:
+		return 1.0
+	var hid := 0.0
+	for y in range(maxi(0, floori(gy - 0.5)), mini(Board.H, ceili(gy + 0.5) + 1)):
+		if snap.terrain[Board.idx(Vector2i(x, y))] == T.BEDROCK:
+			hid += maxf(0.0, minf(gy + 0.5, y + 0.5) - maxf(gy - 0.5, y - 0.5))
+	return clampf(1.0 - hid, 0.0, 1.0)
 
 
 ## Seconds a fall of `cells` takes: from FALL_V0, speeding up at FALL_A, at most FALL_VMAX.

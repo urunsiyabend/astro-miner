@@ -8,13 +8,16 @@ no chains or combos (Drill 4 cells vs a rocket's 9; the 5-match Prism 10 vs a co
 
 | Shape | Power-up | Alone |
 |---|---|---|
-| 4 in a row | **Pulsar** | twin beams **both ways** along the axis it was pushed, through rock (a layer each); aimed like Candy Crush's striped candy, a rocket's reach |
+| 4 in a row | **Pulsar** | twin beams **both ways** along the axis it was pushed, through rock (a layer each) and across gaps in the board to its edge; aimed like Candy Crush's striped candy, a rocket's reach |
 | 2x2 square | **Scout drone** | hits the 4 neighbours, then flies to the most useful cell (below) and hits it; carrying a power-up (a combo), it hits the cell and sets that one off there (Homescapes' plane) |
 | L / T | **Nova** | 5x5 |
 | 5 in a row | **Black hole** | swallows every gem of the colour of the gem the path swapped just before it (Royal Match's Light Ball takes the colour it is swapped with); with none before it (first step, a chain, a pad), the most common colour. The gems it takes count as a match for their neighbours: rock beside one cracks, once (Candy Crush's colour bomb and frosting). The preview rings every gem it will take |
 
 Names: a pulsar is a star that sweeps two opposite beams; the user wanted space names, not a
 rocket under another name. Four merged: the **Big Bang**.
+
+Every power-up also hits its own cell as it goes off (a web it fell onto clears), combos the
+cell they merge on (2026-10-26).
 
 ## Chains
 
@@ -34,6 +37,10 @@ off in waves of `Powers.WAVE` (3). Between waves the board settles and refills
 found where they fell to. The next wave hits what fell in, so the board keeps flowing during
 a big combo, as Candy Crush's wrapped candy waits for the drop before its second blast.
 Research: `docs/research/match3-refill-during-combos.md`.
+
+**Order on a path** (2026-10-26): the lines the path made match first and leave their
+power-ups; then the power-ups it dragged go off, and they leave those new ones be. Before, the
+dragged one fired first and could take the gems of a 4-line the path had just lined up.
 
 ## Combos on a path
 

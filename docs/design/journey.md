@@ -71,6 +71,11 @@ The chapter's element is rock, then the cave web at 6 (a floor layer cleared by 
 top of it: Royal Match meets grass on level 4). Thick rock is a variant (crystals in rock
 were dropped: not a good mechanic). Every level is free play except level 1 (the path lesson).
 
+Rebuilt again 2026-10-26 on Royal Match's levels 6-12 (`docs/research/royal-match-level-flows.md`):
+big masses (a wall, an edge, a pyramid, a plus, a carpet), and **no webs under rock** (the
+user: in Royal Match nothing waits behind a box; the gems fall in from above). Budgets from the
+SLOPPY bot (`lesson_design.gd rate`): intro levels ~95-100%, normal ~80-90%, the peak ~90%.
+
 Rebuilt 2026-10-23 as Royal Match boards (the user: "the levels still don't taste like Royal
 Match"; the answer was the board's shape and layout): a new silhouette every level, obstacles in
 shapes (bastions, pillars, a spine, steps, a chessboard), never one big slab; an open middle to
@@ -78,20 +83,24 @@ build power-ups in, the goals at the edges and in pockets.
 
 | L | Idea (silhouette, layout) | Goal (all of it) | Element | Tip |
 |---|---|---|---|---|
-| 1 | 7x9, a rock row near the top and one at the bottom, 3 colours | 14 rock | **path + rock** (guided) | – |
-| 2 | **bastions**: four stepped rock bastions in the corners, a plus of open ground | 24 rock | | Pulsar |
-| 3 | **pillars**: two rock pillars on wide plinths, thick capitals | 30 rock | **thick rock** (Mira) | – |
-| 4 | **spine**: a crowned spine splits the board in two wings, pockets in the bottom corners | 24 rock | | Scout drone |
-| 5 | **valley**: the rock steps down from both sides into a V, thicker deeper | 38 rock | | Nova |
-| 6 | **diamond**: a diamond board, a diamond of webs in the middle | 13 webs | **cave web** (Mira) | – |
-| 7 | **chessboard**: an octagon, a chessboard of rock over a web garden below | 43 webs + 21 rock | web + rock | – |
-| 8 | **domes**: an octagon, webs under the rock of two corner pockets and a thick dome | 14 webs + 29 rock | web + rock | combo |
-| 9 | **hourglass**: webs beyond a narrow waist, a rock band below; the small peak | 18 webs + 6 rock | | drone + Pulsar |
+| 1 | 7x9, rock on the floor and in the corners, 3 colours | 15 rock | **path + rock** (guided) | – |
+| 2 | **wall** (RM 6): the bottom half is a wall of rock, the gems on top; the board grows as it breaks | 45 rock | | Pulsar |
+| 3 | **edges** (RM 7): rock down the left edge, a step top-right, a thick 3x3 block bottom-right | 26 rock | **thick rock** (banner) | – |
+| 4 | **pyramid** (RM 8): an upside-down pyramid of rock, the board narrowing with it to a 1-wide tip | 26 rock | | Scout drone |
+| 5 | **plus** (RM 12): a rock plus splits the board in four; the two rooms below start empty | 17 rock | empty rooms (`-`) | Nova |
+| 6 | **four gardens**: four 3x3 patches of web around an open cross | 36 webs | **cave web** (banner) | – |
+| 7 | **notched carpet** (RM 10): webs nearly everywhere, notches top and bottom | 59 webs | | – |
+| 8 | **split** (RM 11): a bedrock gap; webs on the left, rock stairs on the right over an empty room; they meet at the bottom | 28 webs + 14 rock | web + rock | combo |
+| 9 | **garden cross** (RM 12), the small peak: a thick plus; the rooms below start empty with webs on their floor | 32 webs + 17 rock | | drone + Pulsar |
 | 10 | **starfall**: a plus-shaped show board, thick webs everywhere, power-ups waiting | 54 webs | reward | Black hole |
 
 **Full clear** (the user, 2026-10-23): a level's goals are every obstacle on its board, all of
 it; clearing part of the rock means nothing. `tests/run_tests.gd` (`_test_full_clear_goals`)
 checks it for levels 1..`Sites.JOURNEY_BUILT`.
+
+**Nothing behind the rock** (the user, 2026-10-26; Royal Match's boxes, our notes on its level
+38): a broken rock leaves its cell empty and the gems above fall into it (`Board._damage_rock`,
+fall mode). Before, a gem of a random colour popped up in its place.
 
 **Refill shapes** (since diagonal fill): new gems fall in only where a column opens to the sky;
 under rock a cell fills diagonally from a neighbour column, or stays empty. So a rock run of 3
@@ -133,7 +142,20 @@ core, opens chapter 2.
 |---|---|---|---|---|
 | 11 | **plug**: a funnel, its spout plugged with thick rock; one core at the top | 1 core + 2 rock | **energy core** (banner, spotlight) | – |
 | 12 | **ledges**: two cores stuck on bedrock ledges at the sides; walk the robot into one (they swap) to drag it off; a thick cap on each dock | 2 cores + 10 rock | core + rock; the robot drags | Mira's line |
-| 13 | **relay**: three cores one at a time (`core_feed`, Candy Crush's ingredients) down a chute between rock pillars; it fills again after each | 3 cores + 9 rock | core feed | – |
+| 13 | **two rooms** (RM 38): the core in a top room with a thick rock floor; the room below starts empty and fills when the floor breaks | 1 core + 9 rock | empty room (`-`) | – |
+| 14 | **backbone** (RM 18), a breather: a thick rock spine down the middle, thin rock shields beside it; nothing under the rock | 14 rock | | – |
+| 15 | **the room** (RM 23): an L; the robot in the open tower, the room packed with rock, the core on top of it in the corner, its dock below | 1 core + 22 rock | | – |
+
+Designed from the frame-by-frame study (`docs/research/royal-match-level-flows.md`): two acts
+(shield, then goal), the last goal in the hardest spot, shapes that read at once, a board that
+grows (an empty room under a wall).
+
+**Split boards** (2026-10-23): bedrock is only where the board has no cell, so a piece falls
+through a gap to the part below (`Board._fall_straight`); rock still stops it. Islands, rings,
+decks and split columns are all possible now (a cell under a gap is fed from above it). A
+cell coded `-` starts empty (a room waiting for its wall to break).
+A core never appears out of nowhere (the user: a new one dropping in after each delivery "makes
+no sense"): every core is on the board from the start.
 
 Core levels have no webs: Candy Crush kept its ingredients and jelly on separate boards until
 level 1688. A core is seen landing on its dock (a fall step), then delivered in a step of its own.
